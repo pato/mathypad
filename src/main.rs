@@ -1,3 +1,4 @@
+use clap::{Arg, Command};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -104,6 +105,104 @@ impl App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let matches = Command::new("mathypad")
+        .version("0.1.0")
+        .about("A mathematical notepad with unit conversion support")
+        .arg(
+            Arg::new("expression")
+                .help("Expression to evaluate (use -- before expression)")
+                .last(true)
+                .num_args(0..)
+        )
+        .get_matches();
+
+    // Check if we have expressions to evaluate (one-shot mode)
+    if let Some(expression_parts) = matches.get_many::<String>("expression") {
+        let expression: String = expression_parts.cloned().collect::<Vec<String>>().join(" ");
+        if !expression.is_empty() {
+            run_one_shot_mode(&expression)?;
+            return Ok(());
+        }
+    }
+
+    // Run the interactive TUI mode
+    run_interactive_mode()
+}
+
+fn run_one_shot_mode(expression: &str) -> Result<(), Box<dyn Error>> {
+    // Print the expression with syntax highlighting
+    print_formatted_expression(expression);
+    
+    // Evaluate the expression
+    if let Some(result) = evaluate_expression(expression) {
+        println!(" = {}", result);
+    } else {
+        println!(" = (invalid expression)");
+    }
+    
+    Ok(())
+}
+
+fn print_formatted_expression(text: &str) {
+    // Use ANSI escape codes to print numbers in light blue and units in green
+    let mut current_pos = 0;
+    let chars: Vec<char> = text.chars().collect();
+
+    while current_pos < chars.len() {
+        if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+            // Handle numbers
+            let start_pos = current_pos;
+            let mut has_digit = false;
+            let mut has_dot = false;
+
+            while current_pos < chars.len() {
+                let ch = chars[current_pos];
+                if ch.is_ascii_digit() {
+                    has_digit = true;
+                    current_pos += 1;
+                } else if ch == '.' && !has_dot {
+                    has_dot = true;
+                    current_pos += 1;
+                } else if ch == ',' {
+                    current_pos += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if has_digit {
+                let number_text: String = chars[start_pos..current_pos].iter().collect();
+                // Print number in light blue (ANSI color code 94)
+                print!("\x1b[94m{}\x1b[0m", number_text);
+            } else {
+                print!("{}", chars[start_pos]);
+                current_pos = start_pos + 1;
+            }
+        } else if chars[current_pos].is_ascii_alphabetic() {
+            // Handle potential units and keywords
+            let start_pos = current_pos;
+            
+            while current_pos < chars.len() && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos] == '/') {
+                current_pos += 1;
+            }
+            
+            let word_text: String = chars[start_pos..current_pos].iter().collect();
+            
+            // Check if it's a valid unit or keyword
+            if parse_unit(&word_text).is_some() || word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
+                // Print unit/keyword in green (ANSI color code 92)
+                print!("\x1b[92m{}\x1b[0m", word_text);
+            } else {
+                print!("{}", word_text);
+            }
+        } else {
+            print!("{}", chars[current_pos]);
+            current_pos += 1;
+        }
+    }
+}
+
+fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -1333,6 +1432,7 @@ fn parse_colors(text: &str) -> Vec<Span> {
 
     while current_pos < chars.len() {
         if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+            // Handle numbers
             let start_pos = current_pos;
             let mut has_digit = false;
             let mut has_dot = false;
@@ -1361,6 +1461,25 @@ fn parse_colors(text: &str) -> Vec<Span> {
             } else {
                 spans.push(Span::raw(chars[start_pos].to_string()));
                 current_pos = start_pos + 1;
+            }
+        } else if chars[current_pos].is_ascii_alphabetic() {
+            // Handle potential units and keywords
+            let start_pos = current_pos;
+            
+            while current_pos < chars.len() && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos] == '/') {
+                current_pos += 1;
+            }
+            
+            let word_text: String = chars[start_pos..current_pos].iter().collect();
+            
+            // Check if it's a valid unit or keyword
+            if parse_unit(&word_text).is_some() || word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
+                spans.push(Span::styled(
+                    word_text,
+                    Style::default().fg(Color::Green),
+                ));
+            } else {
+                spans.push(Span::raw(word_text));
             }
         } else {
             spans.push(Span::raw(chars[current_pos].to_string()));
