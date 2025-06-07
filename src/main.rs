@@ -781,27 +781,121 @@ fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
             't' | 'T' => {
                 // Check for "to" keyword
                 if i + 1 < chars.len() && chars[i + 1].to_lowercase().next() == Some('o') {
-                    // Skip whitespace after "to"
-                    i += 2;
-                    while i < chars.len() && chars[i] == ' ' {
+                    // Check if it's actually "to" and not part of a longer word like "tb"
+                    if i + 2 >= chars.len() || !chars[i + 2].is_ascii_alphabetic() {
+                        // Skip whitespace after "to"
+                        i += 2;
+                        while i < chars.len() && chars[i] == ' ' {
+                            i += 1;
+                        }
+                        tokens.push(Token::To);
+                    } else {
+                        // Fall through to general alphabetic handling
+                        let unit_start = i;
+                        while i < chars.len()
+                            && (chars[i].is_ascii_alphabetic()
+                                || chars[i].is_ascii_digit()
+                                || chars[i] == '/')
+                        {
+                            i += 1;
+                        }
+
+                        let word: String = chars[unit_start..i].iter().collect();
+                        if word.to_lowercase() == "to" {
+                            tokens.push(Token::To);
+                        } else if word.to_lowercase() == "in" {
+                            tokens.push(Token::In);
+                        } else if let Some(line_num) = parse_line_reference(&word) {
+                            tokens.push(Token::LineReference(line_num));
+                        } else if let Some(unit) = parse_unit(&word) {
+                            tokens.push(Token::NumberWithUnit(1.0, unit));
+                        } else {
+                            return None;
+                        }
+                    }
+                } else {
+                    // Fall through to general alphabetic handling
+                    let unit_start = i;
+                    while i < chars.len()
+                        && (chars[i].is_ascii_alphabetic()
+                            || chars[i].is_ascii_digit()
+                            || chars[i] == '/')
+                    {
                         i += 1;
                     }
-                    tokens.push(Token::To);
-                } else {
-                    return None; // Unexpected character
+
+                    let word: String = chars[unit_start..i].iter().collect();
+                    if word.to_lowercase() == "to" {
+                        tokens.push(Token::To);
+                    } else if word.to_lowercase() == "in" {
+                        tokens.push(Token::In);
+                    } else if let Some(line_num) = parse_line_reference(&word) {
+                        tokens.push(Token::LineReference(line_num));
+                    } else if let Some(unit) = parse_unit(&word) {
+                        tokens.push(Token::NumberWithUnit(1.0, unit));
+                    } else {
+                        return None;
+                    }
                 }
             }
             'i' | 'I' => {
                 // Check for "in" keyword
                 if i + 1 < chars.len() && chars[i + 1].to_lowercase().next() == Some('n') {
-                    // Skip whitespace after "in"
-                    i += 2;
-                    while i < chars.len() && chars[i] == ' ' {
+                    // Check if it's actually "in" and not part of a longer word
+                    if i + 2 >= chars.len() || !chars[i + 2].is_ascii_alphabetic() {
+                        // Skip whitespace after "in"
+                        i += 2;
+                        while i < chars.len() && chars[i] == ' ' {
+                            i += 1;
+                        }
+                        tokens.push(Token::In);
+                    } else {
+                        // Fall through to general alphabetic handling
+                        let unit_start = i;
+                        while i < chars.len()
+                            && (chars[i].is_ascii_alphabetic()
+                                || chars[i].is_ascii_digit()
+                                || chars[i] == '/')
+                        {
+                            i += 1;
+                        }
+
+                        let word: String = chars[unit_start..i].iter().collect();
+                        if word.to_lowercase() == "to" {
+                            tokens.push(Token::To);
+                        } else if word.to_lowercase() == "in" {
+                            tokens.push(Token::In);
+                        } else if let Some(line_num) = parse_line_reference(&word) {
+                            tokens.push(Token::LineReference(line_num));
+                        } else if let Some(unit) = parse_unit(&word) {
+                            tokens.push(Token::NumberWithUnit(1.0, unit));
+                        } else {
+                            return None;
+                        }
+                    }
+                } else {
+                    // Fall through to general alphabetic handling
+                    let unit_start = i;
+                    while i < chars.len()
+                        && (chars[i].is_ascii_alphabetic()
+                            || chars[i].is_ascii_digit()
+                            || chars[i] == '/')
+                    {
                         i += 1;
                     }
-                    tokens.push(Token::In);
-                } else {
-                    return None; // Unexpected character
+
+                    let word: String = chars[unit_start..i].iter().collect();
+                    if word.to_lowercase() == "to" {
+                        tokens.push(Token::To);
+                    } else if word.to_lowercase() == "in" {
+                        tokens.push(Token::In);
+                    } else if let Some(line_num) = parse_line_reference(&word) {
+                        tokens.push(Token::LineReference(line_num));
+                    } else if let Some(unit) = parse_unit(&word) {
+                        tokens.push(Token::NumberWithUnit(1.0, unit));
+                    } else {
+                        return None;
+                    }
                 }
             }
             _ => {
@@ -910,12 +1004,16 @@ enum Unit {
     MB, // Megabyte
     GB, // Gigabyte
     TB, // Terabyte
+    PB, // Petabyte
+    EB, // Exabyte
 
     // Data units (base 2)
     KiB, // Kibibyte
     MiB, // Mebibyte
     GiB, // Gibibyte
     TiB, // Tebibyte
+    PiB, // Pebibyte
+    EiB, // Exbibyte
 
     // Request/Query count (base unit: requests)
     Request,
@@ -927,10 +1025,14 @@ enum Unit {
     MBPerSecond,
     GBPerSecond,
     TBPerSecond,
+    PBPerSecond,
+    EBPerSecond,
     KiBPerSecond,
     MiBPerSecond,
     GiBPerSecond,
     TiBPerSecond,
+    PiBPerSecond,
+    EiBPerSecond,
 
     // Request/Query rate units (base: requests per second)
     RequestsPerSecond,
@@ -956,12 +1058,16 @@ impl Unit {
             Unit::MB => value * 1_000_000.0,
             Unit::GB => value * 1_000_000_000.0,
             Unit::TB => value * 1_000_000_000_000.0,
+            Unit::PB => value * 1_000_000_000_000_000.0,
+            Unit::EB => value * 1_000_000_000_000_000_000.0,
 
             // Data units base 2 (convert to bytes)
             Unit::KiB => value * 1_024.0,
             Unit::MiB => value * 1_048_576.0,
             Unit::GiB => value * 1_073_741_824.0,
             Unit::TiB => value * 1_099_511_627_776.0,
+            Unit::PiB => value * 1_125_899_906_842_624.0,
+            Unit::EiB => value * 1_152_921_504_606_846_976.0,
 
             // Request/Query count (base unit: requests/queries)
             Unit::Request => value,
@@ -973,10 +1079,14 @@ impl Unit {
             Unit::MBPerSecond => value * 1_000_000.0,
             Unit::GBPerSecond => value * 1_000_000_000.0,
             Unit::TBPerSecond => value * 1_000_000_000_000.0,
+            Unit::PBPerSecond => value * 1_000_000_000_000_000.0,
+            Unit::EBPerSecond => value * 1_000_000_000_000_000_000.0,
             Unit::KiBPerSecond => value * 1_024.0,
             Unit::MiBPerSecond => value * 1_048_576.0,
             Unit::GiBPerSecond => value * 1_073_741_824.0,
             Unit::TiBPerSecond => value * 1_099_511_627_776.0,
+            Unit::PiBPerSecond => value * 1_125_899_906_842_624.0,
+            Unit::EiBPerSecond => value * 1_152_921_504_606_846_976.0,
 
             // Request/Query rate units (convert to requests per second)
             Unit::RequestsPerSecond => value,
@@ -1003,12 +1113,16 @@ impl Unit {
             Unit::MB => base_value / 1_000_000.0,
             Unit::GB => base_value / 1_000_000_000.0,
             Unit::TB => base_value / 1_000_000_000_000.0,
+            Unit::PB => base_value / 1_000_000_000_000_000.0,
+            Unit::EB => base_value / 1_000_000_000_000_000_000.0,
 
             // Data units base 2 (from bytes)
             Unit::KiB => base_value / 1_024.0,
             Unit::MiB => base_value / 1_048_576.0,
             Unit::GiB => base_value / 1_073_741_824.0,
             Unit::TiB => base_value / 1_099_511_627_776.0,
+            Unit::PiB => base_value / 1_125_899_906_842_624.0,
+            Unit::EiB => base_value / 1_152_921_504_606_846_976.0,
 
             // Request/Query count (from requests/queries)
             Unit::Request => base_value,
@@ -1020,10 +1134,14 @@ impl Unit {
             Unit::MBPerSecond => base_value / 1_000_000.0,
             Unit::GBPerSecond => base_value / 1_000_000_000.0,
             Unit::TBPerSecond => base_value / 1_000_000_000_000.0,
+            Unit::PBPerSecond => base_value / 1_000_000_000_000_000.0,
+            Unit::EBPerSecond => base_value / 1_000_000_000_000_000_000.0,
             Unit::KiBPerSecond => base_value / 1_024.0,
             Unit::MiBPerSecond => base_value / 1_048_576.0,
             Unit::GiBPerSecond => base_value / 1_073_741_824.0,
             Unit::TiBPerSecond => base_value / 1_099_511_627_776.0,
+            Unit::PiBPerSecond => base_value / 1_125_899_906_842_624.0,
+            Unit::EiBPerSecond => base_value / 1_152_921_504_606_846_976.0,
 
             // Request/Query rate units (from requests per second)
             Unit::RequestsPerSecond => base_value,
@@ -1043,20 +1161,28 @@ impl Unit {
             | Unit::MB
             | Unit::GB
             | Unit::TB
+            | Unit::PB
+            | Unit::EB
             | Unit::KiB
             | Unit::MiB
             | Unit::GiB
-            | Unit::TiB => UnitType::Data,
+            | Unit::TiB
+            | Unit::PiB
+            | Unit::EiB => UnitType::Data,
             Unit::Request | Unit::Query => UnitType::Request,
             Unit::BytesPerSecond
             | Unit::KBPerSecond
             | Unit::MBPerSecond
             | Unit::GBPerSecond
             | Unit::TBPerSecond
+            | Unit::PBPerSecond
+            | Unit::EBPerSecond
             | Unit::KiBPerSecond
             | Unit::MiBPerSecond
             | Unit::GiBPerSecond
-            | Unit::TiBPerSecond => UnitType::DataRate,
+            | Unit::TiBPerSecond
+            | Unit::PiBPerSecond
+            | Unit::EiBPerSecond => UnitType::DataRate,
             Unit::RequestsPerSecond
             | Unit::RequestsPerMinute
             | Unit::RequestsPerHour
@@ -1077,10 +1203,14 @@ impl Unit {
             Unit::MB => "MB",
             Unit::GB => "GB",
             Unit::TB => "TB",
+            Unit::PB => "PB",
+            Unit::EB => "EB",
             Unit::KiB => "KiB",
             Unit::MiB => "MiB",
             Unit::GiB => "GiB",
             Unit::TiB => "TiB",
+            Unit::PiB => "PiB",
+            Unit::EiB => "EiB",
             Unit::Request => "req",
             Unit::Query => "query",
             Unit::BytesPerSecond => "B/s",
@@ -1088,10 +1218,14 @@ impl Unit {
             Unit::MBPerSecond => "MB/s",
             Unit::GBPerSecond => "GB/s",
             Unit::TBPerSecond => "TB/s",
+            Unit::PBPerSecond => "PB/s",
+            Unit::EBPerSecond => "EB/s",
             Unit::KiBPerSecond => "KiB/s",
             Unit::MiBPerSecond => "MiB/s",
             Unit::GiBPerSecond => "GiB/s",
             Unit::TiBPerSecond => "TiB/s",
+            Unit::PiBPerSecond => "PiB/s",
+            Unit::EiBPerSecond => "EiB/s",
             Unit::RequestsPerSecond => "req/s",
             Unit::RequestsPerMinute => "req/min",
             Unit::RequestsPerHour => "req/h",
@@ -1108,10 +1242,14 @@ impl Unit {
             Unit::MB => Ok(Unit::MBPerSecond),
             Unit::GB => Ok(Unit::GBPerSecond),
             Unit::TB => Ok(Unit::TBPerSecond),
+            Unit::PB => Ok(Unit::PBPerSecond),
+            Unit::EB => Ok(Unit::EBPerSecond),
             Unit::KiB => Ok(Unit::KiBPerSecond),
             Unit::MiB => Ok(Unit::MiBPerSecond),
             Unit::GiB => Ok(Unit::GiBPerSecond),
             Unit::TiB => Ok(Unit::TiBPerSecond),
+            Unit::PiB => Ok(Unit::PiBPerSecond),
+            Unit::EiB => Ok(Unit::EiBPerSecond),
             Unit::Request => Ok(Unit::RequestsPerSecond),
             Unit::Query => Ok(Unit::QueriesPerSecond),
             _ => Err(()),
@@ -1125,10 +1263,14 @@ impl Unit {
             Unit::MBPerSecond => Ok(Unit::MB),
             Unit::GBPerSecond => Ok(Unit::GB),
             Unit::TBPerSecond => Ok(Unit::TB),
+            Unit::PBPerSecond => Ok(Unit::PB),
+            Unit::EBPerSecond => Ok(Unit::EB),
             Unit::KiBPerSecond => Ok(Unit::KiB),
             Unit::MiBPerSecond => Ok(Unit::MiB),
             Unit::GiBPerSecond => Ok(Unit::GiB),
             Unit::TiBPerSecond => Ok(Unit::TiB),
+            Unit::PiBPerSecond => Ok(Unit::PiB),
+            Unit::EiBPerSecond => Ok(Unit::EiB),
             _ => Err(()),
         }
     }
@@ -1179,11 +1321,15 @@ fn parse_unit(text: &str) -> Option<Unit> {
         "mb" => Some(Unit::MB),
         "gb" => Some(Unit::GB),
         "tb" => Some(Unit::TB),
+        "pb" => Some(Unit::PB),
+        "eb" => Some(Unit::EB),
 
         "kib" => Some(Unit::KiB),
         "mib" => Some(Unit::MiB),
         "gib" => Some(Unit::GiB),
         "tib" => Some(Unit::TiB),
+        "pib" => Some(Unit::PiB),
+        "eib" => Some(Unit::EiB),
 
         "req" | "request" | "requests" => Some(Unit::Request),
         "query" | "queries" => Some(Unit::Query),
@@ -1193,10 +1339,14 @@ fn parse_unit(text: &str) -> Option<Unit> {
         "mb/s" | "mbps" => Some(Unit::MBPerSecond),
         "gb/s" | "gbps" => Some(Unit::GBPerSecond),
         "tb/s" | "tbps" => Some(Unit::TBPerSecond),
+        "pb/s" | "pbps" => Some(Unit::PBPerSecond),
+        "eb/s" | "ebps" => Some(Unit::EBPerSecond),
         "kib/s" | "kibps" => Some(Unit::KiBPerSecond),
         "mib/s" | "mibps" => Some(Unit::MiBPerSecond),
         "gib/s" | "gibps" => Some(Unit::GiBPerSecond),
         "tib/s" | "tibps" => Some(Unit::TiBPerSecond),
+        "pib/s" | "pibps" => Some(Unit::PiBPerSecond),
+        "eib/s" | "eibps" => Some(Unit::EiBPerSecond),
 
         "req/s" | "requests/s" | "rps" => Some(Unit::RequestsPerSecond),
         "req/min" | "requests/min" | "rpm" => Some(Unit::RequestsPerMinute),
@@ -2604,5 +2754,248 @@ mod tests {
         assert_eq!(Unit::RequestsPerHour.unit_type(), UnitType::RequestRate);
         assert_eq!(Unit::Request.unit_type(), UnitType::Request);
         assert_eq!(Unit::Query.unit_type(), UnitType::Request);
+    }
+
+    #[test]
+    fn test_large_data_unit_parsing() {
+        // Test Petabyte unit parsing (base 10)
+        assert_eq!(parse_unit("pb"), Some(Unit::PB));
+        assert_eq!(parse_unit("PB"), Some(Unit::PB));
+        
+        // Test Exabyte unit parsing (base 10)
+        assert_eq!(parse_unit("eb"), Some(Unit::EB));
+        assert_eq!(parse_unit("EB"), Some(Unit::EB));
+        
+        // Test Pebibyte unit parsing (base 2)
+        assert_eq!(parse_unit("pib"), Some(Unit::PiB));
+        assert_eq!(parse_unit("PiB"), Some(Unit::PiB));
+        
+        // Test Exbibyte unit parsing (base 2)
+        assert_eq!(parse_unit("eib"), Some(Unit::EiB));
+        assert_eq!(parse_unit("EiB"), Some(Unit::EiB));
+
+        // Test rate units
+        assert_eq!(parse_unit("pb/s"), Some(Unit::PBPerSecond));
+        assert_eq!(parse_unit("pbps"), Some(Unit::PBPerSecond));
+        assert_eq!(parse_unit("eb/s"), Some(Unit::EBPerSecond));
+        assert_eq!(parse_unit("ebps"), Some(Unit::EBPerSecond));
+        assert_eq!(parse_unit("pib/s"), Some(Unit::PiBPerSecond));
+        assert_eq!(parse_unit("pibps"), Some(Unit::PiBPerSecond));
+        assert_eq!(parse_unit("eib/s"), Some(Unit::EiBPerSecond));
+        assert_eq!(parse_unit("eibps"), Some(Unit::EiBPerSecond));
+    }
+
+    #[test]
+    fn test_large_data_unit_conversions() {
+        // Test TB to PB conversions (base 10)
+        let result = evaluate_with_unit_info("1000 TB to PB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001); // 1000 TB = 1 PB
+
+        let result = evaluate_with_unit_info("5 PB to TB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 5000.0).abs() < 0.001); // 5 PB = 5000 TB
+
+        // Test PB to EB conversions (base 10)
+        let result = evaluate_with_unit_info("1000 PB to EB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001); // 1000 PB = 1 EB
+
+        let result = evaluate_with_unit_info("2 EB to PB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 2000.0).abs() < 0.001); // 2 EB = 2000 PB
+
+        // Test TiB to PiB conversions (base 2)
+        let result = evaluate_with_unit_info("1024 TiB to PiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001); // 1024 TiB = 1 PiB
+
+        let result = evaluate_with_unit_info("3 PiB to TiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 3072.0).abs() < 0.001); // 3 PiB = 3072 TiB
+
+        // Test PiB to EiB conversions (base 2)
+        let result = evaluate_with_unit_info("1024 PiB to EiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001); // 1024 PiB = 1 EiB
+
+        let result = evaluate_with_unit_info("2 EiB to PiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 2048.0).abs() < 0.001); // 2 EiB = 2048 PiB
+
+        // Test mixed base conversions
+        let result = evaluate_with_unit_info("1 PB to PiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        // 1 PB = 1,000,000,000,000,000 bytes = ~0.888 PiB
+        assert!((unit_val.value - 0.8881784197).abs() < 0.0001);
+
+        let result = evaluate_with_unit_info("1 EiB to EB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        // 1 EiB = 1,152,921,504,606,846,976 bytes = ~1.153 EB
+        assert!((unit_val.value - 1.152921504606847).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_large_data_unit_arithmetic() {
+        // Test arithmetic with PB units
+        assert_eq!(
+            evaluate_test_expression("2 PB + 500 TB"),
+            Some("2,500 TB".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("5 PB - 1000 TB"),
+            Some("4,000 TB".to_string())
+        );
+
+        // Test arithmetic with EB units
+        assert_eq!(
+            evaluate_test_expression("1 EB + 200 PB"),
+            Some("1,200 PB".to_string())
+        );
+
+        // Test arithmetic with PiB units
+        assert_eq!(
+            evaluate_test_expression("1 PiB + 512 TiB"),
+            Some("1,536 TiB".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("2 EiB - 1024 PiB"),
+            Some("1,024 PiB".to_string())
+        );
+
+        // Test rate calculations with large units
+        assert_eq!(
+            evaluate_test_expression("1 PB / 1 hour"),
+            Some("0.000 PB/s".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("10 PB/s * 30 minutes"),
+            Some("18,000 PB".to_string())
+        );
+
+        // Test very large transfers
+        assert_eq!(
+            evaluate_test_expression("1 EB/s * 1 second"),
+            Some("1 EB".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("500 EiB / 1 day"),
+            Some("0.006 EiB/s".to_string())
+        );
+    }
+
+    #[test]
+    fn test_large_data_unit_display_names() {
+        // Test display names for large data units
+        assert_eq!(Unit::PB.display_name(), "PB");
+        assert_eq!(Unit::EB.display_name(), "EB");
+        assert_eq!(Unit::PiB.display_name(), "PiB");
+        assert_eq!(Unit::EiB.display_name(), "EiB");
+        
+        // Test display names for large rate units
+        assert_eq!(Unit::PBPerSecond.display_name(), "PB/s");
+        assert_eq!(Unit::EBPerSecond.display_name(), "EB/s");
+        assert_eq!(Unit::PiBPerSecond.display_name(), "PiB/s");
+        assert_eq!(Unit::EiBPerSecond.display_name(), "EiB/s");
+    }
+
+    #[test]
+    fn test_large_data_unit_type_classification() {
+        // Test that large data units are properly classified
+        assert_eq!(Unit::PB.unit_type(), UnitType::Data);
+        assert_eq!(Unit::EB.unit_type(), UnitType::Data);
+        assert_eq!(Unit::PiB.unit_type(), UnitType::Data);
+        assert_eq!(Unit::EiB.unit_type(), UnitType::Data);
+        
+        // Test that large rate units are properly classified
+        assert_eq!(Unit::PBPerSecond.unit_type(), UnitType::DataRate);
+        assert_eq!(Unit::EBPerSecond.unit_type(), UnitType::DataRate);
+        assert_eq!(Unit::PiBPerSecond.unit_type(), UnitType::DataRate);
+        assert_eq!(Unit::EiBPerSecond.unit_type(), UnitType::DataRate);
+    }
+
+    #[test]
+    fn test_large_data_real_world_scenarios() {
+        // Test data center storage scenarios
+        assert_eq!(
+            evaluate_test_expression("Data center: 50 PB + 10 EB"),
+            Some("10,050 PB".to_string())
+        );
+
+        // Test backup scenarios
+        assert_eq!(
+            evaluate_test_expression("Backup rate: 100 TB/s * 8 hours"),
+            Some("2,880,000 TB".to_string())
+        );
+
+        // Test very large data transfers
+        assert_eq!(
+            evaluate_test_expression("Transfer: 5 EiB to PB"),
+            Some("5,764.608 PB".to_string())
+        );
+
+        // Test scientific computing scenarios
+        assert_eq!(
+            evaluate_test_expression("Dataset: 1.5 EB to TiB"),
+            Some("1,364,242.053 TiB".to_string())
+        );
+
+        // Test network throughput
+        assert_eq!(
+            evaluate_test_expression("Network: 10 PB/s to TB/s"),
+            Some("10,000 TB/s".to_string())
+        );
+
+        // Test storage capacity planning
+        assert_eq!(
+            evaluate_test_expression("Total capacity: 100 PiB + 50 EiB"),
+            Some("51,300 PiB".to_string())
+        );
+    }
+
+    #[test]
+    fn test_large_data_edge_cases() {
+        // Test very small fractions
+        assert_eq!(
+            evaluate_test_expression("0.001 PB to TB"),
+            Some("1 TB".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("0.5 EiB to PiB"),
+            Some("512 PiB".to_string())
+        );
+
+        // Test precision with large numbers
+        assert_eq!(
+            evaluate_test_expression("1024.5 PiB to EiB"),
+            Some("1.000 EiB".to_string())
+        );
+
+        // Test cross-base conversions with precision
+        let result = evaluate_with_unit_info("1.234567 EB to EiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        // Should be approximately 1.071 EiB
+        assert!((unit_val.value - 1.071).abs() < 0.01);
+
+        // Test incompatible operations (should fail)
+        assert_eq!(evaluate_test_expression("1 PB + 5 hours"), None);
+        assert_eq!(evaluate_test_expression("100 EiB - 50 QPS"), None);
+        assert_eq!(evaluate_test_expression("1 EB * 1 query"), None);
     }
 }
