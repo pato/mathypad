@@ -182,7 +182,103 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn evaluate_expression(expr: &str) -> Option<f64> {
+fn evaluate_expression(text: &str) -> Option<f64> {
+    // Find the longest valid mathematical expression in the text
+    find_math_expressions(text)
+        .into_iter()
+        .filter_map(|expr| parse_and_evaluate(&expr))
+        .next()
+}
+
+fn find_math_expressions(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut expressions = Vec::new();
+    
+    for start in 0..chars.len() {
+        if chars[start].is_ascii_digit() {
+            for end in start + 1..=chars.len() {
+                let candidate = chars[start..end].iter().collect::<String>();
+                if is_valid_math_expression(&candidate) {
+                    expressions.push(candidate);
+                }
+            }
+        }
+    }
+    
+    // Sort by length descending to get the longest expression first
+    expressions.sort_by(|a, b| b.len().cmp(&a.len()));
+    expressions
+}
+
+fn is_valid_math_expression(expr: &str) -> bool {
+    let expr = expr.trim();
+    if expr.is_empty() {
+        return false;
+    }
+    
+    let mut has_number = false;
+    let mut has_operator = false;
+    let mut paren_count = 0;
+    let mut prev_was_operator = true; // Start as true to allow leading numbers
+    
+    let chars: Vec<char> = expr.chars().collect();
+    let mut i = 0;
+    
+    while i < chars.len() {
+        let ch = chars[i];
+        match ch {
+            ' ' => {
+                i += 1;
+                continue;
+            }
+            '0'..='9' => {
+                has_number = true;
+                prev_was_operator = false;
+                // Skip through the whole number
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                    i += 1;
+                }
+                continue;
+            }
+            '.' => {
+                if prev_was_operator {
+                    return false; // Can't start with decimal point
+                }
+                i += 1;
+            }
+            '+' | '-' | '*' | '/' => {
+                if prev_was_operator && ch != '-' {
+                    return false; // Two operators in a row (except minus for negation)
+                }
+                has_operator = true;
+                prev_was_operator = true;
+                i += 1;
+            }
+            '(' => {
+                paren_count += 1;
+                prev_was_operator = true;
+                i += 1;
+            }
+            ')' => {
+                paren_count -= 1;
+                if paren_count < 0 {
+                    return false;
+                }
+                prev_was_operator = false;
+                i += 1;
+            }
+            _ => {
+                // If we encounter any other character, check if what we have so far is valid
+                break;
+            }
+        }
+    }
+    
+    // Must have balanced parentheses, at least one number, and if it has operators, must end properly
+    paren_count == 0 && has_number && (!has_operator || !prev_was_operator)
+}
+
+fn parse_and_evaluate(expr: &str) -> Option<f64> {
     let expr = expr.replace(" ", "");
 
     if expr.is_empty() {
