@@ -23,7 +23,6 @@ const TICK_RATE_MS: u64 = 250;
 const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;
 const FLOAT_EPSILON: f64 = f64::EPSILON;
 
-
 struct App {
     text_lines: Vec<String>,
     cursor_line: usize,
@@ -109,7 +108,10 @@ impl App {
                 evaluate_expression_with_context(line, &self.results, line_index);
         } else {
             // This should never happen in normal operation, but let's be defensive
-            eprintln!("Warning: Attempted to update result for invalid line index {}", line_index);
+            eprintln!(
+                "Warning: Attempted to update result for invalid line index {}",
+                line_index
+            );
         }
     }
 }
@@ -326,7 +328,6 @@ fn evaluate_expression_with_context(
     None
 }
 
-
 fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
     let expr = expr.replace(" ", "");
 
@@ -425,7 +426,7 @@ fn find_math_expressions(text: &str) -> Vec<String> {
     // Remove duplicates and sub-expressions
     let mut filtered_expressions = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    
+
     for expr in &expressions {
         if seen.insert(expr.clone()) {
             let mut is_subexpression = false;
@@ -703,7 +704,6 @@ fn parse_and_evaluate_with_context(
     evaluate_tokens_with_units_and_context(&tokens, previous_results, current_line)
 }
 
-
 fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
     let mut tokens = Vec::new();
     let chars: Vec<char> = expr.chars().collect();
@@ -962,11 +962,12 @@ impl UnitValue {
     }
 
     fn format(&self) -> String {
-        let formatted_value = if self.value.fract() == 0.0 && self.value.abs() < MAX_INTEGER_FOR_FORMATTING {
-            format_number_with_commas(self.value as i64)
-        } else {
-            format_decimal_with_commas(self.value)
-        };
+        let formatted_value =
+            if self.value.fract() == 0.0 && self.value.abs() < MAX_INTEGER_FOR_FORMATTING {
+                format_number_with_commas(self.value as i64)
+            } else {
+                format_decimal_with_commas(self.value)
+            };
 
         match &self.unit {
             Some(unit) => format!("{} {}", formatted_value, unit.display_name()),
@@ -1350,7 +1351,9 @@ fn parse_unit(text: &str) -> Option<Unit> {
 
         "req/s" | "requests/s" | "rps" => Some(Unit::RequestsPerSecond),
         "req/min" | "requests/min" | "rpm" => Some(Unit::RequestsPerMinute),
-        "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RequestsPerHour),
+        "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => {
+            Some(Unit::RequestsPerHour)
+        }
         "qps" | "queries/s" | "queries/sec" => Some(Unit::QueriesPerSecond),
         "qpm" | "queries/min" | "queries/minute" => Some(Unit::QueriesPerMinute),
         "qph" | "queries/h" | "queries/hour" => Some(Unit::QueriesPerHour),
@@ -1473,7 +1476,6 @@ fn evaluate_tokens_with_units_and_context(
         None
     }
 }
-
 
 fn resolve_line_reference(
     line_index: usize,
@@ -2761,15 +2763,15 @@ mod tests {
         // Test Petabyte unit parsing (base 10)
         assert_eq!(parse_unit("pb"), Some(Unit::PB));
         assert_eq!(parse_unit("PB"), Some(Unit::PB));
-        
+
         // Test Exabyte unit parsing (base 10)
         assert_eq!(parse_unit("eb"), Some(Unit::EB));
         assert_eq!(parse_unit("EB"), Some(Unit::EB));
-        
+
         // Test Pebibyte unit parsing (base 2)
         assert_eq!(parse_unit("pib"), Some(Unit::PiB));
         assert_eq!(parse_unit("PiB"), Some(Unit::PiB));
-        
+
         // Test Exbibyte unit parsing (base 2)
         assert_eq!(parse_unit("eib"), Some(Unit::EiB));
         assert_eq!(parse_unit("EiB"), Some(Unit::EiB));
@@ -2905,7 +2907,7 @@ mod tests {
         assert_eq!(Unit::EB.display_name(), "EB");
         assert_eq!(Unit::PiB.display_name(), "PiB");
         assert_eq!(Unit::EiB.display_name(), "EiB");
-        
+
         // Test display names for large rate units
         assert_eq!(Unit::PBPerSecond.display_name(), "PB/s");
         assert_eq!(Unit::EBPerSecond.display_name(), "EB/s");
@@ -2920,7 +2922,7 @@ mod tests {
         assert_eq!(Unit::EB.unit_type(), UnitType::Data);
         assert_eq!(Unit::PiB.unit_type(), UnitType::Data);
         assert_eq!(Unit::EiB.unit_type(), UnitType::Data);
-        
+
         // Test that large rate units are properly classified
         assert_eq!(Unit::PBPerSecond.unit_type(), UnitType::DataRate);
         assert_eq!(Unit::EBPerSecond.unit_type(), UnitType::DataRate);
