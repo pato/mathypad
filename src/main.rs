@@ -318,6 +318,7 @@ fn evaluate_expression_with_context(
 }
 
 // Keep the old function for backward compatibility in tests
+#[allow(dead_code)]
 fn evaluate_expression(text: &str) -> Option<String> {
     evaluate_expression_with_context(text, &[], 0)
 }
@@ -694,6 +695,7 @@ fn parse_and_evaluate_with_context(
     evaluate_tokens_with_units_and_context(&tokens, previous_results, current_line)
 }
 
+#[allow(dead_code)]
 fn parse_and_evaluate(expr: &str) -> Option<UnitValue> {
     parse_and_evaluate_with_context(expr, &[], 0)
 }
@@ -851,7 +853,7 @@ impl UnitValue {
             Some(current_unit) => {
                 if current_unit.unit_type() == target_unit.unit_type() {
                     let base_value = current_unit.to_base_value(self.value);
-                    let converted_value = target_unit.from_base_value(base_value);
+                    let converted_value = target_unit.clone().from_base_value(base_value);
                     Some(UnitValue::new(converted_value, Some(target_unit.clone())))
                 } else {
                     None // Can't convert between different unit types
@@ -958,7 +960,8 @@ impl Unit {
         }
     }
 
-    fn from_base_value(&self, base_value: f64) -> f64 {
+    #[allow(clippy::wrong_self_convention)]
+    fn from_base_value(self, base_value: f64) -> f64 {
         match self {
             // Time units (from seconds)
             Unit::Second => base_value,
@@ -1053,8 +1056,7 @@ enum UnitType {
 
 fn parse_line_reference(text: &str) -> Option<usize> {
     let text_lower = text.to_lowercase();
-    if text_lower.starts_with("line") {
-        let number_part = &text_lower[4..]; // Remove "line" prefix
+    if let Some(number_part) = text_lower.strip_prefix("line") {
         if let Ok(line_num) = number_part.parse::<usize>() {
             if line_num > 0 {
                 return Some(line_num - 1); // Convert to 0-based indexing
@@ -1211,6 +1213,7 @@ fn evaluate_tokens_with_units_and_context(
     }
 }
 
+#[allow(dead_code)]
 fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
     evaluate_tokens_with_units_and_context(tokens, &[], 0)
 }
@@ -1238,7 +1241,7 @@ fn resolve_line_reference(
 
 fn parse_result_string(result_str: &str) -> Option<UnitValue> {
     // Parse a result string like "14 GiB" or "42" back into a UnitValue
-    let parts: Vec<&str> = result_str.trim().split_whitespace().collect();
+    let parts: Vec<&str> = result_str.split_whitespace().collect();
 
     if parts.is_empty() {
         return None;
@@ -1293,7 +1296,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                         } else {
                             unit_b
                         };
-                        let result_value = result_unit.from_base_value(result_base);
+                        let result_value = result_unit.clone().from_base_value(result_base);
                         UnitValue::new(result_value, Some(result_unit.clone()))
                     } else {
                         return false;
@@ -1318,7 +1321,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                         } else {
                             unit_b
                         };
-                        let result_value = result_unit.from_base_value(result_base);
+                        let result_value = result_unit.clone().from_base_value(result_base);
                         UnitValue::new(result_value, Some(result_unit.clone()))
                     } else {
                         return false;
@@ -1697,14 +1700,11 @@ fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(Color::DarkGray),
         )];
 
-        match result {
-            Some(value) => {
-                spans.push(Span::styled(
-                    value.clone(),
-                    Style::default().fg(Color::Green),
-                ));
-            }
-            None => {}
+        if let Some(value) = result {
+            spans.push(Span::styled(
+                value.clone(),
+                Style::default().fg(Color::Green),
+            ));
         }
 
         lines.push(Line::from(spans));
