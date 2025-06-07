@@ -184,17 +184,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn evaluate_expression(text: &str) -> Option<f64> {
     // Find the longest valid mathematical expression in the text
-    find_math_expressions(text)
-        .into_iter()
-        .filter_map(|expr| {
-            if let Some(unit_value) = parse_and_evaluate(&expr) {
-                Some(unit_value.value)
-            } else {
-                // Fallback to old parser for expressions without units
-                parse_and_evaluate_simple(&expr)
-            }
-        })
-        .next()
+    let expressions = find_math_expressions(text);
+    
+    for expr in expressions {
+        // Try unit-aware parsing first
+        if let Some(unit_value) = parse_and_evaluate(&expr) {
+            return Some(unit_value.value);
+        }
+        // Then try simple parsing
+        if let Some(simple_result) = parse_and_evaluate_simple(&expr) {
+            return Some(simple_result);
+        }
+    }
+    
+    None
 }
 
 fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
@@ -251,23 +254,118 @@ fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
 }
 
 fn find_math_expressions(text: &str) -> Vec<String> {
-    let chars: Vec<char> = text.chars().collect();
     let mut expressions = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
     
     for start in 0..chars.len() {
-        if chars[start].is_ascii_digit() {
+        if chars[start].is_ascii_digit() || chars[start] == '(' {
             for end in start + 1..=chars.len() {
                 let candidate = chars[start..end].iter().collect::<String>();
-                if is_valid_math_expression(&candidate) {
-                    expressions.push(candidate);
+                let trimmed_candidate = extract_math_portion(&candidate);
+                
+                if !trimmed_candidate.is_empty() && is_valid_math_expression(&trimmed_candidate) {
+                    expressions.push(trimmed_candidate);
                 }
             }
         }
     }
     
-    // Sort by length descending to get the longest expression first
-    expressions.sort_by(|a, b| b.len().cmp(&a.len()));
-    expressions
+    // Sort by complexity (length and operator count) descending
+    expressions.sort_by(|a, b| {
+        let complexity_a = a.len() + a.chars().filter(|c| "+-*/()".contains(*c)).count() * 2;
+        let complexity_b = b.len() + b.chars().filter(|c| "+-*/()".contains(*c)).count() * 2;
+        complexity_b.cmp(&complexity_a)
+    });
+    
+    // Remove duplicates and sub-expressions
+    let mut filtered_expressions = Vec::new();
+    for expr in &expressions {
+        if !filtered_expressions.contains(expr) {
+            let mut is_subexpression = false;
+            for other_expr in &expressions {
+                if other_expr != expr && other_expr.len() > expr.len() && other_expr.contains(expr) {
+                    is_subexpression = true;
+                    break;
+                }
+            }
+            if !is_subexpression {
+                filtered_expressions.push(expr.clone());
+            }
+        }
+    }
+    
+    filtered_expressions
+}
+
+fn extract_math_portion(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut math_end = 0;
+    let mut _paren_count = 0;
+    let mut found_digit = false;
+    let mut i = 0;
+    
+    while i < chars.len() {
+        let ch = chars[i];
+        match ch {
+            '0'..='9' | '.' | ',' => {
+                found_digit = true;
+                math_end = i + 1;
+            }
+            '+' | '-' | '*' | '/' => {
+                if found_digit {
+                    math_end = i + 1;
+                }
+            }
+            '(' => {
+                _paren_count += 1;
+                math_end = i + 1;
+            }
+            ')' => {
+                _paren_count -= 1;
+                math_end = i + 1;
+                // Don't break here - continue to see if there are more operators
+            }
+            ' ' => {
+                // Continue, space is okay
+                if found_digit {
+                    math_end = i + 1;
+                }
+            }
+            _ => {
+                if ch.is_ascii_alphabetic() {
+                    // Check if this starts a complete known unit (with word boundaries)
+                    let remaining = &text[i..];
+                    let mut word_end = i;
+                    for (j, word_char) in remaining.chars().enumerate() {
+                        if word_char.is_ascii_alphabetic() || word_char == '/' {
+                            word_end = i + j + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    let potential_word = &text[i..word_end];
+                    
+                    // Only treat as unit if it's a complete unit word or "to"
+                    if (parse_unit(potential_word).is_some() || potential_word.to_lowercase() == "to") &&
+                       (word_end >= text.len() || !text.chars().nth(word_end).unwrap().is_ascii_alphabetic()) {
+                        math_end = word_end;
+                        // Skip to the end of this word
+                        i = word_end;
+                        continue;
+                    } else {
+                        // Unknown or partial word, end of math expression here
+                        break;
+                    }
+                } else {
+                    // Other character, end of math expression
+                    break;
+                }
+            }
+        }
+        i += 1;
+    }
+    
+    chars[..math_end].iter().collect::<String>().trim().to_string()
 }
 
 fn is_valid_math_expression(expr: &str) -> bool {
@@ -361,7 +459,8 @@ fn is_valid_math_expression(expr: &str) -> bool {
                         // Valid unit, continue
                         prev_was_operator = false;
                     } else {
-                        // Invalid word, break
+                        // Unknown word - treat as the end of the expression
+                        // Check if what we have so far is valid
                         break;
                     }
                 } else {
@@ -900,10 +999,13 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 }
                 (Some(unit), None) => {
                     // unit / number = unit
+                    if b.value.abs() < f64::EPSILON {
+                        return false;
+                    }
                     UnitValue::new(a.value / b.value, Some(unit.clone()))
                 }
                 (None, None) => {
-                    if b.value == 0.0 {
+                    if b.value.abs() < f64::EPSILON {
                         return false;
                     }
                     UnitValue::new(a.value / b.value, None)
@@ -989,7 +1091,7 @@ fn apply_operator(output: &mut Vec<f64>, op: &Token) -> bool {
         Token::Minus => a - b,
         Token::Multiply => a * b,
         Token::Divide => {
-            if b == 0.0 {
+            if b.abs() < f64::EPSILON {
                 return false;
             }
             a / b
@@ -1157,5 +1259,226 @@ fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
     f.render_widget(paragraph, inner_area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper function to evaluate expressions for testing
+    fn evaluate_test_expression(input: &str) -> Option<f64> {
+        evaluate_expression(input)
+    }
+
+    // Helper function to get unit conversion results for testing
+    fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
+        let expressions = find_math_expressions(input);
+        for expr in expressions {
+            if let Some(result) = parse_and_evaluate(&expr) {
+                return Some(result);
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn test_basic_arithmetic() {
+        // Basic operations
+        assert_eq!(evaluate_test_expression("2 + 3"), Some(5.0));
+        assert_eq!(evaluate_test_expression("10 - 4"), Some(6.0));
+        assert_eq!(evaluate_test_expression("6 * 7"), Some(42.0));
+        assert_eq!(evaluate_test_expression("15 / 3"), Some(5.0));
+        
+        // Order of operations
+        
+        assert_eq!(evaluate_test_expression("2 + 3 * 4"), Some(14.0));
+        assert_eq!(evaluate_test_expression("(2 + 3) * 4"), Some(20.0));
+        assert_eq!(evaluate_test_expression("10 - 2 * 3"), Some(4.0));
+        
+        // Decimal numbers
+        assert_eq!(evaluate_test_expression("1.5 + 2.5"), Some(4.0));
+        assert_eq!(evaluate_test_expression("3.14 * 2"), Some(6.28));
+        
+        // Numbers with commas
+        assert_eq!(evaluate_test_expression("1,000 + 500"), Some(1500.0));
+        assert_eq!(evaluate_test_expression("1,234,567 / 1000"), Some(1234.567));
+    }
+
+    #[test]
+    fn test_inline_expressions() {
+        // Test expressions within text
+        assert_eq!(evaluate_test_expression("The result is 5 + 3"), Some(8.0));
+        assert_eq!(evaluate_test_expression("Cost: 100 * 12 dollars"), Some(1200.0));
+        assert_eq!(evaluate_test_expression("Total (10 + 20) items"), Some(30.0));
+    }
+
+    #[test]
+    fn test_unit_conversions() {
+        // Data unit conversions (base 2)
+        let result = evaluate_with_unit_info("1 GiB to KiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1048576.0).abs() < 0.001);
+        
+        let result = evaluate_with_unit_info("1 TiB to GiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1024.0).abs() < 0.001);
+        
+        let result = evaluate_with_unit_info("2048 KiB to MiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 2.0).abs() < 0.001);
+        
+        // Data unit conversions (base 10)
+        let result = evaluate_with_unit_info("1 GB to MB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1000.0).abs() < 0.001);
+        
+        let result = evaluate_with_unit_info("5000 MB to GB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 5.0).abs() < 0.001);
+        
+        // Time unit conversions
+        let result = evaluate_with_unit_info("1 hour to minutes");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 60.0).abs() < 0.001);
+        
+        let result = evaluate_with_unit_info("120 seconds to minutes");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_arithmetic_with_units() {
+        // Data rate * time = data
+        assert_eq!(evaluate_test_expression("50 GiB/s * 2 s"), Some(100.0));
+        assert_eq!(evaluate_test_expression("1 hour * 10 GiB/s"), Some(36000.0));
+        
+        // Data / time = rate  
+        assert_eq!(evaluate_test_expression("100 GiB / 10 s"), Some(10.0));
+        
+        // Same unit addition/subtraction
+        assert_eq!(evaluate_test_expression("1 GiB + 512 MiB"), Some(1.5));
+        assert_eq!(evaluate_test_expression("2 hours + 30 minutes"), Some(2.5));
+    }
+
+    #[test]
+    fn test_mixed_unit_types() {
+        // Base 10 vs Base 2 data units
+        let result = evaluate_with_unit_info("1 GB to GiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        // 1 GB = 1,000,000,000 bytes = ~0.931 GiB
+        assert!((unit_val.value - 0.9313225746).abs() < 0.0001);
+        
+        let result = evaluate_with_unit_info("1 GiB to GB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        // 1 GiB = 1,073,741,824 bytes = ~1.074 GB
+        assert!((unit_val.value - 1.073741824).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_complex_expressions() {
+        // Complex arithmetic
+        assert_eq!(evaluate_test_expression("(10 + 5) * 2 - 8 / 4"), Some(28.0));
+        assert_eq!(evaluate_test_expression("100 / (5 + 5) + 3 * 2"), Some(16.0));
+        
+        // Large numbers with commas
+        assert_eq!(evaluate_test_expression("1,000,000 + 500,000"), Some(1500000.0));
+        assert_eq!(evaluate_test_expression("2,500 * 1,000"), Some(2500000.0));
+        
+        // Complex unit expressions
+        assert_eq!(evaluate_test_expression("Transfer: 5 GiB/s * 10 minutes"), Some(3000.0));
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        // Division by zero
+        assert_eq!(evaluate_test_expression("5 / 0"), None);
+        
+        // Invalid expressions
+        assert_eq!(evaluate_test_expression("5 +"), None);
+        assert_eq!(evaluate_test_expression("* 5"), None);
+        assert_eq!(evaluate_test_expression("((5)"), None);
+        
+        // Empty or invalid input
+        assert_eq!(evaluate_test_expression(""), None);
+        assert_eq!(evaluate_test_expression("hello world"), None);
+        
+        // Incompatible unit operations
+        assert_eq!(evaluate_test_expression("5 GiB + 10 seconds"), None);
+        assert_eq!(evaluate_test_expression("1 hour - 500 MB"), None);
+    }
+
+    #[test]
+    fn test_unit_recognition() {
+        // Test different unit formats
+        let result = evaluate_with_unit_info("1 GiB to kib");
+        assert!(result.is_some());
+        
+        let result = evaluate_with_unit_info("60 minutes to h");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001);
+        
+        let result = evaluate_with_unit_info("1024 bytes to KiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_real_world_scenarios() {
+        // File transfer calculations
+        assert_eq!(evaluate_test_expression("Download: 100 MB/s * 5 minutes"), Some(30000.0));
+        
+        // Storage calculations  
+        assert_eq!(evaluate_test_expression("Total storage: 2 TB + 500 GB"), Some(2500.0));
+        
+        // Bandwidth calculations
+        assert_eq!(evaluate_test_expression("Bandwidth used: 1,000 GiB / 1 hour"), Some(1000.0));
+        
+        // Data conversion scenarios
+        let result = evaluate_with_unit_info("How many KiB in 5 MiB?");
+        assert!(result.is_none()); // Should not parse as the text format is different
+        
+        let result = evaluate_with_unit_info("5 MiB to KiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 5120.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_precision() {
+        // Test decimal precision
+        assert_eq!(evaluate_test_expression("1.234 + 2.567"), Some(3.801));
+        assert_eq!(evaluate_test_expression("10.5 / 3"), Some(3.5));
+        
+        // Test with units requiring precision
+        let result = evaluate_with_unit_info("1.5 GiB to MiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1536.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_whitespace_handling() {
+        // Various whitespace formats
+        assert_eq!(evaluate_test_expression("5+3"), Some(8.0));
+        assert_eq!(evaluate_test_expression("  5  +  3  "), Some(8.0));
+        assert_eq!(evaluate_test_expression("5 * 3"), Some(15.0));
+        
+        // Units with whitespace
+        let result = evaluate_with_unit_info("1   GiB   to   KiB");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1048576.0).abs() < 0.001);
+    }
 }
 
