@@ -186,99 +186,18 @@ fn evaluate_expression(text: &str) -> Option<f64> {
     // Find the longest valid mathematical expression in the text
     find_math_expressions(text)
         .into_iter()
-        .filter_map(|expr| parse_and_evaluate(&expr))
+        .filter_map(|expr| {
+            if let Some(unit_value) = parse_and_evaluate(&expr) {
+                Some(unit_value.value)
+            } else {
+                // Fallback to old parser for expressions without units
+                parse_and_evaluate_simple(&expr)
+            }
+        })
         .next()
 }
 
-fn find_math_expressions(text: &str) -> Vec<String> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut expressions = Vec::new();
-    
-    for start in 0..chars.len() {
-        if chars[start].is_ascii_digit() {
-            for end in start + 1..=chars.len() {
-                let candidate = chars[start..end].iter().collect::<String>();
-                if is_valid_math_expression(&candidate) {
-                    expressions.push(candidate);
-                }
-            }
-        }
-    }
-    
-    // Sort by length descending to get the longest expression first
-    expressions.sort_by(|a, b| b.len().cmp(&a.len()));
-    expressions
-}
-
-fn is_valid_math_expression(expr: &str) -> bool {
-    let expr = expr.trim();
-    if expr.is_empty() {
-        return false;
-    }
-    
-    let mut has_number = false;
-    let mut has_operator = false;
-    let mut paren_count = 0;
-    let mut prev_was_operator = true; // Start as true to allow leading numbers
-    
-    let chars: Vec<char> = expr.chars().collect();
-    let mut i = 0;
-    
-    while i < chars.len() {
-        let ch = chars[i];
-        match ch {
-            ' ' => {
-                i += 1;
-                continue;
-            }
-            '0'..='9' => {
-                has_number = true;
-                prev_was_operator = false;
-                // Skip through the whole number (including commas and decimals)
-                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.' || chars[i] == ',') {
-                    i += 1;
-                }
-                continue;
-            }
-            '.' => {
-                if prev_was_operator {
-                    return false; // Can't start with decimal point
-                }
-                i += 1;
-            }
-            '+' | '-' | '*' | '/' => {
-                if prev_was_operator && ch != '-' {
-                    return false; // Two operators in a row (except minus for negation)
-                }
-                has_operator = true;
-                prev_was_operator = true;
-                i += 1;
-            }
-            '(' => {
-                paren_count += 1;
-                prev_was_operator = true;
-                i += 1;
-            }
-            ')' => {
-                paren_count -= 1;
-                if paren_count < 0 {
-                    return false;
-                }
-                prev_was_operator = false;
-                i += 1;
-            }
-            _ => {
-                // If we encounter any other character, check if what we have so far is valid
-                break;
-            }
-        }
-    }
-    
-    // Must have balanced parentheses, at least one number, and if it has operators, must end properly
-    paren_count == 0 && has_number && (!has_operator || !prev_was_operator)
-}
-
-fn parse_and_evaluate(expr: &str) -> Option<f64> {
+fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
     let expr = expr.replace(" ", "");
 
     if expr.is_empty() {
@@ -331,15 +250,672 @@ fn parse_and_evaluate(expr: &str) -> Option<f64> {
     evaluate_tokens(&tokens)
 }
 
+fn find_math_expressions(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut expressions = Vec::new();
+    
+    for start in 0..chars.len() {
+        if chars[start].is_ascii_digit() {
+            for end in start + 1..=chars.len() {
+                let candidate = chars[start..end].iter().collect::<String>();
+                if is_valid_math_expression(&candidate) {
+                    expressions.push(candidate);
+                }
+            }
+        }
+    }
+    
+    // Sort by length descending to get the longest expression first
+    expressions.sort_by(|a, b| b.len().cmp(&a.len()));
+    expressions
+}
+
+fn is_valid_math_expression(expr: &str) -> bool {
+    let expr = expr.trim();
+    if expr.is_empty() {
+        return false;
+    }
+    
+    let mut has_number = false;
+    let mut has_operator = false;
+    let mut paren_count = 0;
+    let mut prev_was_operator = true; // Start as true to allow leading numbers
+    
+    let chars: Vec<char> = expr.chars().collect();
+    let mut i = 0;
+    
+    while i < chars.len() {
+        let ch = chars[i];
+        match ch {
+            ' ' => {
+                i += 1;
+                continue;
+            }
+            '0'..='9' => {
+                has_number = true;
+                prev_was_operator = false;
+                // Skip through the whole number (including commas and decimals)
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.' || chars[i] == ',') {
+                    i += 1;
+                }
+                
+                // Skip whitespace
+                while i < chars.len() && chars[i] == ' ' {
+                    i += 1;
+                }
+                
+                // Check for unit
+                if i < chars.len() && chars[i].is_ascii_alphabetic() {
+                    let unit_start = i;
+                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+                        i += 1;
+                    }
+                    
+                    let unit_str: String = chars[unit_start..i].iter().collect();
+                    if parse_unit(&unit_str).is_none() && unit_str.to_lowercase() != "to" {
+                        // Not a recognized unit, rewind
+                        i = unit_start;
+                    }
+                }
+                continue;
+            }
+            '.' => {
+                if prev_was_operator {
+                    return false; // Can't start with decimal point
+                }
+                i += 1;
+            }
+            '+' | '-' | '*' | '/' => {
+                if prev_was_operator && ch != '-' {
+                    return false; // Two operators in a row (except minus for negation)
+                }
+                has_operator = true;
+                prev_was_operator = true;
+                i += 1;
+            }
+            '(' => {
+                paren_count += 1;
+                prev_was_operator = true;
+                i += 1;
+            }
+            ')' => {
+                paren_count -= 1;
+                if paren_count < 0 {
+                    return false;
+                }
+                prev_was_operator = false;
+                i += 1;
+            }
+            _ => {
+                if ch.is_ascii_alphabetic() {
+                    let unit_start = i;
+                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+                        i += 1;
+                    }
+                    
+                    let word: String = chars[unit_start..i].iter().collect();
+                    if word.to_lowercase() == "to" {
+                        has_operator = true;
+                        prev_was_operator = true;
+                    } else if parse_unit(&word).is_some() {
+                        // Valid unit, continue
+                        prev_was_operator = false;
+                    } else {
+                        // Invalid word, break
+                        break;
+                    }
+                } else {
+                    // If we encounter any other character, check if what we have so far is valid
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Must have balanced parentheses, at least one number, and if it has operators, must end properly
+    paren_count == 0 && has_number && (!has_operator || !prev_was_operator)
+}
+
+fn parse_and_evaluate(expr: &str) -> Option<UnitValue> {
+    let tokens = tokenize_with_units(expr)?;
+    evaluate_tokens_with_units(&tokens)
+}
+
+fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
+    let mut tokens = Vec::new();
+    let chars: Vec<char> = expr.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        
+        match ch {
+            ' ' => {
+                i += 1;
+                continue;
+            }
+            '0'..='9' => {
+                // Parse number (with potential commas)
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.' || chars[i] == ',') {
+                    i += 1;
+                }
+                
+                let number_str: String = chars[start..i].iter().collect();
+                let cleaned_number = number_str.replace(",", "");
+                let num = cleaned_number.parse::<f64>().ok()?;
+                
+                // Skip whitespace
+                while i < chars.len() && chars[i] == ' ' {
+                    i += 1;
+                }
+                
+                // Look for unit
+                if i < chars.len() && chars[i].is_ascii_alphabetic() {
+                    let unit_start = i;
+                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+                        i += 1;
+                    }
+                    
+                    let unit_str: String = chars[unit_start..i].iter().collect();
+                    if let Some(unit) = parse_unit(&unit_str) {
+                        tokens.push(Token::NumberWithUnit(num, unit));
+                    } else {
+                        tokens.push(Token::Number(num));
+                        // Put back the unit characters - they might be part of something else
+                        i = unit_start;
+                    }
+                } else {
+                    tokens.push(Token::Number(num));
+                }
+            }
+            '+' => {
+                tokens.push(Token::Plus);
+                i += 1;
+            }
+            '-' => {
+                tokens.push(Token::Minus);
+                i += 1;
+            }
+            '*' => {
+                tokens.push(Token::Multiply);
+                i += 1;
+            }
+            '/' => {
+                tokens.push(Token::Divide);
+                i += 1;
+            }
+            '(' => {
+                tokens.push(Token::LeftParen);
+                i += 1;
+            }
+            ')' => {
+                tokens.push(Token::RightParen);
+                i += 1;
+            }
+            't' | 'T' => {
+                // Check for "to" keyword
+                if i + 1 < chars.len() && chars[i + 1].to_lowercase().next() == Some('o') {
+                    // Skip whitespace after "to"
+                    i += 2;
+                    while i < chars.len() && chars[i] == ' ' {
+                        i += 1;
+                    }
+                    tokens.push(Token::To);
+                } else {
+                    return None; // Unexpected character
+                }
+            }
+            _ => {
+                if ch.is_ascii_alphabetic() {
+                    // Could be a unit or part of "to"
+                    let unit_start = i;
+                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+                        i += 1;
+                    }
+                    
+                    let word: String = chars[unit_start..i].iter().collect();
+                    if word.to_lowercase() == "to" {
+                        tokens.push(Token::To);
+                    } else if let Some(unit) = parse_unit(&word) {
+                        // Standalone unit for conversion target
+                        tokens.push(Token::NumberWithUnit(1.0, unit));
+                    } else {
+                        return None; // Unexpected word
+                    }
+                } else {
+                    return None; // Unexpected character
+                }
+            }
+        }
+    }
+
+    Some(tokens)
+}
+
+#[derive(Debug, Clone)]
+struct UnitValue {
+    value: f64,
+    unit: Option<Unit>,
+}
+
+impl UnitValue {
+    fn new(value: f64, unit: Option<Unit>) -> Self {
+        UnitValue { value, unit }
+    }
+    
+    fn to_unit(&self, target_unit: &Unit) -> Option<UnitValue> {
+        match &self.unit {
+            Some(current_unit) => {
+                if current_unit.unit_type() == target_unit.unit_type() {
+                    let base_value = current_unit.to_base_value(self.value);
+                    let converted_value = target_unit.from_base_value(base_value);
+                    Some(UnitValue::new(converted_value, Some(target_unit.clone())))
+                } else {
+                    None // Can't convert between different unit types
+                }
+            }
+            None => None, // No unit to convert from
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 enum Token {
     Number(f64),
+    NumberWithUnit(f64, Unit),
     Plus,
     Minus,
     Multiply,
     Divide,
     LeftParen,
     RightParen,
+    To, // for conversions like "to KiB"
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Unit {
+    // Time units (base: seconds)
+    Second,
+    Minute,
+    Hour,
+    Day,
+    
+    // Data units (base 10)
+    Byte,
+    KB, // Kilobyte
+    MB, // Megabyte  
+    GB, // Gigabyte
+    TB, // Terabyte
+    
+    // Data units (base 2)
+    KiB, // Kibibyte
+    MiB, // Mebibyte
+    GiB, // Gibibyte
+    TiB, // Tebibyte
+    
+    // Derived units
+    BytesPerSecond,
+    KBPerSecond,
+    MBPerSecond,
+    GBPerSecond,
+    TBPerSecond,
+    KiBPerSecond,
+    MiBPerSecond,
+    GiBPerSecond,
+    TiBPerSecond,
+}
+
+impl Unit {
+    fn to_base_value(&self, value: f64) -> f64 {
+        match self {
+            // Time units (convert to seconds)
+            Unit::Second => value,
+            Unit::Minute => value * 60.0,
+            Unit::Hour => value * 3600.0,
+            Unit::Day => value * 86400.0,
+            
+            // Data units base 10 (convert to bytes)
+            Unit::Byte => value,
+            Unit::KB => value * 1_000.0,
+            Unit::MB => value * 1_000_000.0,
+            Unit::GB => value * 1_000_000_000.0,
+            Unit::TB => value * 1_000_000_000_000.0,
+            
+            // Data units base 2 (convert to bytes)
+            Unit::KiB => value * 1_024.0,
+            Unit::MiB => value * 1_048_576.0,
+            Unit::GiB => value * 1_073_741_824.0,
+            Unit::TiB => value * 1_099_511_627_776.0,
+            
+            // Rate units (convert to bytes per second)
+            Unit::BytesPerSecond => value,
+            Unit::KBPerSecond => value * 1_000.0,
+            Unit::MBPerSecond => value * 1_000_000.0,
+            Unit::GBPerSecond => value * 1_000_000_000.0,
+            Unit::TBPerSecond => value * 1_000_000_000_000.0,
+            Unit::KiBPerSecond => value * 1_024.0,
+            Unit::MiBPerSecond => value * 1_048_576.0,
+            Unit::GiBPerSecond => value * 1_073_741_824.0,
+            Unit::TiBPerSecond => value * 1_099_511_627_776.0,
+        }
+    }
+    
+    fn from_base_value(&self, base_value: f64) -> f64 {
+        match self {
+            // Time units (from seconds)
+            Unit::Second => base_value,
+            Unit::Minute => base_value / 60.0,
+            Unit::Hour => base_value / 3600.0,
+            Unit::Day => base_value / 86400.0,
+            
+            // Data units base 10 (from bytes)
+            Unit::Byte => base_value,
+            Unit::KB => base_value / 1_000.0,
+            Unit::MB => base_value / 1_000_000.0,
+            Unit::GB => base_value / 1_000_000_000.0,
+            Unit::TB => base_value / 1_000_000_000_000.0,
+            
+            // Data units base 2 (from bytes)
+            Unit::KiB => base_value / 1_024.0,
+            Unit::MiB => base_value / 1_048_576.0,
+            Unit::GiB => base_value / 1_073_741_824.0,
+            Unit::TiB => base_value / 1_099_511_627_776.0,
+            
+            // Rate units (from bytes per second)
+            Unit::BytesPerSecond => base_value,
+            Unit::KBPerSecond => base_value / 1_000.0,
+            Unit::MBPerSecond => base_value / 1_000_000.0,
+            Unit::GBPerSecond => base_value / 1_000_000_000.0,
+            Unit::TBPerSecond => base_value / 1_000_000_000_000.0,
+            Unit::KiBPerSecond => base_value / 1_024.0,
+            Unit::MiBPerSecond => base_value / 1_048_576.0,
+            Unit::GiBPerSecond => base_value / 1_073_741_824.0,
+            Unit::TiBPerSecond => base_value / 1_099_511_627_776.0,
+        }
+    }
+    
+    fn unit_type(&self) -> UnitType {
+        match self {
+            Unit::Second | Unit::Minute | Unit::Hour | Unit::Day => UnitType::Time,
+            Unit::Byte | Unit::KB | Unit::MB | Unit::GB | Unit::TB |
+            Unit::KiB | Unit::MiB | Unit::GiB | Unit::TiB => UnitType::Data,
+            Unit::BytesPerSecond | Unit::KBPerSecond | Unit::MBPerSecond | Unit::GBPerSecond | Unit::TBPerSecond |
+            Unit::KiBPerSecond | Unit::MiBPerSecond | Unit::GiBPerSecond | Unit::TiBPerSecond => UnitType::DataRate,
+        }
+    }
+    
+    fn display_name(&self) -> &'static str {
+        match self {
+            Unit::Second => "s",
+            Unit::Minute => "min",
+            Unit::Hour => "h",
+            Unit::Day => "day",
+            Unit::Byte => "B",
+            Unit::KB => "KB",
+            Unit::MB => "MB", 
+            Unit::GB => "GB",
+            Unit::TB => "TB",
+            Unit::KiB => "KiB",
+            Unit::MiB => "MiB",
+            Unit::GiB => "GiB",
+            Unit::TiB => "TiB",
+            Unit::BytesPerSecond => "B/s",
+            Unit::KBPerSecond => "KB/s",
+            Unit::MBPerSecond => "MB/s",
+            Unit::GBPerSecond => "GB/s",
+            Unit::TBPerSecond => "TB/s",
+            Unit::KiBPerSecond => "KiB/s",
+            Unit::MiBPerSecond => "MiB/s",
+            Unit::GiBPerSecond => "GiB/s",
+            Unit::TiBPerSecond => "TiB/s",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum UnitType {
+    Time,
+    Data,
+    DataRate,
+}
+
+fn parse_unit(text: &str) -> Option<Unit> {
+    match text.to_lowercase().as_str() {
+        "s" | "sec" | "second" | "seconds" => Some(Unit::Second),
+        "min" | "minute" | "minutes" => Some(Unit::Minute),
+        "h" | "hr" | "hour" | "hours" => Some(Unit::Hour),
+        "d" | "day" | "days" => Some(Unit::Day),
+        
+        "b" | "byte" | "bytes" => Some(Unit::Byte),
+        "kb" => Some(Unit::KB),
+        "mb" => Some(Unit::MB),
+        "gb" => Some(Unit::GB),
+        "tb" => Some(Unit::TB),
+        
+        "kib" => Some(Unit::KiB),
+        "mib" => Some(Unit::MiB),
+        "gib" => Some(Unit::GiB),
+        "tib" => Some(Unit::TiB),
+        
+        "b/s" | "bytes/s" | "bps" => Some(Unit::BytesPerSecond),
+        "kb/s" | "kbps" => Some(Unit::KBPerSecond),
+        "mb/s" | "mbps" => Some(Unit::MBPerSecond),
+        "gb/s" | "gbps" => Some(Unit::GBPerSecond),
+        "tb/s" | "tbps" => Some(Unit::TBPerSecond),
+        "kib/s" | "kibps" => Some(Unit::KiBPerSecond),
+        "mib/s" | "mibps" => Some(Unit::MiBPerSecond),
+        "gib/s" | "gibps" => Some(Unit::GiBPerSecond),
+        "tib/s" | "tibps" => Some(Unit::TiBPerSecond),
+        
+        _ => None,
+    }
+}
+
+fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
+    if tokens.is_empty() {
+        return None;
+    }
+    
+    // Handle conversion expressions like "1 GiB to KiB"
+    for i in 0..tokens.len().saturating_sub(2) {
+        if let (Token::NumberWithUnit(value, from_unit), Token::To) = (&tokens[i], &tokens[i + 1]) {
+            // Look for target unit in the remaining tokens
+            for j in (i + 2)..tokens.len() {
+                if let Token::NumberWithUnit(_, to_unit) = &tokens[j] {
+                    let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
+                    return unit_value.to_unit(to_unit);
+                }
+            }
+        }
+    }
+    
+    // Handle simple arithmetic with units
+    let mut operator_stack = Vec::new();
+    let mut value_stack = Vec::new();
+    
+    for token in tokens {
+        match token {
+            Token::Number(n) => {
+                value_stack.push(UnitValue::new(*n, None));
+            }
+            Token::NumberWithUnit(value, unit) => {
+                value_stack.push(UnitValue::new(*value, Some(unit.clone())));
+            }
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+                while let Some(top_op) = operator_stack.last() {
+                    if precedence_unit(token) <= precedence_unit(top_op) {
+                        let op = operator_stack.pop().unwrap();
+                        if !apply_operator_with_units(&mut value_stack, &op) {
+                            return None;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                operator_stack.push(token.clone());
+            }
+            Token::LeftParen => {
+                operator_stack.push(token.clone());
+            }
+            Token::RightParen => {
+                while let Some(op) = operator_stack.pop() {
+                    if matches!(op, Token::LeftParen) {
+                        break;
+                    }
+                    if !apply_operator_with_units(&mut value_stack, &op) {
+                        return None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    while let Some(op) = operator_stack.pop() {
+        if !apply_operator_with_units(&mut value_stack, &op) {
+            return None;
+        }
+    }
+    
+    if value_stack.len() == 1 {
+        value_stack.pop()
+    } else {
+        None
+    }
+}
+
+fn precedence_unit(token: &Token) -> i32 {
+    match token {
+        Token::Plus | Token::Minus => 1,
+        Token::Multiply | Token::Divide => 2,
+        _ => 0,
+    }
+}
+
+fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
+    if stack.len() < 2 {
+        return false;
+    }
+    
+    let b = stack.pop().unwrap();
+    let a = stack.pop().unwrap();
+    
+    let result = match op {
+        Token::Plus => {
+            // Addition: units must be compatible
+            match (&a.unit, &b.unit) {
+                (Some(unit_a), Some(unit_b)) => {
+                    if unit_a.unit_type() == unit_b.unit_type() {
+                        let base_a = unit_a.to_base_value(a.value);
+                        let base_b = unit_b.to_base_value(b.value);
+                        let result_base = base_a + base_b;
+                        let result_value = unit_a.from_base_value(result_base);
+                        UnitValue::new(result_value, Some(unit_a.clone()))
+                    } else {
+                        return false;
+                    }
+                }
+                (None, None) => UnitValue::new(a.value + b.value, None),
+                _ => return false, // Can't add number with unit and number without unit
+            }
+        }
+        Token::Minus => {
+            // Subtraction: units must be compatible
+            match (&a.unit, &b.unit) {
+                (Some(unit_a), Some(unit_b)) => {
+                    if unit_a.unit_type() == unit_b.unit_type() {
+                        let base_a = unit_a.to_base_value(a.value);
+                        let base_b = unit_b.to_base_value(b.value);
+                        let result_base = base_a - base_b;
+                        let result_value = unit_a.from_base_value(result_base);
+                        UnitValue::new(result_value, Some(unit_a.clone()))
+                    } else {
+                        return false;
+                    }
+                }
+                (None, None) => UnitValue::new(a.value - b.value, None),
+                _ => return false,
+            }
+        }
+        Token::Multiply => {
+            // Multiplication: special cases for units
+            match (&a.unit, &b.unit) {
+                (Some(Unit::GiB), Some(Unit::Second)) | (Some(Unit::Second), Some(Unit::GiB)) => {
+                    // GiB * s = GiB (total data transferred)
+                    UnitValue::new(a.value * b.value, Some(Unit::GiB))
+                }
+                (Some(Unit::GiBPerSecond), Some(Unit::Second)) | (Some(Unit::Second), Some(Unit::GiBPerSecond)) => {
+                    // GiB/s * s = GiB
+                    UnitValue::new(a.value * b.value, Some(Unit::GiB))
+                }
+                (Some(data_unit), Some(Unit::Second)) | (Some(Unit::Second), Some(data_unit)) 
+                    if data_unit.unit_type() == UnitType::Data => {
+                    // Data * time = data (total transferred)
+                    UnitValue::new(a.value * b.value, Some(data_unit.clone()))
+                }
+                (Some(rate_unit), Some(Unit::Second)) | (Some(Unit::Second), Some(rate_unit))
+                    if rate_unit.unit_type() == UnitType::DataRate => {
+                    // Rate * time = data
+                    let data_unit = match rate_unit {
+                        Unit::BytesPerSecond => Unit::Byte,
+                        Unit::KBPerSecond => Unit::KB,
+                        Unit::MBPerSecond => Unit::MB,
+                        Unit::GBPerSecond => Unit::GB,
+                        Unit::TBPerSecond => Unit::TB,
+                        Unit::KiBPerSecond => Unit::KiB,
+                        Unit::MiBPerSecond => Unit::MiB,
+                        Unit::GiBPerSecond => Unit::GiB,
+                        Unit::TiBPerSecond => Unit::TiB,
+                        _ => return false,
+                    };
+                    UnitValue::new(a.value * b.value, Some(data_unit))
+                }
+                (Some(unit), None) | (None, Some(unit)) => {
+                    // Number * unit = unit
+                    UnitValue::new(a.value * b.value, Some(unit.clone()))
+                }
+                (None, None) => UnitValue::new(a.value * b.value, None),
+                _ => return false, // Unsupported unit combination
+            }
+        }
+        Token::Divide => {
+            match (&a.unit, &b.unit) {
+                (Some(data_unit), Some(Unit::Second))
+                    if data_unit.unit_type() == UnitType::Data => {
+                    // Data / time = rate
+                    let rate_unit = match data_unit {
+                        Unit::Byte => Unit::BytesPerSecond,
+                        Unit::KB => Unit::KBPerSecond,
+                        Unit::MB => Unit::MBPerSecond,
+                        Unit::GB => Unit::GBPerSecond,
+                        Unit::TB => Unit::TBPerSecond,
+                        Unit::KiB => Unit::KiBPerSecond,
+                        Unit::MiB => Unit::MiBPerSecond,
+                        Unit::GiB => Unit::GiBPerSecond,
+                        Unit::TiB => Unit::TiBPerSecond,
+                        _ => return false,
+                    };
+                    UnitValue::new(a.value / b.value, Some(rate_unit))
+                }
+                (Some(unit), None) => {
+                    // unit / number = unit
+                    UnitValue::new(a.value / b.value, Some(unit.clone()))
+                }
+                (None, None) => {
+                    if b.value == 0.0 {
+                        return false;
+                    }
+                    UnitValue::new(a.value / b.value, None)
+                }
+                _ => return false,
+            }
+        }
+        _ => return false,
+    };
+    
+    stack.push(result);
+    true
 }
 
 fn evaluate_tokens(tokens: &[Token]) -> Option<f64> {
