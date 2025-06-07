@@ -159,6 +159,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn parse_colors(text: &str) -> Vec<Span> {
+    let mut spans = Vec::new();
+    let mut current_pos = 0;
+    let chars: Vec<char> = text.chars().collect();
+    
+    while current_pos < chars.len() {
+        if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+            let start_pos = current_pos;
+            let mut has_digit = false;
+            let mut has_dot = false;
+            
+            while current_pos < chars.len() {
+                let ch = chars[current_pos];
+                if ch.is_ascii_digit() {
+                    has_digit = true;
+                    current_pos += 1;
+                } else if ch == '.' && !has_dot {
+                    has_dot = true;
+                    current_pos += 1;
+                } else {
+                    break;
+                }
+            }
+            
+            if has_digit {
+                let number_text: String = chars[start_pos..current_pos].iter().collect();
+                spans.push(Span::styled(
+                    number_text,
+                    Style::default().fg(Color::LightBlue),
+                ));
+            } else {
+                spans.push(Span::raw(chars[start_pos].to_string()));
+                current_pos = start_pos + 1;
+            }
+        } else {
+            spans.push(Span::raw(chars[current_pos].to_string()));
+            current_pos += 1;
+        }
+    }
+    
+    spans
+}
+
 fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -196,11 +239,11 @@ fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
         
         if start_line + i == app.cursor_line {
             let (before_cursor, after_cursor) = line_text.split_at(app.cursor_col);
-            spans.push(Span::raw(before_cursor));
+            spans.extend(parse_colors(before_cursor));
             spans.push(Span::styled("█", Style::default().fg(Color::White)));
-            spans.push(Span::raw(after_cursor));
+            spans.extend(parse_colors(after_cursor));
         } else {
-            spans.push(Span::raw(line_text));
+            spans.extend(parse_colors(line_text));
         }
         
         lines.push(Line::from(spans));
