@@ -99,7 +99,8 @@ impl App {
     fn update_result(&mut self, line_index: usize) {
         if line_index < self.text_lines.len() && line_index < self.results.len() {
             let line = &self.text_lines[line_index];
-            self.results[line_index] = evaluate_expression(line);
+            self.results[line_index] =
+                evaluate_expression_with_context(line, &self.results, line_index);
         }
     }
 }
@@ -112,7 +113,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Arg::new("expression")
                 .help("Expression to evaluate (use -- before expression)")
                 .last(true)
-                .num_args(0..)
+                .num_args(0..),
         )
         .get_matches();
 
@@ -132,14 +133,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run_one_shot_mode(expression: &str) -> Result<(), Box<dyn Error>> {
     // Print the expression with syntax highlighting
     print_formatted_expression(expression);
-    
-    // Evaluate the expression
-    if let Some(result) = evaluate_expression(expression) {
+
+    // Evaluate the expression (no context for one-shot mode)
+    if let Some(result) = evaluate_expression_with_context(expression, &[], 0) {
         println!(" = {}", result);
     } else {
         println!(" = (invalid expression)");
     }
-    
+
     Ok(())
 }
 
@@ -149,7 +150,34 @@ fn print_formatted_expression(text: &str) {
     let chars: Vec<char> = text.chars().collect();
 
     while current_pos < chars.len() {
-        if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+        if chars[current_pos].is_ascii_alphabetic() {
+            // Handle potential units, keywords, and line references first
+            let start_pos = current_pos;
+
+            while current_pos < chars.len()
+                && (chars[current_pos].is_ascii_alphabetic()
+                    || chars[current_pos].is_ascii_digit()
+                    || chars[current_pos] == '/')
+            {
+                current_pos += 1;
+            }
+
+            let word_text: String = chars[start_pos..current_pos].iter().collect();
+
+            // Check if it's a valid unit, keyword, or line reference
+            if parse_line_reference(&word_text).is_some() {
+                // Print line reference in magenta (ANSI color code 95)
+                print!("\x1b[95m{}\x1b[0m", word_text);
+            } else if parse_unit(&word_text).is_some()
+                || word_text.to_lowercase() == "to"
+                || word_text.to_lowercase() == "in"
+            {
+                // Print unit/keyword in green (ANSI color code 92)
+                print!("\x1b[92m{}\x1b[0m", word_text);
+            } else {
+                print!("{}", word_text);
+            }
+        } else if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
             // Handle numbers
             let start_pos = current_pos;
             let mut has_digit = false;
@@ -177,23 +205,6 @@ fn print_formatted_expression(text: &str) {
             } else {
                 print!("{}", chars[start_pos]);
                 current_pos = start_pos + 1;
-            }
-        } else if chars[current_pos].is_ascii_alphabetic() {
-            // Handle potential units and keywords
-            let start_pos = current_pos;
-            
-            while current_pos < chars.len() && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos] == '/') {
-                current_pos += 1;
-            }
-            
-            let word_text: String = chars[start_pos..current_pos].iter().collect();
-            
-            // Check if it's a valid unit or keyword
-            if parse_unit(&word_text).is_some() || word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
-                // Print unit/keyword in green (ANSI color code 92)
-                print!("\x1b[92m{}\x1b[0m", word_text);
-            } else {
-                print!("{}", word_text);
             }
         } else {
             print!("{}", chars[current_pos]);
@@ -281,13 +292,19 @@ fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn evaluate_expression(text: &str) -> Option<String> {
+fn evaluate_expression_with_context(
+    text: &str,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<String> {
     // Find the longest valid mathematical expression in the text
     let expressions = find_math_expressions(text);
 
     for expr in expressions {
         // Try unit-aware parsing first
-        if let Some(unit_value) = parse_and_evaluate(&expr) {
+        if let Some(unit_value) =
+            parse_and_evaluate_with_context(&expr, previous_results, current_line)
+        {
             return Some(unit_value.format());
         }
         // Then try simple parsing
@@ -298,6 +315,11 @@ fn evaluate_expression(text: &str) -> Option<String> {
     }
 
     None
+}
+
+// Keep the old function for backward compatibility in tests
+fn evaluate_expression(text: &str) -> Option<String> {
+    evaluate_expression_with_context(text, &[], 0)
 }
 
 fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
@@ -370,12 +392,12 @@ fn find_math_expressions(text: &str) -> Vec<String> {
         let last_char = trimmed_text.chars().rev().find(|c| !c.is_whitespace());
         matches!(last_char, Some('+') | Some('-') | Some('*') | Some('/'))
     };
-    
+
     let text_starts_with_operator = {
         let first_char = trimmed_text.chars().find(|c| !c.is_whitespace());
         matches!(first_char, Some('*') | Some('/') | Some('+'))
     };
-    
+
     // Check for unbalanced parentheses
     let has_unbalanced_parens = {
         let mut paren_count = 0;
@@ -393,7 +415,7 @@ fn find_math_expressions(text: &str) -> Vec<String> {
         }
         paren_count != 0
     };
-    
+
     if text_ends_with_operator || text_starts_with_operator || has_unbalanced_parens {
         return expressions; // Return empty - invalid expression
     }
@@ -495,10 +517,11 @@ fn extract_math_portion(text: &str) -> String {
                     }
                     let potential_word = &text[i..word_end];
 
-                    // Only treat as unit if it's a complete unit word or "to" or "in"
+                    // Only treat as unit if it's a complete unit word, "to", "in", or line reference
                     if (parse_unit(potential_word).is_some()
                         || potential_word.to_lowercase() == "to"
-                        || potential_word.to_lowercase() == "in")
+                        || potential_word.to_lowercase() == "in"
+                        || parse_line_reference(potential_word).is_some())
                         && (word_end >= text.len()
                             || !text.chars().nth(word_end).unwrap().is_ascii_alphabetic())
                     {
@@ -586,8 +609,12 @@ fn is_valid_math_expression(expr: &str) -> bool {
                     }
 
                     let unit_str: String = chars[unit_start..i].iter().collect();
-                    if parse_unit(&unit_str).is_none() && unit_str.to_lowercase() != "to" && unit_str.to_lowercase() != "in" {
-                        // Not a recognized unit, rewind
+                    if parse_unit(&unit_str).is_none()
+                        && unit_str.to_lowercase() != "to"
+                        && unit_str.to_lowercase() != "in"
+                        && parse_line_reference(&unit_str).is_none()
+                    {
+                        // Not a recognized unit or line reference, rewind
                         i = unit_start;
                     }
                 }
@@ -622,13 +649,22 @@ fn is_valid_math_expression(expr: &str) -> bool {
             _ => {
                 if ch.is_ascii_alphabetic() {
                     let unit_start = i;
-                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+                    // For potential line references, also include digits
+                    while i < chars.len()
+                        && (chars[i].is_ascii_alphabetic()
+                            || chars[i].is_ascii_digit()
+                            || chars[i] == '/')
+                    {
                         i += 1;
                     }
 
                     let word: String = chars[unit_start..i].iter().collect();
                     if word.to_lowercase() == "to" || word.to_lowercase() == "in" {
                         prev_was_operator = true;
+                    } else if parse_line_reference(&word).is_some() {
+                        // Valid line reference, acts like a number
+                        has_number = true;
+                        prev_was_operator = false;
                     } else if parse_unit(&word).is_some() {
                         // Valid unit, continue
                         prev_was_operator = false;
@@ -649,9 +685,17 @@ fn is_valid_math_expression(expr: &str) -> bool {
     paren_count == 0 && has_number && !prev_was_operator
 }
 
-fn parse_and_evaluate(expr: &str) -> Option<UnitValue> {
+fn parse_and_evaluate_with_context(
+    expr: &str,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
     let tokens = tokenize_with_units(expr)?;
-    evaluate_tokens_with_units(&tokens)
+    evaluate_tokens_with_units_and_context(&tokens, previous_results, current_line)
+}
+
+fn parse_and_evaluate(expr: &str) -> Option<UnitValue> {
+    parse_and_evaluate_with_context(expr, &[], 0)
 }
 
 fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
@@ -756,9 +800,15 @@ fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
             }
             _ => {
                 if ch.is_ascii_alphabetic() {
-                    // Could be a unit or part of "to"
+                    // Could be a unit, keyword, or line reference
                     let unit_start = i;
-                    while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '/') {
+
+                    // For potential line references, also include digits
+                    while i < chars.len()
+                        && (chars[i].is_ascii_alphabetic()
+                            || chars[i].is_ascii_digit()
+                            || chars[i] == '/')
+                    {
                         i += 1;
                     }
 
@@ -767,6 +817,8 @@ fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
                         tokens.push(Token::To);
                     } else if word.to_lowercase() == "in" {
                         tokens.push(Token::In);
+                    } else if let Some(line_num) = parse_line_reference(&word) {
+                        tokens.push(Token::LineReference(line_num));
                     } else if let Some(unit) = parse_unit(&word) {
                         // Standalone unit for conversion target
                         tokens.push(Token::NumberWithUnit(1.0, unit));
@@ -808,14 +860,14 @@ impl UnitValue {
             None => None, // No unit to convert from
         }
     }
-    
+
     fn format(&self) -> String {
         let formatted_value = if self.value.fract() == 0.0 && self.value.abs() < 1e15 {
             format_number_with_commas(self.value as i64)
         } else {
             format_decimal_with_commas(self.value)
         };
-        
+
         match &self.unit {
             Some(unit) => format!("{} {}", formatted_value, unit.display_name()),
             None => formatted_value,
@@ -833,8 +885,9 @@ enum Token {
     Divide,
     LeftParen,
     RightParen,
-    To, // for conversions like "to KiB"
-    In, // for conversions like "in KiB"
+    To,                   // for conversions like "to KiB"
+    In,                   // for conversions like "in KiB"
+    LineReference(usize), // for referencing other lines like "line1", "line2"
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -998,6 +1051,19 @@ enum UnitType {
     DataRate,
 }
 
+fn parse_line_reference(text: &str) -> Option<usize> {
+    let text_lower = text.to_lowercase();
+    if text_lower.starts_with("line") {
+        let number_part = &text_lower[4..]; // Remove "line" prefix
+        if let Ok(line_num) = number_part.parse::<usize>() {
+            if line_num > 0 {
+                return Some(line_num - 1); // Convert to 0-based indexing
+            }
+        }
+    }
+    None
+}
+
 fn parse_unit(text: &str) -> Option<Unit> {
     match text.to_lowercase().as_str() {
         "s" | "sec" | "second" | "seconds" => Some(Unit::Second),
@@ -1030,15 +1096,23 @@ fn parse_unit(text: &str) -> Option<Unit> {
     }
 }
 
-fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
+fn evaluate_tokens_with_units_and_context(
+    tokens: &[Token],
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
     if tokens.is_empty() {
         return None;
     }
 
     // Handle simple conversion expressions like "1 GiB to KiB" (only if it's the entire expression)
     if tokens.len() == 3 {
-        if let (Token::NumberWithUnit(value, from_unit), Token::To, Token::NumberWithUnit(_, to_unit)) = 
-            (&tokens[0], &tokens[1], &tokens[2]) {
+        if let (
+            Token::NumberWithUnit(value, from_unit),
+            Token::To,
+            Token::NumberWithUnit(_, to_unit),
+        ) = (&tokens[0], &tokens[1], &tokens[2])
+        {
             let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
             return unit_value.to_unit(to_unit);
         }
@@ -1047,7 +1121,7 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
     // Check if we have an "in" or "to" conversion request at the end
     let mut target_unit_for_conversion = None;
     let mut evaluation_tokens = tokens;
-    
+
     // Look for "in" or "to" followed by a unit at the end
     for i in 0..tokens.len().saturating_sub(1) {
         if let Token::In | Token::To = &tokens[i] {
@@ -1074,6 +1148,16 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
             }
             Token::NumberWithUnit(value, unit) => {
                 value_stack.push(UnitValue::new(*value, Some(unit.clone())));
+            }
+            Token::LineReference(line_index) => {
+                // Resolve line reference to its calculated result
+                if let Some(line_result) =
+                    resolve_line_reference(*line_index, previous_results, current_line)
+                {
+                    value_stack.push(line_result);
+                } else {
+                    return None; // Invalid or circular reference
+                }
             }
             Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
                 while let Some(top_op) = operator_stack.last() {
@@ -1113,18 +1197,68 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
 
     if value_stack.len() == 1 {
         let mut result = value_stack.pop().unwrap();
-        
+
         // If we have a target unit for conversion, convert the result
         if let Some(target_unit) = target_unit_for_conversion {
             if let Some(converted) = result.to_unit(&target_unit) {
                 result = converted;
             }
         }
-        
+
         Some(result)
     } else {
         None
     }
+}
+
+fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
+    evaluate_tokens_with_units_and_context(tokens, &[], 0)
+}
+
+fn resolve_line_reference(
+    line_index: usize,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
+    // Prevent circular references
+    if line_index >= current_line {
+        return None;
+    }
+
+    // Check if the referenced line exists and has a result
+    if line_index < previous_results.len() {
+        if let Some(result_str) = &previous_results[line_index] {
+            // Parse the result string back into a UnitValue
+            return parse_result_string(result_str);
+        }
+    }
+
+    None
+}
+
+fn parse_result_string(result_str: &str) -> Option<UnitValue> {
+    // Parse a result string like "14 GiB" or "42" back into a UnitValue
+    let parts: Vec<&str> = result_str.trim().split_whitespace().collect();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    // Try to parse the first part as a number
+    let number_str = parts[0].replace(",", ""); // Remove commas
+    if let Ok(value) = number_str.parse::<f64>() {
+        if parts.len() == 1 {
+            // Just a number
+            return Some(UnitValue::new(value, None));
+        } else if parts.len() == 2 {
+            // Number with unit
+            if let Some(unit) = parse_unit(parts[1]) {
+                return Some(UnitValue::new(value, Some(unit)));
+            }
+        }
+    }
+
+    None
 }
 
 fn precedence_unit(token: &Token) -> i32 {
@@ -1268,7 +1402,8 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
         Token::Divide => {
             match (&a.unit, &b.unit) {
                 (Some(data_unit), Some(time_unit))
-                    if data_unit.unit_type() == UnitType::Data && time_unit.unit_type() == UnitType::Time =>
+                    if data_unit.unit_type() == UnitType::Data
+                        && time_unit.unit_type() == UnitType::Time =>
                 {
                     // Data / time = rate
                     // Convert time to seconds first
@@ -1431,7 +1566,32 @@ fn parse_colors(text: &str) -> Vec<Span> {
     let chars: Vec<char> = text.chars().collect();
 
     while current_pos < chars.len() {
-        if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+        if chars[current_pos].is_ascii_alphabetic() {
+            // Handle potential units, keywords, and line references first
+            let start_pos = current_pos;
+
+            while current_pos < chars.len()
+                && (chars[current_pos].is_ascii_alphabetic()
+                    || chars[current_pos].is_ascii_digit()
+                    || chars[current_pos] == '/')
+            {
+                current_pos += 1;
+            }
+
+            let word_text: String = chars[start_pos..current_pos].iter().collect();
+
+            // Check if it's a valid unit, keyword, or line reference
+            if parse_line_reference(&word_text).is_some() {
+                spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
+            } else if parse_unit(&word_text).is_some()
+                || word_text.to_lowercase() == "to"
+                || word_text.to_lowercase() == "in"
+            {
+                spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
+            } else {
+                spans.push(Span::raw(word_text));
+            }
+        } else if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
             // Handle numbers
             let start_pos = current_pos;
             let mut has_digit = false;
@@ -1461,25 +1621,6 @@ fn parse_colors(text: &str) -> Vec<Span> {
             } else {
                 spans.push(Span::raw(chars[start_pos].to_string()));
                 current_pos = start_pos + 1;
-            }
-        } else if chars[current_pos].is_ascii_alphabetic() {
-            // Handle potential units and keywords
-            let start_pos = current_pos;
-            
-            while current_pos < chars.len() && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos] == '/') {
-                current_pos += 1;
-            }
-            
-            let word_text: String = chars[start_pos..current_pos].iter().collect();
-            
-            // Check if it's a valid unit or keyword
-            if parse_unit(&word_text).is_some() || word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
-                spans.push(Span::styled(
-                    word_text,
-                    Style::default().fg(Color::Green),
-                ));
-            } else {
-                spans.push(Span::raw(word_text));
             }
         } else {
             spans.push(Span::raw(chars[current_pos].to_string()));
@@ -1558,7 +1699,10 @@ fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
 
         match result {
             Some(value) => {
-                spans.push(Span::styled(value.clone(), Style::default().fg(Color::Green)));
+                spans.push(Span::styled(
+                    value.clone(),
+                    Style::default().fg(Color::Green),
+                ));
             }
             None => {}
         }
@@ -1599,23 +1743,44 @@ mod tests {
         assert_eq!(evaluate_test_expression("15 / 3"), Some("5".to_string()));
 
         // Order of operations
-        assert_eq!(evaluate_test_expression("2 + 3 * 4"), Some("14".to_string()));
-        assert_eq!(evaluate_test_expression("(2 + 3) * 4"), Some("20".to_string()));
-        assert_eq!(evaluate_test_expression("10 - 2 * 3"), Some("4".to_string()));
+        assert_eq!(
+            evaluate_test_expression("2 + 3 * 4"),
+            Some("14".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("(2 + 3) * 4"),
+            Some("20".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("10 - 2 * 3"),
+            Some("4".to_string())
+        );
 
         // Decimal numbers
         assert_eq!(evaluate_test_expression("1.5 + 2.5"), Some("4".to_string()));
-        assert_eq!(evaluate_test_expression("3.14 * 2"), Some("6.280".to_string()));
+        assert_eq!(
+            evaluate_test_expression("3.14 * 2"),
+            Some("6.280".to_string())
+        );
 
         // Numbers with commas
-        assert_eq!(evaluate_test_expression("1,000 + 500"), Some("1,500".to_string()));
-        assert_eq!(evaluate_test_expression("1,234,567 / 1000"), Some("1,234.567".to_string()));
+        assert_eq!(
+            evaluate_test_expression("1,000 + 500"),
+            Some("1,500".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("1,234,567 / 1000"),
+            Some("1,234.567".to_string())
+        );
     }
 
     #[test]
     fn test_inline_expressions() {
         // Test expressions within text
-        assert_eq!(evaluate_test_expression("The result is 5 + 3"), Some("8".to_string()));
+        assert_eq!(
+            evaluate_test_expression("The result is 5 + 3"),
+            Some("8".to_string())
+        );
         assert_eq!(
             evaluate_test_expression("Cost: 100 * 12 dollars"),
             Some("1,200".to_string())
@@ -1670,16 +1835,31 @@ mod tests {
     #[test]
     fn test_arithmetic_with_units() {
         // Data rate * time = data
-        assert_eq!(evaluate_test_expression("50 GiB/s * 2 s"), Some("100 GiB".to_string()));
+        assert_eq!(
+            evaluate_test_expression("50 GiB/s * 2 s"),
+            Some("100 GiB".to_string())
+        );
 
-        assert_eq!(evaluate_test_expression("1 hour * 10 GiB/s"), Some("36,000 GiB".to_string()));
+        assert_eq!(
+            evaluate_test_expression("1 hour * 10 GiB/s"),
+            Some("36,000 GiB".to_string())
+        );
 
         // Data / time = rate
-        assert_eq!(evaluate_test_expression("100 GiB / 10 s"), Some("10 GiB/s".to_string()));
+        assert_eq!(
+            evaluate_test_expression("100 GiB / 10 s"),
+            Some("10 GiB/s".to_string())
+        );
 
         // Same unit addition/subtraction
-        assert_eq!(evaluate_test_expression("1 GiB + 512 MiB"), Some("1,536 MiB".to_string()));
-        assert_eq!(evaluate_test_expression("2 hours + 30 minutes"), Some("150 min".to_string()));
+        assert_eq!(
+            evaluate_test_expression("1 GiB + 512 MiB"),
+            Some("1,536 MiB".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("2 hours + 30 minutes"),
+            Some("150 min".to_string())
+        );
     }
 
     #[test]
@@ -1701,7 +1881,10 @@ mod tests {
     #[test]
     fn test_complex_expressions() {
         // Complex arithmetic
-        assert_eq!(evaluate_test_expression("(10 + 5) * 2 - 8 / 4"), Some("28".to_string()));
+        assert_eq!(
+            evaluate_test_expression("(10 + 5) * 2 - 8 / 4"),
+            Some("28".to_string())
+        );
         assert_eq!(
             evaluate_test_expression("100 / (5 + 5) + 3 * 2"),
             Some("16".to_string())
@@ -1712,7 +1895,10 @@ mod tests {
             evaluate_test_expression("1,000,000 + 500,000"),
             Some("1,500,000".to_string())
         );
-        assert_eq!(evaluate_test_expression("2,500 * 1,000"), Some("2,500,000".to_string()));
+        assert_eq!(
+            evaluate_test_expression("2,500 * 1,000"),
+            Some("2,500,000".to_string())
+        );
 
         // Complex unit expressions
         assert_eq!(
@@ -1801,8 +1987,14 @@ mod tests {
     #[test]
     fn test_precision() {
         // Test decimal precision
-        assert_eq!(evaluate_test_expression("1.234 + 2.567"), Some("3.801".to_string()));
-        assert_eq!(evaluate_test_expression("10.5 / 3"), Some("3.500".to_string()));
+        assert_eq!(
+            evaluate_test_expression("1.234 + 2.567"),
+            Some("3.801".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("10.5 / 3"),
+            Some("3.500".to_string())
+        );
 
         // Test with units requiring precision
         let result = evaluate_with_unit_info("1.5 GiB to MiB");
@@ -1815,7 +2007,10 @@ mod tests {
     fn test_whitespace_handling() {
         // Various whitespace formats
         assert_eq!(evaluate_test_expression("5+3"), Some("8".to_string()));
-        assert_eq!(evaluate_test_expression("  5  +  3  "), Some("8".to_string()));
+        assert_eq!(
+            evaluate_test_expression("  5  +  3  "),
+            Some("8".to_string())
+        );
         assert_eq!(evaluate_test_expression("5 * 3"), Some("15".to_string()));
 
         // Units with whitespace
@@ -1828,32 +2023,56 @@ mod tests {
     #[test]
     fn test_in_keyword_conversions() {
         // Test "in" keyword for unit conversions after calculations
-        assert_eq!(evaluate_test_expression("24 MiB * 32 in KiB"), Some("786,432 KiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("24 MiB * 32 in KiB"),
+            Some("786,432 KiB".to_string())
+        );
+
         // Test with different operations
-        assert_eq!(evaluate_test_expression("1 GiB + 512 MiB in KiB"), Some("1,572,864 KiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("1 GiB + 512 MiB in KiB"),
+            Some("1,572,864 KiB".to_string())
+        );
+
         // Test with time calculations (using scalar multiplication)
-        assert_eq!(evaluate_test_expression("2 hours * 60 in minutes"), Some("7,200 min".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("2 hours * 60 in minutes"),
+            Some("7,200 min".to_string())
+        );
+
         // Test with complex expressions
-        assert_eq!(evaluate_test_expression("(1 GiB + 1 GiB) / 2 in MiB"), Some("1,024 MiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("(1 GiB + 1 GiB) / 2 in MiB"),
+            Some("1,024 MiB".to_string())
+        );
+
         // Test mixed base units (base 10 to base 2)
-        assert_eq!(evaluate_test_expression("1000 MB * 5 in GiB"), Some("4.657 GiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("1000 MB * 5 in GiB"),
+            Some("4.657 GiB".to_string())
+        );
+
         // Test rate calculations with time conversion
-        assert_eq!(evaluate_test_expression("500 GiB / 10 seconds in MiB/s"), Some("51,200 MiB/s".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("500 GiB / 10 seconds in MiB/s"),
+            Some("51,200 MiB/s".to_string())
+        );
+
         // Test simple unit conversion
-        assert_eq!(evaluate_test_expression("1024 KiB in MiB"), Some("1 MiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("1024 KiB in MiB"),
+            Some("1 MiB".to_string())
+        );
+
         // Test addition with conversion
-        assert_eq!(evaluate_test_expression("1 hour + 30 minutes in minutes"), Some("90 min".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("1 hour + 30 minutes in minutes"),
+            Some("90 min".to_string())
+        );
+
         // Test invalid unit conversion (incompatible types)
         assert_eq!(evaluate_test_expression("5 GiB + 10 in seconds"), None);
-        
+
         // Test that "in" without valid target unit falls back to regular calculation
         assert_eq!(evaluate_test_expression("5 + 3 in"), Some("8".to_string()));
     }
@@ -1861,22 +2080,128 @@ mod tests {
     #[test]
     fn test_to_keyword_with_expressions() {
         // Test "to" keyword with expressions (same functionality as "in")
-        assert_eq!(evaluate_test_expression("12 GiB + 50 MiB to MiB"), Some("12,338 MiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("12 GiB + 50 MiB to MiB"),
+            Some("12,338 MiB".to_string())
+        );
+
         // Test with multiplication
-        assert_eq!(evaluate_test_expression("24 MiB * 32 to KiB"), Some("786,432 KiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("24 MiB * 32 to KiB"),
+            Some("786,432 KiB".to_string())
+        );
+
         // Test with division that creates a rate
-        assert_eq!(evaluate_test_expression("1000 GiB / 10 seconds to MiB/s"), Some("102,400 MiB/s".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("1000 GiB / 10 seconds to MiB/s"),
+            Some("102,400 MiB/s".to_string())
+        );
+
         // Test complex expression
-        assert_eq!(evaluate_test_expression("(2 TiB - 1 GiB) / 1024 to GiB"), Some("1.999 GiB".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("(2 TiB - 1 GiB) / 1024 to GiB"),
+            Some("1.999 GiB".to_string())
+        );
+
         // Test time calculations
-        assert_eq!(evaluate_test_expression("3 hours + 45 minutes to minutes"), Some("225 min".to_string()));
-        
+        assert_eq!(
+            evaluate_test_expression("3 hours + 45 minutes to minutes"),
+            Some("225 min".to_string())
+        );
+
         // Ensure simple "to" conversions still work (backward compatibility)
-        assert_eq!(evaluate_test_expression("1 GiB to MiB"), Some("1,024 MiB".to_string()));
-        assert_eq!(evaluate_test_expression("60 seconds to minutes"), Some("1 min".to_string()));
+        assert_eq!(
+            evaluate_test_expression("1 GiB to MiB"),
+            Some("1,024 MiB".to_string())
+        );
+        assert_eq!(
+            evaluate_test_expression("60 seconds to minutes"),
+            Some("1 min".to_string())
+        );
+    }
+
+    #[test]
+    fn test_line_references() {
+        // Test parsing line references
+        assert_eq!(parse_line_reference("line1"), Some(0));
+        assert_eq!(parse_line_reference("line5"), Some(4));
+        assert_eq!(parse_line_reference("line123"), Some(122));
+        assert_eq!(parse_line_reference("Line1"), Some(0)); // Case insensitive
+        assert_eq!(parse_line_reference("LINE1"), Some(0)); // Case insensitive
+
+        // Test invalid line references
+        assert_eq!(parse_line_reference("line0"), None); // Line numbers start at 1
+        assert_eq!(parse_line_reference("line"), None); // No number
+        assert_eq!(parse_line_reference("lineabc"), None); // Invalid number
+        assert_eq!(parse_line_reference("myline1"), None); // Doesn't start with "line"
+        assert_eq!(parse_line_reference("1line"), None); // Doesn't start with "line"
+
+        // Test line reference resolution with context
+        let previous_results = vec![
+            Some("10 GiB".to_string()),
+            Some("5".to_string()),
+            None,
+            Some("1,024 MiB".to_string()),
+        ];
+
+        // Test valid line references
+        assert_eq!(
+            evaluate_expression_with_context("line1 + 4 GiB", &previous_results, 4),
+            Some("14 GiB".to_string())
+        );
+        assert_eq!(
+            evaluate_expression_with_context("line2 * 3", &previous_results, 4),
+            Some("15".to_string())
+        );
+        assert_eq!(
+            evaluate_expression_with_context("line4 to GiB", &previous_results, 4),
+            Some("1 GiB".to_string())
+        );
+
+        // Test circular reference prevention
+        assert_eq!(
+            evaluate_expression_with_context("line1 + 2", &previous_results, 0),
+            None
+        ); // Can't reference self
+        assert_eq!(
+            evaluate_expression_with_context("line5 + 2", &previous_results, 4),
+            None
+        ); // Can't reference future lines
+
+        // Test reference to line with no result
+        assert_eq!(
+            evaluate_expression_with_context("line3 + 5", &previous_results, 4),
+            None
+        ); // Line 3 has no result
+
+        // Test complex expressions with line references
+        assert_eq!(
+            evaluate_expression_with_context("(line1 + line4) / 2", &previous_results, 4),
+            Some("5,632 MiB".to_string())
+        );
+        assert_eq!(
+            evaluate_expression_with_context("line1 * line2 to MiB", &previous_results, 4),
+            Some("51,200 MiB".to_string())
+        );
+    }
+
+    #[test]
+    fn test_line_reference_parsing_edge_cases() {
+        // Test result string parsing
+        assert!(parse_result_string("10 GiB").is_some());
+        assert!(parse_result_string("1,024").is_some());
+        assert!(parse_result_string("42").is_some());
+        assert!(parse_result_string("3.14 MiB/s").is_some());
+
+        // Test invalid result strings
+        assert!(parse_result_string("").is_none());
+        assert!(parse_result_string("invalid").is_none());
+        assert!(parse_result_string("GiB 10").is_none()); // Wrong order
+
+        // Test line reference in tokenizer
+        let tokens = tokenize_with_units("line1 + 5 GiB").unwrap();
+        assert!(matches!(tokens[0], Token::LineReference(0)));
+        assert!(matches!(tokens[1], Token::Plus));
+        assert!(matches!(tokens[2], Token::NumberWithUnit(5.0, Unit::GiB)));
     }
 }
