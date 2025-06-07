@@ -18,6 +18,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+// Constants for better readability and maintainability
+const TICK_RATE_MS: u64 = 250;
+const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;
+const FLOAT_EPSILON: f64 = f64::EPSILON;
+
+
 struct App {
     text_lines: Vec<String>,
     cursor_line: usize,
@@ -101,6 +107,9 @@ impl App {
             let line = &self.text_lines[line_index];
             self.results[line_index] =
                 evaluate_expression_with_context(line, &self.results, line_index);
+        } else {
+            // This should never happen in normal operation, but let's be defensive
+            eprintln!("Warning: Attempted to update result for invalid line index {}", line_index);
         }
     }
 }
@@ -222,7 +231,7 @@ fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
 
     let mut app = App::default();
     let mut last_tick = Instant::now();
-    let tick_rate = Duration::from_millis(250);
+    let tick_rate = Duration::from_millis(TICK_RATE_MS);
 
     loop {
         terminal.draw(|f| ui(f, &app))?;
@@ -317,11 +326,6 @@ fn evaluate_expression_with_context(
     None
 }
 
-// Keep the old function for backward compatibility in tests
-#[allow(dead_code)]
-fn evaluate_expression(text: &str) -> Option<String> {
-    evaluate_expression_with_context(text, &[], 0)
-}
 
 fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
     let expr = expr.replace(" ", "");
@@ -388,36 +392,8 @@ fn find_math_expressions(text: &str) -> Vec<String> {
         return expressions;
     }
 
-    // Check if the text ends with an operator OR starts with an operator (except minus for negation)
-    let text_ends_with_operator = {
-        let last_char = trimmed_text.chars().rev().find(|c| !c.is_whitespace());
-        matches!(last_char, Some('+') | Some('-') | Some('*') | Some('/'))
-    };
-
-    let text_starts_with_operator = {
-        let first_char = trimmed_text.chars().find(|c| !c.is_whitespace());
-        matches!(first_char, Some('*') | Some('/') | Some('+'))
-    };
-
-    // Check for unbalanced parentheses
-    let has_unbalanced_parens = {
-        let mut paren_count = 0;
-        for ch in trimmed_text.chars() {
-            match ch {
-                '(' => paren_count += 1,
-                ')' => {
-                    paren_count -= 1;
-                    if paren_count < 0 {
-                        return expressions; // Return empty
-                    }
-                }
-                _ => {}
-            }
-        }
-        paren_count != 0
-    };
-
-    if text_ends_with_operator || text_starts_with_operator || has_unbalanced_parens {
+    // Early validation - check for obviously invalid expressions
+    if has_invalid_expression_structure(trimmed_text) {
         return expressions; // Return empty - invalid expression
     }
 
@@ -448,8 +424,10 @@ fn find_math_expressions(text: &str) -> Vec<String> {
 
     // Remove duplicates and sub-expressions
     let mut filtered_expressions = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    
     for expr in &expressions {
-        if !filtered_expressions.contains(expr) {
+        if seen.insert(expr.clone()) {
             let mut is_subexpression = false;
             for other_expr in &expressions {
                 if other_expr != expr && other_expr.len() > expr.len() && other_expr.contains(expr)
@@ -467,10 +445,42 @@ fn find_math_expressions(text: &str) -> Vec<String> {
     filtered_expressions
 }
 
+fn has_invalid_expression_structure(text: &str) -> bool {
+    // Check if the text ends with an operator OR starts with an operator (except minus for negation)
+    let text_ends_with_operator = {
+        let last_char = text.chars().rev().find(|c| !c.is_whitespace());
+        matches!(last_char, Some('+') | Some('-') | Some('*') | Some('/'))
+    };
+
+    let text_starts_with_operator = {
+        let first_char = text.chars().find(|c| !c.is_whitespace());
+        matches!(first_char, Some('*') | Some('/') | Some('+'))
+    };
+
+    // Check for unbalanced parentheses
+    let has_unbalanced_parens = {
+        let mut paren_count = 0;
+        for ch in text.chars() {
+            match ch {
+                '(' => paren_count += 1,
+                ')' => {
+                    paren_count -= 1;
+                    if paren_count < 0 {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        paren_count != 0
+    };
+
+    text_ends_with_operator || text_starts_with_operator || has_unbalanced_parens
+}
+
 fn extract_math_portion(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut math_end = 0;
-    let mut _paren_count = 0;
     let mut found_digit = false;
     let mut i = 0;
     let mut last_was_operator = false;
@@ -490,12 +500,10 @@ fn extract_math_portion(text: &str) -> String {
                 }
             }
             '(' => {
-                _paren_count += 1;
                 math_end = i + 1;
                 last_was_operator = false;
             }
             ')' => {
-                _paren_count -= 1;
                 math_end = i + 1;
                 last_was_operator = false;
                 // Don't break here - continue to see if there are more operators
@@ -695,10 +703,6 @@ fn parse_and_evaluate_with_context(
     evaluate_tokens_with_units_and_context(&tokens, previous_results, current_line)
 }
 
-#[allow(dead_code)]
-fn parse_and_evaluate(expr: &str) -> Option<UnitValue> {
-    parse_and_evaluate_with_context(expr, &[], 0)
-}
 
 fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
     let mut tokens = Vec::new();
@@ -864,7 +868,7 @@ impl UnitValue {
     }
 
     fn format(&self) -> String {
-        let formatted_value = if self.value.fract() == 0.0 && self.value.abs() < 1e15 {
+        let formatted_value = if self.value.fract() == 0.0 && self.value.abs() < MAX_INTEGER_FOR_FORMATTING {
             format_number_with_commas(self.value as i64)
         } else {
             format_decimal_with_commas(self.value)
@@ -1045,6 +1049,36 @@ impl Unit {
             Unit::TiBPerSecond => "TiB/s",
         }
     }
+
+    fn to_rate_unit(&self) -> Result<Unit, ()> {
+        match self {
+            Unit::Byte => Ok(Unit::BytesPerSecond),
+            Unit::KB => Ok(Unit::KBPerSecond),
+            Unit::MB => Ok(Unit::MBPerSecond),
+            Unit::GB => Ok(Unit::GBPerSecond),
+            Unit::TB => Ok(Unit::TBPerSecond),
+            Unit::KiB => Ok(Unit::KiBPerSecond),
+            Unit::MiB => Ok(Unit::MiBPerSecond),
+            Unit::GiB => Ok(Unit::GiBPerSecond),
+            Unit::TiB => Ok(Unit::TiBPerSecond),
+            _ => Err(()),
+        }
+    }
+
+    fn to_data_unit(&self) -> Result<Unit, ()> {
+        match self {
+            Unit::BytesPerSecond => Ok(Unit::Byte),
+            Unit::KBPerSecond => Ok(Unit::KB),
+            Unit::MBPerSecond => Ok(Unit::MB),
+            Unit::GBPerSecond => Ok(Unit::GB),
+            Unit::TBPerSecond => Ok(Unit::TB),
+            Unit::KiBPerSecond => Ok(Unit::KiB),
+            Unit::MiBPerSecond => Ok(Unit::MiB),
+            Unit::GiBPerSecond => Ok(Unit::GiB),
+            Unit::TiBPerSecond => Ok(Unit::TiB),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1213,10 +1247,6 @@ fn evaluate_tokens_with_units_and_context(
     }
 }
 
-#[allow(dead_code)]
-fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
-    evaluate_tokens_with_units_and_context(tokens, &[], 0)
-}
 
 fn resolve_line_reference(
     line_index: usize,
@@ -1351,17 +1381,9 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     let time_in_seconds = time_u.to_base_value(time_value);
 
                     // Rate * time = data
-                    let data_unit = match rate_u {
-                        Unit::BytesPerSecond => Unit::Byte,
-                        Unit::KBPerSecond => Unit::KB,
-                        Unit::MBPerSecond => Unit::MB,
-                        Unit::GBPerSecond => Unit::GB,
-                        Unit::TBPerSecond => Unit::TB,
-                        Unit::KiBPerSecond => Unit::KiB,
-                        Unit::MiBPerSecond => Unit::MiB,
-                        Unit::GiBPerSecond => Unit::GiB,
-                        Unit::TiBPerSecond => Unit::TiB,
-                        _ => return false,
+                    let data_unit = match rate_u.to_data_unit() {
+                        Ok(unit) => unit,
+                        Err(()) => return false,
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(data_unit))
                 }
@@ -1372,25 +1394,12 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 {
                     UnitValue::new(a.value * b.value, Some(data_unit.clone()))
                 }
-                // Rate * Time = Data (specific cases for backwards compatibility)
-                (Some(Unit::GiBPerSecond), Some(Unit::Second))
-                | (Some(Unit::Second), Some(Unit::GiBPerSecond)) => {
-                    UnitValue::new(a.value * b.value, Some(Unit::GiB))
-                }
                 (Some(rate_unit), Some(Unit::Second)) | (Some(Unit::Second), Some(rate_unit))
                     if rate_unit.unit_type() == UnitType::DataRate =>
                 {
-                    let data_unit = match rate_unit {
-                        Unit::BytesPerSecond => Unit::Byte,
-                        Unit::KBPerSecond => Unit::KB,
-                        Unit::MBPerSecond => Unit::MB,
-                        Unit::GBPerSecond => Unit::GB,
-                        Unit::TBPerSecond => Unit::TB,
-                        Unit::KiBPerSecond => Unit::KiB,
-                        Unit::MiBPerSecond => Unit::MiB,
-                        Unit::GiBPerSecond => Unit::GiB,
-                        Unit::TiBPerSecond => Unit::TiB,
-                        _ => return false,
+                    let data_unit = match rate_unit.to_data_unit() {
+                        Ok(unit) => unit,
+                        Err(()) => return false,
                     };
                     UnitValue::new(a.value * b.value, Some(data_unit))
                 }
@@ -1411,29 +1420,21 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     // Data / time = rate
                     // Convert time to seconds first
                     let time_in_seconds = time_unit.to_base_value(b.value);
-                    let rate_unit = match data_unit {
-                        Unit::Byte => Unit::BytesPerSecond,
-                        Unit::KB => Unit::KBPerSecond,
-                        Unit::MB => Unit::MBPerSecond,
-                        Unit::GB => Unit::GBPerSecond,
-                        Unit::TB => Unit::TBPerSecond,
-                        Unit::KiB => Unit::KiBPerSecond,
-                        Unit::MiB => Unit::MiBPerSecond,
-                        Unit::GiB => Unit::GiBPerSecond,
-                        Unit::TiB => Unit::TiBPerSecond,
-                        _ => return false,
+                    let rate_unit = match data_unit.to_rate_unit() {
+                        Ok(unit) => unit,
+                        Err(()) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
                 }
                 (Some(unit), None) => {
                     // unit / number = unit
-                    if b.value.abs() < f64::EPSILON {
+                    if b.value.abs() < FLOAT_EPSILON {
                         return false;
                     }
                     UnitValue::new(a.value / b.value, Some(unit.clone()))
                 }
                 (None, None) => {
-                    if b.value.abs() < f64::EPSILON {
+                    if b.value.abs() < FLOAT_EPSILON {
                         return false;
                     }
                     UnitValue::new(a.value / b.value, None)
@@ -1720,14 +1721,14 @@ mod tests {
 
     // Helper function to evaluate expressions for testing
     fn evaluate_test_expression(input: &str) -> Option<String> {
-        evaluate_expression(input)
+        evaluate_expression_with_context(input, &[], 0)
     }
 
     // Helper function to get unit conversion results for testing
     fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
         let expressions = find_math_expressions(input);
         for expr in expressions {
-            if let Some(result) = parse_and_evaluate(&expr) {
+            if let Some(result) = parse_and_evaluate_with_context(&expr, &[], 0) {
                 return Some(result);
             }
         }
