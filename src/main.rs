@@ -113,6 +113,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Char('q') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                             break;
                         }
+                        KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                            break;
+                        }
                         KeyCode::Char(c) => {
                             app.insert_char(c);
                         }
