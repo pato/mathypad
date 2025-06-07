@@ -234,8 +234,8 @@ fn is_valid_math_expression(expr: &str) -> bool {
             '0'..='9' => {
                 has_number = true;
                 prev_was_operator = false;
-                // Skip through the whole number
-                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                // Skip through the whole number (including commas and decimals)
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.' || chars[i] == ',') {
                     i += 1;
                 }
                 continue;
@@ -290,12 +290,14 @@ fn parse_and_evaluate(expr: &str) -> Option<f64> {
 
     for ch in expr.chars() {
         match ch {
-            '0'..='9' | '.' => {
+            '0'..='9' | '.' | ',' => {
                 current_number.push(ch);
             }
             '+' | '-' | '*' | '/' | '(' | ')' => {
                 if !current_number.is_empty() {
-                    if let Ok(num) = current_number.parse::<f64>() {
+                    // Remove commas before parsing
+                    let cleaned_number = current_number.replace(",", "");
+                    if let Ok(num) = cleaned_number.parse::<f64>() {
                         tokens.push(Token::Number(num));
                     } else {
                         return None;
@@ -317,7 +319,9 @@ fn parse_and_evaluate(expr: &str) -> Option<f64> {
     }
 
     if !current_number.is_empty() {
-        if let Ok(num) = current_number.parse::<f64>() {
+        // Remove commas before parsing
+        let cleaned_number = current_number.replace(",", "");
+        if let Ok(num) = cleaned_number.parse::<f64>() {
             tokens.push(Token::Number(num));
         } else {
             return None;
@@ -421,6 +425,34 @@ fn apply_operator(output: &mut Vec<f64>, op: &Token) -> bool {
     true
 }
 
+fn format_number_with_commas(num: i64) -> String {
+    let num_str = num.to_string();
+    let mut result = String::new();
+    let chars: Vec<char> = num_str.chars().collect();
+    
+    for (i, ch) in chars.iter().enumerate() {
+        if i > 0 && (chars.len() - i) % 3 == 0 && *ch != '-' {
+            result.push(',');
+        }
+        result.push(*ch);
+    }
+    
+    result
+}
+
+fn format_decimal_with_commas(num: f64) -> String {
+    let formatted = format!("{:.3}", num);
+    let parts: Vec<&str> = formatted.split('.').collect();
+    
+    if parts.len() == 2 {
+        let integer_part = parts[0].parse::<i64>().unwrap_or(0);
+        let decimal_part = parts[1];
+        format!("{}.{}", format_number_with_commas(integer_part), decimal_part)
+    } else {
+        formatted
+    }
+}
+
 fn parse_colors(text: &str) -> Vec<Span> {
     let mut spans = Vec::new();
     let mut current_pos = 0;
@@ -439,6 +471,8 @@ fn parse_colors(text: &str) -> Vec<Span> {
                     current_pos += 1;
                 } else if ch == '.' && !has_dot {
                     has_dot = true;
+                    current_pos += 1;
+                } else if ch == ',' {
                     current_pos += 1;
                 } else {
                     break;
@@ -533,9 +567,9 @@ fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
         match result {
             Some(value) => {
                 let result_text = if value.fract() == 0.0 {
-                    format!("{}", *value as i64)
+                    format_number_with_commas(*value as i64)
                 } else {
-                    format!("{:.3}", value)
+                    format_decimal_with_commas(*value)
                 };
                 spans.push(Span::styled(result_text, Style::default().fg(Color::Green)));
             }
