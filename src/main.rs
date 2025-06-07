@@ -396,9 +396,10 @@ fn extract_math_portion(text: &str) -> String {
                     }
                     let potential_word = &text[i..word_end];
 
-                    // Only treat as unit if it's a complete unit word or "to"
+                    // Only treat as unit if it's a complete unit word or "to" or "in"
                     if (parse_unit(potential_word).is_some()
-                        || potential_word.to_lowercase() == "to")
+                        || potential_word.to_lowercase() == "to"
+                        || potential_word.to_lowercase() == "in")
                         && (word_end >= text.len()
                             || !text.chars().nth(word_end).unwrap().is_ascii_alphabetic())
                     {
@@ -486,7 +487,7 @@ fn is_valid_math_expression(expr: &str) -> bool {
                     }
 
                     let unit_str: String = chars[unit_start..i].iter().collect();
-                    if parse_unit(&unit_str).is_none() && unit_str.to_lowercase() != "to" {
+                    if parse_unit(&unit_str).is_none() && unit_str.to_lowercase() != "to" && unit_str.to_lowercase() != "in" {
                         // Not a recognized unit, rewind
                         i = unit_start;
                     }
@@ -527,7 +528,7 @@ fn is_valid_math_expression(expr: &str) -> bool {
                     }
 
                     let word: String = chars[unit_start..i].iter().collect();
-                    if word.to_lowercase() == "to" {
+                    if word.to_lowercase() == "to" || word.to_lowercase() == "in" {
                         prev_was_operator = true;
                     } else if parse_unit(&word).is_some() {
                         // Valid unit, continue
@@ -641,6 +642,19 @@ fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
                     return None; // Unexpected character
                 }
             }
+            'i' | 'I' => {
+                // Check for "in" keyword
+                if i + 1 < chars.len() && chars[i + 1].to_lowercase().next() == Some('n') {
+                    // Skip whitespace after "in"
+                    i += 2;
+                    while i < chars.len() && chars[i] == ' ' {
+                        i += 1;
+                    }
+                    tokens.push(Token::In);
+                } else {
+                    return None; // Unexpected character
+                }
+            }
             _ => {
                 if ch.is_ascii_alphabetic() {
                     // Could be a unit or part of "to"
@@ -652,6 +666,8 @@ fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
                     let word: String = chars[unit_start..i].iter().collect();
                     if word.to_lowercase() == "to" {
                         tokens.push(Token::To);
+                    } else if word.to_lowercase() == "in" {
+                        tokens.push(Token::In);
                     } else if let Some(unit) = parse_unit(&word) {
                         // Standalone unit for conversion target
                         tokens.push(Token::NumberWithUnit(1.0, unit));
@@ -719,6 +735,7 @@ enum Token {
     LeftParen,
     RightParen,
     To, // for conversions like "to KiB"
+    In, // for conversions like "in KiB"
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -932,11 +949,30 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
         }
     }
 
+    // Check if we have an "in" conversion request at the end
+    let mut target_unit_for_conversion = None;
+    let mut evaluation_tokens = tokens;
+    
+    // Look for "in" followed by a unit at the end
+    for i in 0..tokens.len().saturating_sub(1) {
+        if let Token::In = &tokens[i] {
+            // Look for unit after "in"
+            for j in (i + 1)..tokens.len() {
+                if let Token::NumberWithUnit(_, unit) = &tokens[j] {
+                    target_unit_for_conversion = Some(unit.clone());
+                    evaluation_tokens = &tokens[..i]; // Evaluate everything before "in"
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
     // Handle simple arithmetic with units
     let mut operator_stack = Vec::new();
     let mut value_stack = Vec::new();
 
-    for token in tokens {
+    for token in evaluation_tokens {
         match token {
             Token::Number(n) => {
                 value_stack.push(UnitValue::new(*n, None));
@@ -981,7 +1017,16 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
     }
 
     if value_stack.len() == 1 {
-        value_stack.pop()
+        let mut result = value_stack.pop().unwrap();
+        
+        // If we have a target unit for conversion, convert the result
+        if let Some(target_unit) = target_unit_for_conversion {
+            if let Some(converted) = result.to_unit(&target_unit) {
+                result = converted;
+            }
+        }
+        
+        Some(result)
     } else {
         None
     }
@@ -1663,5 +1708,38 @@ mod tests {
         assert!(result.is_some());
         let unit_val = result.unwrap();
         assert!((unit_val.value - 1048576.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_in_keyword_conversions() {
+        // Test "in" keyword for unit conversions after calculations
+        assert_eq!(evaluate_test_expression("24 MiB * 32 in KiB"), Some("786,432 KiB".to_string()));
+        
+        // Test with different operations
+        assert_eq!(evaluate_test_expression("1 GiB + 512 MiB in KiB"), Some("1,572,864 KiB".to_string()));
+        
+        // Test with time calculations (using scalar multiplication)
+        assert_eq!(evaluate_test_expression("2 hours * 60 in minutes"), Some("7,200 min".to_string()));
+        
+        // Test with complex expressions
+        assert_eq!(evaluate_test_expression("(1 GiB + 1 GiB) / 2 in MiB"), Some("1,024 MiB".to_string()));
+        
+        // Test mixed base units (base 10 to base 2)
+        assert_eq!(evaluate_test_expression("1000 MB * 5 in GiB"), Some("4.657 GiB".to_string()));
+        
+        // Test rate calculations with time conversion
+        assert_eq!(evaluate_test_expression("500 GiB / 10 seconds in MiB/s"), Some("51,200 MiB/s".to_string()));
+        
+        // Test simple unit conversion
+        assert_eq!(evaluate_test_expression("1024 KiB in MiB"), Some("1 MiB".to_string()));
+        
+        // Test addition with conversion
+        assert_eq!(evaluate_test_expression("1 hour + 30 minutes in minutes"), Some("90 min".to_string()));
+        
+        // Test invalid unit conversion (incompatible types)
+        assert_eq!(evaluate_test_expression("5 GiB + 10 in seconds"), None);
+        
+        // Test that "in" without valid target unit falls back to regular calculation
+        assert_eq!(evaluate_test_expression("5 + 3 in"), Some("8".to_string()));
     }
 }
