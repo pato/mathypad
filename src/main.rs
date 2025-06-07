@@ -917,7 +917,11 @@ enum Unit {
     GiB, // Gibibyte
     TiB, // Tebibyte
 
-    // Derived units
+    // Request/Query count (base unit: requests)
+    Request,
+    Query,
+
+    // Data rate units
     BytesPerSecond,
     KBPerSecond,
     MBPerSecond,
@@ -927,6 +931,14 @@ enum Unit {
     MiBPerSecond,
     GiBPerSecond,
     TiBPerSecond,
+
+    // Request/Query rate units (base: requests per second)
+    RequestsPerSecond,
+    RequestsPerMinute,
+    RequestsPerHour,
+    QueriesPerSecond,
+    QueriesPerMinute,
+    QueriesPerHour,
 }
 
 impl Unit {
@@ -951,7 +963,11 @@ impl Unit {
             Unit::GiB => value * 1_073_741_824.0,
             Unit::TiB => value * 1_099_511_627_776.0,
 
-            // Rate units (convert to bytes per second)
+            // Request/Query count (base unit: requests/queries)
+            Unit::Request => value,
+            Unit::Query => value, // Queries and requests are equivalent
+
+            // Data rate units (convert to bytes per second)
             Unit::BytesPerSecond => value,
             Unit::KBPerSecond => value * 1_000.0,
             Unit::MBPerSecond => value * 1_000_000.0,
@@ -961,6 +977,14 @@ impl Unit {
             Unit::MiBPerSecond => value * 1_048_576.0,
             Unit::GiBPerSecond => value * 1_073_741_824.0,
             Unit::TiBPerSecond => value * 1_099_511_627_776.0,
+
+            // Request/Query rate units (convert to requests per second)
+            Unit::RequestsPerSecond => value,
+            Unit::RequestsPerMinute => value / 60.0,
+            Unit::RequestsPerHour => value / 3600.0,
+            Unit::QueriesPerSecond => value, // QPS = requests per second
+            Unit::QueriesPerMinute => value / 60.0,
+            Unit::QueriesPerHour => value / 3600.0,
         }
     }
 
@@ -986,7 +1010,11 @@ impl Unit {
             Unit::GiB => base_value / 1_073_741_824.0,
             Unit::TiB => base_value / 1_099_511_627_776.0,
 
-            // Rate units (from bytes per second)
+            // Request/Query count (from requests/queries)
+            Unit::Request => base_value,
+            Unit::Query => base_value,
+
+            // Data rate units (from bytes per second)
             Unit::BytesPerSecond => base_value,
             Unit::KBPerSecond => base_value / 1_000.0,
             Unit::MBPerSecond => base_value / 1_000_000.0,
@@ -996,6 +1024,14 @@ impl Unit {
             Unit::MiBPerSecond => base_value / 1_048_576.0,
             Unit::GiBPerSecond => base_value / 1_073_741_824.0,
             Unit::TiBPerSecond => base_value / 1_099_511_627_776.0,
+
+            // Request/Query rate units (from requests per second)
+            Unit::RequestsPerSecond => base_value,
+            Unit::RequestsPerMinute => base_value * 60.0,
+            Unit::RequestsPerHour => base_value * 3600.0,
+            Unit::QueriesPerSecond => base_value,
+            Unit::QueriesPerMinute => base_value * 60.0,
+            Unit::QueriesPerHour => base_value * 3600.0,
         }
     }
 
@@ -1011,6 +1047,7 @@ impl Unit {
             | Unit::MiB
             | Unit::GiB
             | Unit::TiB => UnitType::Data,
+            Unit::Request | Unit::Query => UnitType::Request,
             Unit::BytesPerSecond
             | Unit::KBPerSecond
             | Unit::MBPerSecond
@@ -1020,6 +1057,12 @@ impl Unit {
             | Unit::MiBPerSecond
             | Unit::GiBPerSecond
             | Unit::TiBPerSecond => UnitType::DataRate,
+            Unit::RequestsPerSecond
+            | Unit::RequestsPerMinute
+            | Unit::RequestsPerHour
+            | Unit::QueriesPerSecond
+            | Unit::QueriesPerMinute
+            | Unit::QueriesPerHour => UnitType::RequestRate,
         }
     }
 
@@ -1038,6 +1081,8 @@ impl Unit {
             Unit::MiB => "MiB",
             Unit::GiB => "GiB",
             Unit::TiB => "TiB",
+            Unit::Request => "req",
+            Unit::Query => "query",
             Unit::BytesPerSecond => "B/s",
             Unit::KBPerSecond => "KB/s",
             Unit::MBPerSecond => "MB/s",
@@ -1047,6 +1092,12 @@ impl Unit {
             Unit::MiBPerSecond => "MiB/s",
             Unit::GiBPerSecond => "GiB/s",
             Unit::TiBPerSecond => "TiB/s",
+            Unit::RequestsPerSecond => "req/s",
+            Unit::RequestsPerMinute => "req/min",
+            Unit::RequestsPerHour => "req/h",
+            Unit::QueriesPerSecond => "QPS",
+            Unit::QueriesPerMinute => "QPM",
+            Unit::QueriesPerHour => "QPH",
         }
     }
 
@@ -1061,6 +1112,8 @@ impl Unit {
             Unit::MiB => Ok(Unit::MiBPerSecond),
             Unit::GiB => Ok(Unit::GiBPerSecond),
             Unit::TiB => Ok(Unit::TiBPerSecond),
+            Unit::Request => Ok(Unit::RequestsPerSecond),
+            Unit::Query => Ok(Unit::QueriesPerSecond),
             _ => Err(()),
         }
     }
@@ -1079,13 +1132,27 @@ impl Unit {
             _ => Err(()),
         }
     }
+
+    fn to_request_unit(&self) -> Result<Unit, ()> {
+        match self {
+            Unit::RequestsPerSecond => Ok(Unit::Request),
+            Unit::RequestsPerMinute => Ok(Unit::Request),
+            Unit::RequestsPerHour => Ok(Unit::Request),
+            Unit::QueriesPerSecond => Ok(Unit::Query),
+            Unit::QueriesPerMinute => Ok(Unit::Query),
+            Unit::QueriesPerHour => Ok(Unit::Query),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 enum UnitType {
     Time,
     Data,
+    Request,
     DataRate,
+    RequestRate,
 }
 
 fn parse_line_reference(text: &str) -> Option<usize> {
@@ -1118,6 +1185,9 @@ fn parse_unit(text: &str) -> Option<Unit> {
         "gib" => Some(Unit::GiB),
         "tib" => Some(Unit::TiB),
 
+        "req" | "request" | "requests" => Some(Unit::Request),
+        "query" | "queries" => Some(Unit::Query),
+
         "b/s" | "bytes/s" | "bps" => Some(Unit::BytesPerSecond),
         "kb/s" | "kbps" => Some(Unit::KBPerSecond),
         "mb/s" | "mbps" => Some(Unit::MBPerSecond),
@@ -1127,6 +1197,13 @@ fn parse_unit(text: &str) -> Option<Unit> {
         "mib/s" | "mibps" => Some(Unit::MiBPerSecond),
         "gib/s" | "gibps" => Some(Unit::GiBPerSecond),
         "tib/s" | "tibps" => Some(Unit::TiBPerSecond),
+
+        "req/s" | "requests/s" | "rps" => Some(Unit::RequestsPerSecond),
+        "req/min" | "requests/min" | "rpm" => Some(Unit::RequestsPerMinute),
+        "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RequestsPerHour),
+        "qps" | "queries/s" | "queries/sec" => Some(Unit::QueriesPerSecond),
+        "qpm" | "queries/min" | "queries/minute" => Some(Unit::QueriesPerMinute),
+        "qph" | "queries/h" | "queries/hour" => Some(Unit::QueriesPerHour),
 
         _ => None,
     }
@@ -1387,6 +1464,29 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(data_unit))
                 }
+                // Time * RequestRate = Requests (convert time to seconds first)
+                (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
+                    if time_unit.unit_type() == UnitType::Time
+                        && rate_unit.unit_type() == UnitType::RequestRate =>
+                {
+                    // Determine which value is time and which is rate
+                    let (time_value, time_u, rate_value, rate_u) =
+                        if time_unit.unit_type() == UnitType::Time {
+                            (a.value, time_unit, b.value, rate_unit)
+                        } else {
+                            (b.value, time_unit, a.value, rate_unit)
+                        };
+
+                    // Convert time to seconds
+                    let time_in_seconds = time_u.to_base_value(time_value);
+
+                    // RequestRate * time = requests
+                    let request_unit = match rate_u.to_request_unit() {
+                        Ok(unit) => unit,
+                        Err(()) => return false,
+                    };
+                    UnitValue::new(rate_value * time_in_seconds, Some(request_unit))
+                }
                 // Data * Time = Data (total transferred) - for specific data units
                 (Some(data_unit), Some(time_unit)) | (Some(time_unit), Some(data_unit))
                     if data_unit.unit_type() == UnitType::Data
@@ -1425,6 +1525,28 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                         Err(()) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
+                }
+                (Some(request_unit), Some(time_unit))
+                    if request_unit.unit_type() == UnitType::Request
+                        && time_unit.unit_type() == UnitType::Time =>
+                {
+                    // Requests / time = request rate
+                    // Convert time to seconds first
+                    let time_in_seconds = time_unit.to_base_value(b.value);
+                    let rate_unit = match request_unit.to_rate_unit() {
+                        Ok(unit) => unit,
+                        Err(()) => return false,
+                    };
+                    UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
+                }
+                (Some(rate_unit), Some(time_unit))
+                    if rate_unit.unit_type() == UnitType::RequestRate
+                        && time_unit.unit_type() == UnitType::Time =>
+                {
+                    // RequestRate / time = RequestRate (rate per unit time)
+                    // This is a more complex case - dividing a rate by time
+                    // For now, we'll treat this as invalid
+                    return false;
                 }
                 (Some(unit), None) => {
                     // unit / number = unit
@@ -2204,5 +2326,283 @@ mod tests {
         assert!(matches!(tokens[0], Token::LineReference(0)));
         assert!(matches!(tokens[1], Token::Plus));
         assert!(matches!(tokens[2], Token::NumberWithUnit(5.0, Unit::GiB)));
+    }
+
+    #[test]
+    fn test_qps_unit_parsing() {
+        // Test QPS unit parsing
+        assert_eq!(parse_unit("qps"), Some(Unit::QueriesPerSecond));
+        assert_eq!(parse_unit("QPS"), Some(Unit::QueriesPerSecond));
+        assert_eq!(parse_unit("queries/s"), Some(Unit::QueriesPerSecond));
+        assert_eq!(parse_unit("queries/sec"), Some(Unit::QueriesPerSecond));
+        assert_eq!(parse_unit("qpm"), Some(Unit::QueriesPerMinute));
+        assert_eq!(parse_unit("queries/min"), Some(Unit::QueriesPerMinute));
+        assert_eq!(parse_unit("queries/minute"), Some(Unit::QueriesPerMinute));
+        assert_eq!(parse_unit("qph"), Some(Unit::QueriesPerHour));
+        assert_eq!(parse_unit("queries/h"), Some(Unit::QueriesPerHour));
+        assert_eq!(parse_unit("queries/hour"), Some(Unit::QueriesPerHour));
+
+        // Test request rate unit parsing
+        assert_eq!(parse_unit("req/s"), Some(Unit::RequestsPerSecond));
+        assert_eq!(parse_unit("requests/s"), Some(Unit::RequestsPerSecond));
+        assert_eq!(parse_unit("rps"), Some(Unit::RequestsPerSecond));
+        assert_eq!(parse_unit("req/min"), Some(Unit::RequestsPerMinute));
+        assert_eq!(parse_unit("requests/min"), Some(Unit::RequestsPerMinute));
+        assert_eq!(parse_unit("rpm"), Some(Unit::RequestsPerMinute));
+        assert_eq!(parse_unit("req/h"), Some(Unit::RequestsPerHour));
+        assert_eq!(parse_unit("req/hour"), Some(Unit::RequestsPerHour));
+        assert_eq!(parse_unit("requests/h"), Some(Unit::RequestsPerHour));
+        assert_eq!(parse_unit("requests/hour"), Some(Unit::RequestsPerHour));
+        assert_eq!(parse_unit("rph"), Some(Unit::RequestsPerHour));
+
+        // Test request/query count unit parsing
+        assert_eq!(parse_unit("req"), Some(Unit::Request));
+        assert_eq!(parse_unit("request"), Some(Unit::Request));
+        assert_eq!(parse_unit("requests"), Some(Unit::Request));
+        assert_eq!(parse_unit("query"), Some(Unit::Query));
+        assert_eq!(parse_unit("queries"), Some(Unit::Query));
+    }
+
+    #[test]
+    fn test_qps_unit_conversions() {
+        // Test QPS to other rate units
+        let result = evaluate_with_unit_info("100 QPS to req/min");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 6000.0).abs() < 0.001); // 100 * 60 = 6000 req/min
+
+        let result = evaluate_with_unit_info("1 QPS to QPH");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 3600.0).abs() < 0.001); // 1 * 3600 = 3600 QPH
+
+        let result = evaluate_with_unit_info("7200 req/h to req/min");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 120.0).abs() < 0.001); // 7200 / 60 = 120 req/min
+
+        let result = evaluate_with_unit_info("60 QPM to QPS");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 1.0).abs() < 0.001); // 60 / 60 = 1 QPS
+
+        // Test cross-family conversions (QPS to RPS should work since they're equivalent)
+        let result = evaluate_with_unit_info("100 QPS to req/s");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 100.0).abs() < 0.001); // Direct equivalence
+
+        let result = evaluate_with_unit_info("150 req/min to QPM");
+        assert!(result.is_some());
+        let unit_val = result.unwrap();
+        assert!((unit_val.value - 150.0).abs() < 0.001); // Direct equivalence
+    }
+
+    #[test]
+    fn test_qps_arithmetic_operations() {
+        // Test QPS * time = total requests
+        assert_eq!(
+            evaluate_test_expression("25 QPS * 1 hour"),
+            Some("90,000 query".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("100 QPS * 30 s"),
+            Some("3,000 query".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("50 req/s * 2 minutes"),
+            Some("6,000 req".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("1 hour * 10 req/min"),
+            Some("36,000 req".to_string())
+        );
+
+        // Test requests / time = request rate
+        assert_eq!(
+            evaluate_test_expression("3600 queries / 1 hour"),
+            Some("1 QPS".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("6000 req / 10 minutes"),
+            Some("10 req/s".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("1200 requests / 20 s"),
+            Some("60 req/s".to_string())
+        );
+
+        // Test QPS arithmetic with conversions
+        assert_eq!(
+            evaluate_test_expression("100 QPS * 30 minutes to req"),
+            Some("180,000 req".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("5000 queries / 10 minutes to QPS"),
+            Some("8.333 QPS".to_string())
+        );
+
+        // Test complex expressions
+        assert_eq!(
+            evaluate_test_expression("(100 QPS + 50 QPS) * 2 hours"),
+            Some("1,080,000 query".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("10000 req / (5 minutes + 5 minutes)"),
+            Some("16.667 req/s".to_string())
+        );
+    }
+
+    #[test]
+    fn test_qps_addition_subtraction() {
+        // Test adding/subtracting same rate units
+        assert_eq!(
+            evaluate_test_expression("100 QPS + 50 QPS"),
+            Some("150 QPS".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("200 req/min - 80 req/min"),
+            Some("120 req/min".to_string())
+        );
+
+        // Test adding different rate units (should convert to common base)
+        assert_eq!(
+            evaluate_test_expression("100 QPS + 60 QPM"),
+            Some("6,060 QPM".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("3600 QPH - 30 QPM"),
+            Some("1,800 QPH".to_string())
+        );
+
+        // Test mixed request rate families
+        assert_eq!(
+            evaluate_test_expression("100 QPS + 100 req/s"),
+            Some("200 req/s".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("1000 req/min + 500 QPM"),
+            Some("1,500 QPM".to_string())
+        );
+    }
+
+    #[test]
+    fn test_qps_real_world_scenarios() {
+        // Test realistic QPS scenarios
+        assert_eq!(
+            evaluate_test_expression("API load: 1000 QPS * 5 minutes"),
+            Some("300,000 query".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("Peak traffic: 500 req/s * 1 hour"),
+            Some("1,800,000 req".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("Daily requests: 86400 req / 1 day"),
+            Some("1 req/s".to_string())
+        );
+
+        // Test load balancing scenarios
+        assert_eq!(
+            evaluate_test_expression("Total load: 250 QPS + 150 QPS + 100 QPS"),
+            Some("500 QPS".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("Per server: 1500 QPS / 3"),
+            Some("500 QPS".to_string())
+        );
+
+        // Test capacity planning
+        assert_eq!(
+            evaluate_test_expression("Monthly queries: 100 QPS * 30 days"),
+            Some("259,200,000 query".to_string())
+        );
+
+        // Test rate conversions for monitoring
+        assert_eq!(
+            evaluate_test_expression("Monitor rate: 5000 req/min to req/s"),
+            Some("83.333 req/s".to_string())
+        );
+    }
+
+    #[test]
+    fn test_qps_edge_cases() {
+        // Test very small QPS rates
+        assert_eq!(
+            evaluate_test_expression("0.1 QPS * 10 s"),
+            Some("1 query".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("1 query / 10 s"),
+            Some("0.100 QPS".to_string())
+        );
+
+        // Test very large QPS rates
+        assert_eq!(
+            evaluate_test_expression("1000000 QPS * 1 s"),
+            Some("1,000,000 query".to_string())
+        );
+
+        // Test fractional results
+        assert_eq!(
+            evaluate_test_expression("100 QPS / 3"),
+            Some("33.333 QPS".to_string())
+        );
+
+        assert_eq!(
+            evaluate_test_expression("1000 req / 7 minutes"),
+            Some("2.381 req/s".to_string())
+        );
+
+        // Test zero and negative cases (should be valid mathematically)
+        assert_eq!(
+            evaluate_test_expression("0 QPS * 1 hour"),
+            Some("0 query".to_string())
+        );
+
+        // Test incompatible unit operations (should fail)
+        assert_eq!(evaluate_test_expression("100 QPS + 1 GiB"), None);
+        assert_eq!(evaluate_test_expression("50 req/s - 10 seconds"), None);
+        assert_eq!(evaluate_test_expression("1000 queries + 5 hours"), None);
+    }
+
+    #[test]
+    fn test_qps_unit_display_names() {
+        // Test that display names are correct for QPS units
+        assert_eq!(Unit::QueriesPerSecond.display_name(), "QPS");
+        assert_eq!(Unit::QueriesPerMinute.display_name(), "QPM");
+        assert_eq!(Unit::QueriesPerHour.display_name(), "QPH");
+        assert_eq!(Unit::RequestsPerSecond.display_name(), "req/s");
+        assert_eq!(Unit::RequestsPerMinute.display_name(), "req/min");
+        assert_eq!(Unit::RequestsPerHour.display_name(), "req/h");
+        assert_eq!(Unit::Request.display_name(), "req");
+        assert_eq!(Unit::Query.display_name(), "query");
+    }
+
+    #[test]
+    fn test_qps_unit_type_classification() {
+        // Test that QPS units are properly classified
+        assert_eq!(Unit::QueriesPerSecond.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::QueriesPerMinute.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::QueriesPerHour.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::RequestsPerSecond.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::RequestsPerMinute.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::RequestsPerHour.unit_type(), UnitType::RequestRate);
+        assert_eq!(Unit::Request.unit_type(), UnitType::Request);
+        assert_eq!(Unit::Query.unit_type(), UnitType::Request);
     }
 }
