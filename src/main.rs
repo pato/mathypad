@@ -936,31 +936,27 @@ fn evaluate_tokens_with_units(tokens: &[Token]) -> Option<UnitValue> {
         return None;
     }
 
-    // Handle conversion expressions like "1 GiB to KiB"
-    for i in 0..tokens.len().saturating_sub(2) {
-        if let (Token::NumberWithUnit(value, from_unit), Token::To) = (&tokens[i], &tokens[i + 1]) {
-            // Look for target unit in the remaining tokens
-            for j in (i + 2)..tokens.len() {
-                if let Token::NumberWithUnit(_, to_unit) = &tokens[j] {
-                    let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
-                    return unit_value.to_unit(to_unit);
-                }
-            }
+    // Handle simple conversion expressions like "1 GiB to KiB" (only if it's the entire expression)
+    if tokens.len() == 3 {
+        if let (Token::NumberWithUnit(value, from_unit), Token::To, Token::NumberWithUnit(_, to_unit)) = 
+            (&tokens[0], &tokens[1], &tokens[2]) {
+            let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
+            return unit_value.to_unit(to_unit);
         }
     }
 
-    // Check if we have an "in" conversion request at the end
+    // Check if we have an "in" or "to" conversion request at the end
     let mut target_unit_for_conversion = None;
     let mut evaluation_tokens = tokens;
     
-    // Look for "in" followed by a unit at the end
+    // Look for "in" or "to" followed by a unit at the end
     for i in 0..tokens.len().saturating_sub(1) {
-        if let Token::In = &tokens[i] {
-            // Look for unit after "in"
+        if let Token::In | Token::To = &tokens[i] {
+            // Look for unit after "in" or "to"
             for j in (i + 1)..tokens.len() {
                 if let Token::NumberWithUnit(_, unit) = &tokens[j] {
                     target_unit_for_conversion = Some(unit.clone());
-                    evaluation_tokens = &tokens[..i]; // Evaluate everything before "in"
+                    evaluation_tokens = &tokens[..i]; // Evaluate everything before "in"/"to"
                     break;
                 }
             }
@@ -1741,5 +1737,27 @@ mod tests {
         
         // Test that "in" without valid target unit falls back to regular calculation
         assert_eq!(evaluate_test_expression("5 + 3 in"), Some("8".to_string()));
+    }
+
+    #[test]
+    fn test_to_keyword_with_expressions() {
+        // Test "to" keyword with expressions (same functionality as "in")
+        assert_eq!(evaluate_test_expression("12 GiB + 50 MiB to MiB"), Some("12,338 MiB".to_string()));
+        
+        // Test with multiplication
+        assert_eq!(evaluate_test_expression("24 MiB * 32 to KiB"), Some("786,432 KiB".to_string()));
+        
+        // Test with division that creates a rate
+        assert_eq!(evaluate_test_expression("1000 GiB / 10 seconds to MiB/s"), Some("102,400 MiB/s".to_string()));
+        
+        // Test complex expression
+        assert_eq!(evaluate_test_expression("(2 TiB - 1 GiB) / 1024 to GiB"), Some("1.999 GiB".to_string()));
+        
+        // Test time calculations
+        assert_eq!(evaluate_test_expression("3 hours + 45 minutes to minutes"), Some("225 min".to_string()));
+        
+        // Ensure simple "to" conversions still work (backward compatibility)
+        assert_eq!(evaluate_test_expression("1 GiB to MiB"), Some("1,024 MiB".to_string()));
+        assert_eq!(evaluate_test_expression("60 seconds to minutes"), Some("1 min".to_string()));
     }
 }
