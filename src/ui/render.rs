@@ -30,7 +30,7 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
         Mode::Normal => Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .title_bottom("-- NORMAL --"),
+            .title_bottom(" NORMAL "),
     };
 
     let inner_area = block.inner(area);
