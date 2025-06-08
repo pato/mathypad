@@ -1,7 +1,7 @@
 //! # Mathypad
-//! 
+//!
 //! A smart calculator that understands units and makes complex calculations simple.
-//! 
+//!
 //! This library provides the core functionality for mathypad, including:
 //! - Unit-aware mathematical expression evaluation
 //! - Comprehensive unit conversion system

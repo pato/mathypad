@@ -1,16 +1,13 @@
 //! Event handling and main TUI loop
 
-use crate::{App, Mode, TICK_RATE_MS};
 use super::render::ui;
+use crate::{App, Mode, TICK_RATE_MS};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{
-    Terminal,
-    backend::CrosstermBackend,
-};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{
     error::Error,
     io,
@@ -57,16 +54,14 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                         KeyCode::Esc => {
                             app.mode = Mode::Normal;
                         }
-                        _ => {
-                            match app.mode {
-                                Mode::Insert => {
-                                    handle_insert_mode(&mut app, key.code);
-                                }
-                                Mode::Normal => {
-                                    handle_normal_mode(&mut app, key.code);
-                                }
+                        _ => match app.mode {
+                            Mode::Insert => {
+                                handle_insert_mode(&mut app, key.code);
                             }
-                        }
+                            Mode::Normal => {
+                                handle_normal_mode(&mut app, key.code);
+                            }
+                        },
                     }
                 }
             }

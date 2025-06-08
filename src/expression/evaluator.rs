@@ -1,9 +1,9 @@
 //! Expression evaluation functions with unit-aware arithmetic
 
+use super::parser::{is_valid_math_expression, tokenize_with_units};
 use super::tokens::Token;
-use super::parser::{tokenize_with_units, is_valid_math_expression};
-use crate::units::{parse_unit, Unit, UnitType, UnitValue};
 use crate::FLOAT_EPSILON;
+use crate::units::{Unit, UnitType, UnitValue, parse_unit};
 
 /// Main evaluation function that handles context for line references
 pub fn evaluate_expression_with_context(

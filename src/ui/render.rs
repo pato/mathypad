@@ -1,8 +1,8 @@
 //! UI rendering functions
 
-use crate::{App, Mode};
-use crate::units::parse_unit;
 use crate::expression::parse_line_reference;
+use crate::units::parse_unit;
+use crate::{App, Mode};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},

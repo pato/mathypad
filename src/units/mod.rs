@@ -1,5 +1,5 @@
 //! Unit system for mathypad
-//! 
+//!
 //! This module handles all unit-related functionality including:
 //! - Unit definitions and conversions
 //! - Unit value representation
@@ -13,5 +13,5 @@ mod value;
 mod tests;
 
 pub use parser::parse_unit;
-pub use types::{Unit, UnitType, UnitConversionError};
+pub use types::{Unit, UnitConversionError, UnitType};
 pub use value::UnitValue;

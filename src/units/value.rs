@@ -1,7 +1,7 @@
 //! Unit value representation and operations
 
-use crate::{MAX_INTEGER_FOR_FORMATTING, FLOAT_EPSILON};
 use super::types::Unit;
+use crate::{FLOAT_EPSILON, MAX_INTEGER_FOR_FORMATTING};
 
 /// Represents a numeric value with an optional unit
 #[derive(Debug, Clone)]
@@ -34,11 +34,12 @@ impl UnitValue {
 
     /// Format the value for display
     pub fn format(&self) -> String {
-        let formatted_value = if self.value.fract() == 0.0 && self.value.abs() < MAX_INTEGER_FOR_FORMATTING {
-            format_number_with_commas(self.value as i64)
-        } else {
-            format_decimal_with_commas(self.value)
-        };
+        let formatted_value =
+            if self.value.fract() == 0.0 && self.value.abs() < MAX_INTEGER_FOR_FORMATTING {
+                format_number_with_commas(self.value as i64)
+            } else {
+                format_decimal_with_commas(self.value)
+            };
 
         match &self.unit {
             Some(unit) => format!("{} {}", formatted_value, unit.display_name()),
@@ -52,21 +53,21 @@ fn format_number_with_commas(num: i64) -> String {
     let num_str = num.to_string();
     let mut result = String::new();
     let chars: Vec<char> = num_str.chars().collect();
-    
+
     let is_negative = chars.first() == Some(&'-');
     let start_idx = if is_negative { 1 } else { 0 };
-    
+
     if is_negative {
         result.push('-');
     }
-    
+
     for (i, ch) in chars[start_idx..].iter().enumerate() {
         if i > 0 && (chars.len() - start_idx - i) % 3 == 0 {
             result.push(',');
         }
         result.push(*ch);
     }
-    
+
     result
 }
 
@@ -75,28 +76,32 @@ fn format_decimal_with_commas(num: f64) -> String {
     if num.abs() < FLOAT_EPSILON {
         return "0".to_string();
     }
-    
+
     let is_negative = num < 0.0;
     let abs_num = num.abs();
-    
+
     let formatted = format!("{:.3}", abs_num);
-    
+
     // Split into whole and decimal parts
     let parts: Vec<&str> = formatted.split('.').collect();
     if parts.len() != 2 {
-        return if is_negative { format!("-{}", formatted) } else { formatted };
+        return if is_negative {
+            format!("-{}", formatted)
+        } else {
+            formatted
+        };
     }
-    
+
     let whole_part = parts[0];
     let decimal_part = parts[1];
-    
+
     // Add commas to whole part
     let whole_with_commas = if whole_part == "0" {
         "0".to_string()
     } else {
         let whole_chars: Vec<char> = whole_part.chars().collect();
         let mut result = String::new();
-        
+
         for (i, ch) in whole_chars.iter().enumerate() {
             if i > 0 && (whole_chars.len() - i) % 3 == 0 {
                 result.push(',');
@@ -105,16 +110,16 @@ fn format_decimal_with_commas(num: f64) -> String {
         }
         result
     };
-    
+
     // Remove trailing zeros from decimal part
     let decimal_trimmed = decimal_part.trim_end_matches('0');
-    
+
     let formatted_result = if decimal_trimmed.is_empty() {
         whole_with_commas
     } else {
         format!("{}.{}", whole_with_commas, decimal_trimmed)
     };
-    
+
     if is_negative {
         format!("-{}", formatted_result)
     } else {

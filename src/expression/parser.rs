@@ -252,7 +252,7 @@ pub fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
 pub fn find_math_expression(text: &str) -> Vec<String> {
     let mut expressions = Vec::new();
     let chars: Vec<char> = text.chars().collect();
-    
+
     // Start looking for expressions from the beginning
     let mut i = 0;
     while i < chars.len() {
@@ -260,7 +260,7 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
         while i < chars.len() && chars[i].is_whitespace() {
             i += 1;
         }
-        
+
         if i >= chars.len() {
             break;
         }
@@ -269,11 +269,11 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
         if chars[i].is_ascii_digit() || chars[i] == '(' || chars[i] == '-' {
             let start = i;
             let expression = extract_math_portion(&text[start..]);
-            
+
             if !expression.trim().is_empty() && is_valid_math_expression(&expression) {
                 expressions.push(expression.trim().to_string());
             }
-            
+
             // Move past this expression
             i = start + expression.len();
         } else if chars[i].is_ascii_alphabetic() {
@@ -282,23 +282,25 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
             while i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i].is_ascii_digit()) {
                 i += 1;
             }
-            
+
             let word: String = chars[word_start..i].iter().collect();
             if parse_line_reference(&word).is_some() {
                 // This is a line reference, look for math after it
                 while i < chars.len() && chars[i].is_whitespace() {
                     i += 1;
                 }
-                
-                if i < chars.len() && (chars[i] == '+' || chars[i] == '-' || chars[i] == '*' || chars[i] == '/') {
+
+                if i < chars.len()
+                    && (chars[i] == '+' || chars[i] == '-' || chars[i] == '*' || chars[i] == '/')
+                {
                     // There's an operator after the line reference
                     let start = word_start;
                     let expression = extract_math_portion(&text[start..]);
-                    
+
                     if !expression.trim().is_empty() && is_valid_math_expression(&expression) {
                         expressions.push(expression.trim().to_string());
                     }
-                    
+
                     i = start + expression.len();
                 } else {
                     // Just a standalone line reference
@@ -332,7 +334,6 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
 
     filtered_expressions
 }
-
 
 /// Extract the mathematical portion from text
 fn extract_math_portion(text: &str) -> String {

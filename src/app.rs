@@ -1,6 +1,6 @@
 //! Application state and core logic
 
-use crate::{evaluate_expression_with_context, Mode};
+use crate::{Mode, evaluate_expression_with_context};
 
 /// Main application state for the mathematical notepad
 pub struct App {

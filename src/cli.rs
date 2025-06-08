@@ -1,8 +1,8 @@
 //! Command-line interface functions
 
-use crate::{evaluate_expression_with_context};
-use crate::units::parse_unit;
+use crate::evaluate_expression_with_context;
 use crate::expression::parse_line_reference;
+use crate::units::parse_unit;
 use std::error::Error;
 
 /// Run one-shot evaluation mode (non-interactive)
