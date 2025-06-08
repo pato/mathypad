@@ -20,12 +20,20 @@ sizes, time, and API performance metrics.
 # Cargo install
 cargo install mathypad
 
-# Clone and run
+# Clone and build
 git clone https://github.com/pato/mathypad.git
 cd mathypad
 cargo build --release
 cargo install --path .
+```
 
+
+```bash
+# start the editor
+mathypad
+```
+
+```bash
 # Or use it directly from command line
 mathypad -- "100 QPS * 1 hour"           # → 360,000 query
 mathypad -- "5 GB to GiB"                # → 4.657 GiB
