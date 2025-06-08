@@ -2,12 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
-### 0.1.1
+## [0.1.2] - 2025-06-08
+
+### Changes
+
+- Refactor like a senior engineer
+- Fix clippy issues
+- Restore the tests
+- Add support for Gibps and GiBps
+- Fix bug with MB vs Mib
+
+## [0.1.1] - 2025-06-08
+
+### Changes
 
 - Improve syntax highlighting
 - Add vim motion support
 - Move normal indicator to bottom
 
-### 0.1.0
+## [0.1.0] - 2025-06-08
 
-- Initial release
+### Changes
+
+- Let's start the project
+- Add ctrl+c binding
+- Draw digits in blue
+- Lets start handling expressions
+- Support text as well as equations
+- Let's handle commas
+- Start to handle units
+- Add unit tests
+- Add unit tests
+- Add support for "in" unit conversions
+- Make "in" same as "to"
+- Add support for referencing other lines
+- Fix clippy warnings
+- Review and cleanup
+- Add support for QPS and req/s
+- Add PiB and EiB
+- Write claude.md
+- Write readme
+
+
