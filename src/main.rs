@@ -179,11 +179,11 @@ fn print_formatted_expression(text: &str) {
             if parse_line_reference(&word_text).is_some() {
                 // Print line reference in magenta (ANSI color code 95)
                 print!("\x1b[95m{}\x1b[0m", word_text);
-            } else if parse_unit(&word_text).is_some()
-                || word_text.to_lowercase() == "to"
-                || word_text.to_lowercase() == "in"
-            {
-                // Print unit/keyword in green (ANSI color code 92)
+            } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
+                // Print keywords in yellow (ANSI color code 93)
+                print!("\x1b[93m{}\x1b[0m", word_text);
+            } else if parse_unit(&word_text).is_some() {
+                // Print units in green (ANSI color code 92)
                 print!("\x1b[92m{}\x1b[0m", word_text);
             } else {
                 print!("{}", word_text);
@@ -217,6 +217,10 @@ fn print_formatted_expression(text: &str) {
                 print!("{}", chars[start_pos]);
                 current_pos = start_pos + 1;
             }
+        } else if "+-*/()".contains(chars[current_pos]) {
+            // Print operators in cyan (ANSI color code 96)
+            print!("\x1b[96m{}\x1b[0m", chars[current_pos]);
+            current_pos += 1;
         } else {
             print!("{}", chars[current_pos]);
             current_pos += 1;
@@ -1861,10 +1865,9 @@ fn parse_colors(text: &str) -> Vec<Span> {
             // Check if it's a valid unit, keyword, or line reference
             if parse_line_reference(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
-            } else if parse_unit(&word_text).is_some()
-                || word_text.to_lowercase() == "to"
-                || word_text.to_lowercase() == "in"
-            {
+            } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
+                spans.push(Span::styled(word_text, Style::default().fg(Color::Yellow)));
+            } else if parse_unit(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
             } else {
                 spans.push(Span::raw(word_text));
@@ -1900,6 +1903,13 @@ fn parse_colors(text: &str) -> Vec<Span> {
                 spans.push(Span::raw(chars[start_pos].to_string()));
                 current_pos = start_pos + 1;
             }
+        } else if "+-*/()".contains(chars[current_pos]) {
+            // Handle operators and parentheses
+            spans.push(Span::styled(
+                chars[current_pos].to_string(),
+                Style::default().fg(Color::Cyan),
+            ));
+            current_pos += 1;
         } else {
             spans.push(Span::raw(chars[current_pos].to_string()));
             current_pos += 1;

@@ -160,7 +160,7 @@ cargo test
 - **CLI**: Command-line parsing with `clap`
 - **Expression Parsing**: Shunting-yard algorithm with unit-aware tokenization
 - **Unit System**: Hierarchical unit types with base value conversions
-- **Color Highlighting**: Numbers (blue), units (green), line references (magenta)
+- **Color Highlighting**: Numbers (light blue), units (green), keywords "to"/"in" (yellow), operators (cyan), line references (magenta)
 
 ## Development Notes
 
