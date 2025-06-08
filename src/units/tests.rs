@@ -738,6 +738,59 @@ fn test_bit_vs_byte_parsing() {
 }
 
 #[test]
+fn test_byte_to_bit_conversion_bug() {
+    // Test the reported issue: 1 MB to mib (lowercase)
+    // After fix: lowercase "mib" now maps to Megabits (base 10), not Mebibits (base 2)
+    let result = evaluate_with_unit_info("1 MB to mib");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 MB = 1,000,000 bytes = 8,000,000 bits = 8 Mb (base 10)
+    assert!((unit_val.value - 8.0).abs() < 0.001);
+    
+    // Test case-sensitive Mib (Mebibits) still works correctly
+    let result = evaluate_with_unit_info("1 MB to Mib");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 MB = 1,000,000 bytes = 8,000,000 bits = 8,000,000 / 1,048,576 ≈ 7.629 Mib
+    assert!((unit_val.value - 7.62939453125).abs() < 0.0001);
+    
+    // Test base 10 byte to bit conversion (this should work correctly)
+    let result = evaluate_with_unit_info("1 MB to Mb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 MB = 8 Mb ✓
+    
+    // Verify the new parsing behavior for lowercase bit units
+    assert_eq!(parse_unit("mib"), Some(Unit::Mb));  // lowercase "mib" now maps to Megabits (base 10)
+    assert_eq!(parse_unit("Mib"), Some(Unit::Mib)); // Case-sensitive "Mib" = Mebibits (base 2)
+    assert_eq!(parse_unit("Mb"), Some(Unit::Mb));   // Case-sensitive "Mb" = Megabits (base 10)
+    
+    // Test other network-relevant lowercase bit units have been updated
+    assert_eq!(parse_unit("kib"), Some(Unit::Kb));  // lowercase "kib" = Kilobits (base 10)
+    assert_eq!(parse_unit("gib"), Some(Unit::Gb));  // lowercase "gib" = Gigabits (base 10)
+    
+    // But larger units that are rarely used in networking keep traditional binary meaning
+    assert_eq!(parse_unit("tib"), Some(Unit::TiB)); // lowercase "tib" = Tebibytes (base 2)
+    assert_eq!(parse_unit("pib"), Some(Unit::PiB)); // lowercase "pib" = Pebibytes (base 2)
+    
+    // Test additional conversions to verify the fix
+    let result = evaluate_with_unit_info("1 KB to kib");  // Should now work as intended
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 KB = 8 Kb (kib now maps to Kb)
+    
+    let result = evaluate_with_unit_info("1 GB to gib");  // Should now work as intended  
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 GB = 8 Gb (gib now maps to Gb)
+    
+    let result = evaluate_with_unit_info("1 GB to Gb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 GB = 8 Gb
+}
+
+#[test]
 fn test_bit_byte_conversions() {
     // Test bit to bit conversions (base 10)
     let result = evaluate_with_unit_info("1000 Kb to Mb");

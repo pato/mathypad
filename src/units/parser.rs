@@ -76,21 +76,26 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "h" | "hr" | "hour" | "hours" => Some(Unit::Hour),
         "day" | "days" => Some(Unit::Day),
 
-        // Case-insensitive byte unit parsing (backwards compatibility)
-        // For ambiguous units (kb, mb, gb, kib, mib, gib), bytes take precedence in lowercase
+        // Case-insensitive parsing (backwards compatibility)
+        // For ambiguous lowercase units, follow networking conventions:
+        // - Byte units (kb, mb, gb) default to bytes
+        // - Bit units (kib, mib, gib when lowercase) default to base 10 bits for simplicity
         "b" | "byte" | "bytes" => Some(Unit::Byte),
-        "kb" => Some(Unit::KB),
-        "mb" => Some(Unit::MB),
-        "gb" => Some(Unit::GB),
+        "kb" => Some(Unit::KB),   // Kilobytes
+        "mb" => Some(Unit::MB),   // Megabytes
+        "gb" => Some(Unit::GB),   // Gigabytes
         "tb" => Some(Unit::TB),
         "pb" => Some(Unit::PB), 
         "eb" => Some(Unit::EB),
-        "kib" => Some(Unit::KiB),
-        "mib" => Some(Unit::MiB),
-        "gib" => Some(Unit::GiB),
-        "tib" => Some(Unit::TiB),
-        "pib" => Some(Unit::PiB),
-        "eib" => Some(Unit::EiB),
+        
+        // For lowercase "ib" units - network-relevant sizes map to base 10 bits
+        // Large units that are rarely used in networking keep traditional binary interpretation
+        "kib" => Some(Unit::Kb),   // Kilobits (base 10) - commonly used in networking
+        "mib" => Some(Unit::Mb),   // Megabits (base 10) - commonly used in networking  
+        "gib" => Some(Unit::Gb),   // Gigabits (base 10) - commonly used in networking
+        "tib" => Some(Unit::TiB),  // Keep as Tebibytes - rarely used in networking
+        "pib" => Some(Unit::PiB),  // Keep as Pebibytes - rarely used in networking 
+        "eib" => Some(Unit::EiB),  // Keep as Exbibytes - rarely used in networking
 
         // Case-insensitive rate parsing  
         // For "bps" suffix: bits take precedence (network convention)
