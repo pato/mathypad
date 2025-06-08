@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mathypad - Smart Calculator with Unit Awareness</title>
+    <meta name="description" content="A powerful command-line calculator that understands units and makes complex calculations simple. Convert between data units, calculate network speeds, and perform unit-aware arithmetic.">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .hero .tagline {
+            font-size: 1.3rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+            opacity: 0.95;
+        }
+
+        .cta-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .install-code {
+            background: #1a1a1a;
+            color: #fff;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 1.1rem;
+            margin: 1rem 0;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .screenshot {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin: 2rem 0;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+
+        .feature {
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .feature p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .examples {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+
+        .examples h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .example {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            border-left: 3px solid #667eea;
+        }
+
+        .input {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .output {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 3rem;
+        }
+
+        .footer a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero .tagline {
+                font-size: 1.1rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .main-content {
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>mathypad</h1>
+            <div class="tagline">A smart calculator that understands units and makes complex calculations simple</div>
+            
+            <div class="cta-section">
+                <div class="install-code">cargo install mathypad</div>
+                <p style="color: rgba(255,255,255,0.9); margin-top: 1rem;">Install with Cargo and start calculating with units immediately</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <img src="screenshots/screen1.png" alt="Mathypad terminal interface showing unit-aware calculations" class="screenshot">
+
+            <div class="examples">
+                <h3>✨ See what mathypad can do</h3>
+                <div class="example-grid">
+                    <div class="example">
+                        <div class="input">50 GiB in MiB</div>
+                        <div class="output">→ 51,200 MiB</div>
+                    </div>
+                    <div class="example">
+                        <div class="input">1 GB / 10 Mbps</div>
+                        <div class="output">→ 800 s</div>
+                    </div>
+                    <div class="example">
+                        <div class="input">100 QPS * 1 hour</div>
+                        <div class="output">→ 360,000 query</div>
+                    </div>
+                    <div class="example">
+                        <div class="input">line1 + 90 GiB</div>
+                        <div class="output">→ 143,360 MiB</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="features">
+                <div class="feature">
+                    <h3>🔄 Smart Unit Conversion</h3>
+                    <p>Seamlessly convert between data units (GB, GiB, MB, MiB), network speeds (Mbps vs MB/s), time units, and request rates. Automatically handles base 10 vs base 2 conversions.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🧮 Unit-Aware Arithmetic</h3>
+                    <p>Perform complex calculations with mixed units. Calculate download times, bandwidth usage, storage requirements, and more with automatic unit handling.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🔗 Line References</h3>
+                    <p>Reference previous calculation results in new expressions using line1, line2, etc. Build complex calculations step by step with confidence.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🌐 Network & Storage</h3>
+                    <p>Perfect for DevOps, network engineering, and system administration. Calculate transfer times, QPS loads, storage conversions, and capacity planning.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>⚡ Fast & Lightweight</h3>
+                    <p>Written in Rust for speed and reliability. Works entirely offline with no dependencies. Clean terminal interface with vim-like navigation.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🎯 Precise & Reliable</h3>
+                    <p>Handles edge cases correctly, supports large numbers with comma formatting, and maintains precision in complex calculations.</p>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 3rem 0;">
+                <h2 style="margin-bottom: 1rem;">Ready to get started?</h2>
+                <div class="install-code" style="background: #1a1a1a; color: #fff;">cargo install mathypad</div>
+                <p style="margin-top: 1rem; color: #666;">Then run <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad</code> to launch the interactive calculator</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Built with ❤️ in Rust • <a href="https://github.com/username/mathypad">View on GitHub</a></p>
+        </div>
+    </div>
+</body>
+</html>
