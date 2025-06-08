@@ -37,10 +37,21 @@ impl App {
 
     /// Delete the character before the cursor
     pub fn delete_char(&mut self) {
-        if self.cursor_line < self.text_lines.len() && self.cursor_col > 0 {
-            self.text_lines[self.cursor_line].remove(self.cursor_col - 1);
-            self.cursor_col -= 1;
-            self.update_result(self.cursor_line);
+        if self.cursor_line < self.text_lines.len() {
+            if self.cursor_col > 0 {
+                // Delete character within the current line
+                self.text_lines[self.cursor_line].remove(self.cursor_col - 1);
+                self.cursor_col -= 1;
+                self.update_result(self.cursor_line);
+            } else if self.cursor_line > 0 {
+                // Cursor is at beginning of line - merge with previous line
+                let current_line = self.text_lines.remove(self.cursor_line);
+                self.results.remove(self.cursor_line);
+                self.cursor_line -= 1;
+                self.cursor_col = self.text_lines[self.cursor_line].len();
+                self.text_lines[self.cursor_line].push_str(&current_line);
+                self.update_result(self.cursor_line);
+            }
         }
     }
 
