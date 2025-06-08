@@ -22,12 +22,12 @@ pub enum Unit {
 
     // Bit units (base 10)
     Bit,
-    Kb,  // Kilobit
-    Mb,  // Megabit
-    Gb,  // Gigabit
-    Tb,  // Terabit
-    Pb,  // Petabit
-    Eb,  // Exabit
+    Kb, // Kilobit
+    Mb, // Megabit
+    Gb, // Gigabit
+    Tb, // Terabit
+    Pb, // Petabit
+    Eb, // Exabit
 
     // Bit units (base 2)
     Kib, // Kibibit

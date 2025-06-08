@@ -52,7 +52,7 @@ impl UnitValue {
     /// Convert between bits and bytes (8 bits = 1 byte)
     fn convert_bits_bytes(&self, current: &Unit, target: &Unit) -> Option<UnitValue> {
         use super::types::UnitType;
-        
+
         match (current.unit_type(), target.unit_type()) {
             // Bit to Byte conversion
             (UnitType::Bit, UnitType::Data) => {

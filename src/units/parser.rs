@@ -81,23 +81,23 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         // - Byte units (kb, mb, gb) default to bytes
         // - Bit units (kib, mib, gib when lowercase) default to base 10 bits for simplicity
         "b" | "byte" | "bytes" => Some(Unit::Byte),
-        "kb" => Some(Unit::KB),   // Kilobytes
-        "mb" => Some(Unit::MB),   // Megabytes
-        "gb" => Some(Unit::GB),   // Gigabytes
+        "kb" => Some(Unit::KB), // Kilobytes
+        "mb" => Some(Unit::MB), // Megabytes
+        "gb" => Some(Unit::GB), // Gigabytes
         "tb" => Some(Unit::TB),
-        "pb" => Some(Unit::PB), 
+        "pb" => Some(Unit::PB),
         "eb" => Some(Unit::EB),
-        
+
         // For lowercase "ib" units - network-relevant sizes map to base 10 bits
         // Large units that are rarely used in networking keep traditional binary interpretation
-        "kib" => Some(Unit::Kb),   // Kilobits (base 10) - commonly used in networking
-        "mib" => Some(Unit::Mb),   // Megabits (base 10) - commonly used in networking  
-        "gib" => Some(Unit::Gb),   // Gigabits (base 10) - commonly used in networking
-        "tib" => Some(Unit::TiB),  // Keep as Tebibytes - rarely used in networking
-        "pib" => Some(Unit::PiB),  // Keep as Pebibytes - rarely used in networking 
-        "eib" => Some(Unit::EiB),  // Keep as Exbibytes - rarely used in networking
+        "kib" => Some(Unit::Kb), // Kilobits (base 10) - commonly used in networking
+        "mib" => Some(Unit::Mb), // Megabits (base 10) - commonly used in networking
+        "gib" => Some(Unit::Gb), // Gigabits (base 10) - commonly used in networking
+        "tib" => Some(Unit::TiB), // Keep as Tebibytes - rarely used in networking
+        "pib" => Some(Unit::PiB), // Keep as Pebibytes - rarely used in networking
+        "eib" => Some(Unit::EiB), // Keep as Exbibytes - rarely used in networking
 
-        // Case-insensitive rate parsing  
+        // Case-insensitive rate parsing
         // For "bps" suffix: bits take precedence (network convention)
         // For "/s" suffix: bytes take precedence (file transfer convention)
         "b/s" | "bytes/s" => Some(Unit::BytesPerSecond),
@@ -113,7 +113,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "tib/s" => Some(Unit::TiBPerSecond),
         "pib/s" => Some(Unit::PiBPerSecond),
         "eib/s" => Some(Unit::EiBPerSecond),
-        
+
         // For "bps" suffix: default to bits (network convention)
         // Exception: very large units (PB/EB) default to bytes for backwards compatibility
         "bps" => Some(Unit::BitsPerSecond),
