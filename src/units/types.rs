@@ -1,5 +1,17 @@
 //! Unit type definitions and conversions
 
+/// Error type for unit conversion operations
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnitConversionError;
+
+impl std::fmt::Display for UnitConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Unit conversion not supported")
+    }
+}
+
+impl std::error::Error for UnitConversionError {}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Unit {
     // Time units (base: seconds)
@@ -259,7 +271,7 @@ impl Unit {
     }
 
     /// Convert a data unit to its corresponding rate unit
-    pub fn to_rate_unit(&self) -> Result<Unit, ()> {
+    pub fn to_rate_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
             Unit::Byte => Ok(Unit::BytesPerSecond),
             Unit::KB => Ok(Unit::KBPerSecond),
@@ -276,12 +288,12 @@ impl Unit {
             Unit::EiB => Ok(Unit::EiBPerSecond),
             Unit::Request => Ok(Unit::RequestsPerSecond),
             Unit::Query => Ok(Unit::QueriesPerSecond),
-            _ => Err(()),
+            _ => Err(UnitConversionError),
         }
     }
 
     /// Convert a rate unit to its corresponding data unit
-    pub fn to_data_unit(&self) -> Result<Unit, ()> {
+    pub fn to_data_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
             Unit::BytesPerSecond => Ok(Unit::Byte),
             Unit::KBPerSecond => Ok(Unit::KB),
@@ -296,12 +308,12 @@ impl Unit {
             Unit::TiBPerSecond => Ok(Unit::TiB),
             Unit::PiBPerSecond => Ok(Unit::PiB),
             Unit::EiBPerSecond => Ok(Unit::EiB),
-            _ => Err(()),
+            _ => Err(UnitConversionError),
         }
     }
 
     /// Convert a request rate unit to its corresponding count unit
-    pub fn to_request_unit(&self) -> Result<Unit, ()> {
+    pub fn to_request_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
             Unit::RequestsPerSecond => Ok(Unit::Request),
             Unit::RequestsPerMinute => Ok(Unit::Request),
@@ -309,7 +321,7 @@ impl Unit {
             Unit::QueriesPerSecond => Ok(Unit::Query),
             Unit::QueriesPerMinute => Ok(Unit::Query),
             Unit::QueriesPerHour => Ok(Unit::Query),
-            _ => Err(()),
+            _ => Err(UnitConversionError),
         }
     }
 }

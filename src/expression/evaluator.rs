@@ -1,7 +1,7 @@
 //! Expression evaluation functions with unit-aware arithmetic
 
 use super::tokens::Token;
-use super::parser::{tokenize_with_units, find_math_expression, is_valid_math_expression};
+use super::parser::{tokenize_with_units, is_valid_math_expression};
 use crate::units::{parse_unit, Unit, UnitType, UnitValue};
 use crate::FLOAT_EPSILON;
 
@@ -546,7 +546,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     // Rate * time = data
                     let data_unit = match rate_u.to_data_unit() {
                         Ok(unit) => unit,
-                        Err(()) => return false,
+                        Err(_) => return false,
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(data_unit))
                 }
@@ -569,7 +569,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     // RequestRate * time = requests
                     let request_unit = match rate_u.to_request_unit() {
                         Ok(unit) => unit,
-                        Err(()) => return false,
+                        Err(_) => return false,
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(request_unit))
                 }
@@ -585,7 +585,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 {
                     let data_unit = match rate_unit.to_data_unit() {
                         Ok(unit) => unit,
-                        Err(()) => return false,
+                        Err(_) => return false,
                     };
                     UnitValue::new(a.value * b.value, Some(data_unit))
                 }
@@ -608,7 +608,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     let time_in_seconds = time_unit.to_base_value(b.value);
                     let rate_unit = match data_unit.to_rate_unit() {
                         Ok(unit) => unit,
-                        Err(()) => return false,
+                        Err(_) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
                 }
@@ -621,7 +621,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     let time_in_seconds = time_unit.to_base_value(b.value);
                     let rate_unit = match request_unit.to_rate_unit() {
                         Ok(unit) => unit,
-                        Err(()) => return false,
+                        Err(_) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
                 }

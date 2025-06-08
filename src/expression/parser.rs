@@ -1,7 +1,7 @@
 //! Expression parsing and tokenization functions
 
 use super::tokens::Token;
-use crate::units::{parse_unit, Unit};
+use crate::units::parse_unit;
 
 /// Parse a line reference string like "line1", "line2" etc.
 pub fn parse_line_reference(text: &str) -> Option<usize> {
@@ -333,39 +333,6 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
     filtered_expressions
 }
 
-/// Check if an expression has invalid structure
-fn has_invalid_expression_structure(text: &str) -> bool {
-    // Check if the text ends with an operator OR starts with an operator (except minus for negation)
-    let text_ends_with_operator = {
-        let last_char = text.chars().rev().find(|c| !c.is_whitespace());
-        matches!(last_char, Some('+') | Some('-') | Some('*') | Some('/'))
-    };
-
-    let text_starts_with_operator = {
-        let first_char = text.chars().find(|c| !c.is_whitespace());
-        matches!(first_char, Some('*') | Some('/') | Some('+'))
-    };
-
-    // Check for unbalanced parentheses
-    let has_unbalanced_parens = {
-        let mut paren_count = 0;
-        for ch in text.chars() {
-            match ch {
-                '(' => paren_count += 1,
-                ')' => {
-                    paren_count -= 1;
-                    if paren_count < 0 {
-                        return true;
-                    }
-                }
-                _ => {}
-            }
-        }
-        paren_count != 0
-    };
-
-    text_ends_with_operator || text_starts_with_operator || has_unbalanced_parens
-}
 
 /// Extract the mathematical portion from text
 fn extract_math_portion(text: &str) -> String {

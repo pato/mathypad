@@ -79,11 +79,7 @@ fn format_decimal_with_commas(num: f64) -> String {
     let is_negative = num < 0.0;
     let abs_num = num.abs();
     
-    let formatted = if abs_num >= 1.0 {
-        format!("{:.3}", abs_num)
-    } else {
-        format!("{:.3}", abs_num)
-    };
+    let formatted = format!("{:.3}", abs_num);
     
     // Split into whole and decimal parts
     let parts: Vec<&str> = formatted.split('.').collect();

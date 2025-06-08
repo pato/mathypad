@@ -10,5 +10,5 @@ mod types;
 mod value;
 
 pub use parser::parse_unit;
-pub use types::{Unit, UnitType};
+pub use types::{Unit, UnitType, UnitConversionError};
 pub use value::UnitValue;
