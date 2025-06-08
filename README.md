@@ -1,23 +1,35 @@
 # Mathypad
 
-A smart calculator that understands units and makes complex calculations simple. Built in Rust with a clean terminal interface.
+A smart TUI calculator that understands units and makes complex calculations
+simple.
+
+![Mathypad](./screenshots/screen1.png "Mathypad")
 
 ## What is it?
 
-Mathypad is like a notepad where you can write math expressions with real-world units, and it automatically calculates results for you. Think "Google calculator" but for your terminal, with support for data sizes, time, and API performance metrics.
+Mathypad is like a notepad where you can write math expressions with real-world
+units, and it automatically calculates results for you. Think "Google
+calculator" or [Soulver][soulver] but for your terminal, with support for data
+sizes, time, and API performance metrics.
+
+[soulver]: https://soulver.app/
 
 ## Quick Start
 
 ```bash
+# Cargo install
+cargo install mathypad
+
 # Clone and run
-git clone <repo-url>
+git clone https://github.com/pato/mathypad.git
 cd mathypad
-cargo run
+cargo build --release
+cargo install --path .
 
 # Or use it directly from command line
-cargo run -- -- "100 QPS * 1 hour"           # → 360,000 query
-cargo run -- -- "5 GB to GiB"                # → 4.657 GiB
-cargo run -- -- "1 TB/s * 30 minutes"        # → 1,800 TB
+mathypad -- "100 QPS * 1 hour"           # → 360,000 query
+mathypad -- "5 GB to GiB"                # → 4.657 GiB
+mathypad -- "1 TB/s * 30 minutes"        # → 1,800 TB
 ```
 
 ## Why You'll Love It
@@ -46,7 +58,7 @@ Perfect for DevOps, data engineering, and capacity planning:
 10 Gbps to TB/hour                   → 4.5 TB/h
 
 # Storage consolidation
-5 TB + 2.5 TB + 1024 GiB            → 8.524 TB
+5 TB + 2.5 TB + 1024 GiB             → 8.524 TB
 ```
 
 ### Interactive or One-Shot
@@ -54,18 +66,18 @@ Use it like a notepad with live results, or fire quick calculations from your te
 
 **Interactive Mode:**
 ```
-$ cargo run
-┌─ Mathypad ────────────────────┬─ Results ──────┐
+$ mathypad
+┌─ Mathypad ────────────────────┬─ Results ─────────────┐
 │   1 │ 100 QPS * 8 hours       │   1 │ 2,880,000 query │
-│   2 │ line1 / 1000             │   2 │ 2,880 query     │  
-│   3 │ 50 GB to GiB             │   3 │ 46.566 GiB      │
-│   4 │                          │   4 │                 │
-└───────────────────────────────┴─────────────────┘
+│   2 │ line1 / 1000            │   2 │ 2,880 query     │
+│   3 │ 50 GB to GiB            │   3 │ 46.566 GiB      │
+│   4 │                         │   4 │                 │
+└───────────────────────────────┴───────────────────────┘
 ```
 
 **Command Line:**
 ```bash
-cargo run -- -- "1.5 EB / 100 Gbps"         → 33.333 h
+mathypad -- "1.5 EB / 100 Gbps"         → 33.333 h
 ```
 
 ## What It Handles
@@ -160,15 +172,15 @@ Use "to" or "in" for conversions:
 Requires [Rust](https://rustup.rs/):
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/pato/mathypad.git
 cd mathypad
 cargo build --release
 ```
 
 Or run directly:
 ```bash
-cargo run                            # Interactive mode
-cargo run -- -- "your calculation"   # One-shot mode
+mathypad                         # Interactive mode
+mathypad -- "your calculation"   # One-shot mode
 ```
 
 ## Use Cases
@@ -193,6 +205,22 @@ cargo run -- -- "your calculation"   # One-shot mode
 
 Much better, right?
 
----
+## Developed using AI 🤖
 
-Built with ❤️ in Rust. No external dependencies for calculations – just fast, accurate math with units that make sense.
+This was developed using Claude Code (with 3.5 Haiku and Sonnet 4) for a grand
+total of $25.60
+
+Every commit has alongside with it the prompt I used that generated the
+contents of the commit (with the exception of commits marked as no ai, but
+there was no code that wasn't written by the model).
+
+```
+> /cost
+  ⎿  Total cost:            $25.60
+     Total duration (API):  1h 45m 33.9s
+     Total duration (wall): 23h 21m 24.6s
+     Total code changes:    3518 lines added, 610 lines removed
+     Token usage by model:
+         claude-3-5-haiku:  405.9k input, 21.2k output, 0 cache read, 0 cache write
+            claude-sonnet:  2.4k input, 213.9k output, 47.4m cache read, 2.1m cache write
+```
