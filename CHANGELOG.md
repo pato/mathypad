@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.2] - 2025-06-08
+## [unreleased]
 
 ### Changes
 
@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 - Restore the tests
 - Add support for Gibps and GiBps
 - Fix bug with MB vs Mib
+- Make a one page website!
+- Add meta tags for better sharing
+- Fix deleting empty lines
 
 ## [0.1.1] - 2025-06-08
 
