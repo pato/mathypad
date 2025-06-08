@@ -9,6 +9,6 @@ keywords = ["tui", "cli", "calculator", "units", "soulver"]
 repository = "https://github.com/pato/mathypad"
 
 [dependencies]
-ratatui = "0.28"
-crossterm = "0.28"
-clap = { version = "4.0", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.29"
+clap = { version = "4.5", features = ["derive"] }
