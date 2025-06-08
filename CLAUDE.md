@@ -122,7 +122,7 @@ cargo run
   - `I` - insert at beginning of line
   - `o` - new line below cursor
   - `O` - new line above cursor
-- **Visual indicator**: Title shows "-- NORMAL --" when in normal mode
+- **Visual indicator**: Bottom border shows "-- NORMAL --" when in normal mode
 
 ### One-shot Mode
 ```bash

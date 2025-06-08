@@ -2012,11 +2012,14 @@ fn ui(f: &mut Frame, app: &App) {
 }
 
 fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
-    let title = match app.mode {
-        Mode::Insert => "Mathypad",
-        Mode::Normal => "Mathypad -- NORMAL --",
+    let title = "Mathypad";
+    let block = match app.mode {
+        Mode::Insert => Block::default().title(title).borders(Borders::ALL),
+        Mode::Normal => Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .title_bottom("-- NORMAL --"),
     };
-    let block = Block::default().title(title).borders(Borders::ALL);
 
     let inner_area = block.inner(area);
     f.render_widget(block, area);

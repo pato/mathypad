@@ -72,9 +72,9 @@ $ mathypad
 │   2 │ line1 / 1000            │   2 │ 2,880 query     │
 │   3 │ 50 GB to GiB            │   3 │ 46.566 GiB      │
 │   4 │                         │   4 │                 │
-└───────────────────────────────┴───────────────────────┘
+└─ -- NORMAL -- ───────────────┴───────────────────────┘
 
-• ESC → Normal mode (hjkl navigation)
+• ESC → Normal mode (hjkl navigation, indicator at bottom)
 • i/a/o → Insert mode for editing
 • Ctrl+C/Ctrl+Q → Quit
 ```
