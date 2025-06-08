@@ -20,15 +20,69 @@ impl UnitValue {
     pub fn to_unit(&self, target_unit: &Unit) -> Option<UnitValue> {
         match &self.unit {
             Some(current_unit) => {
+                // Check if units are the same type
                 if current_unit.unit_type() == target_unit.unit_type() {
                     let base_value = current_unit.to_base_value(self.value);
                     let converted_value = target_unit.clone().from_base_value(base_value);
                     Some(UnitValue::new(converted_value, Some(target_unit.clone())))
+                }
+                // Check for special conversions between bits and bytes
+                else if self.can_convert_between_bits_bytes(current_unit, target_unit) {
+                    self.convert_bits_bytes(current_unit, target_unit)
                 } else {
                     None // Can't convert between different unit types
                 }
             }
             None => None, // No unit to convert from
+        }
+    }
+
+    /// Check if conversion between bits and bytes is possible
+    fn can_convert_between_bits_bytes(&self, current: &Unit, target: &Unit) -> bool {
+        use super::types::UnitType;
+        match (current.unit_type(), target.unit_type()) {
+            (UnitType::Bit, UnitType::Data) => true,
+            (UnitType::Data, UnitType::Bit) => true,
+            (UnitType::BitRate, UnitType::DataRate) => true,
+            (UnitType::DataRate, UnitType::BitRate) => true,
+            _ => false,
+        }
+    }
+
+    /// Convert between bits and bytes (8 bits = 1 byte)
+    fn convert_bits_bytes(&self, current: &Unit, target: &Unit) -> Option<UnitValue> {
+        use super::types::UnitType;
+        
+        match (current.unit_type(), target.unit_type()) {
+            // Bit to Byte conversion
+            (UnitType::Bit, UnitType::Data) => {
+                let bits = current.to_base_value(self.value); // Convert to base bits
+                let bytes = bits / 8.0; // 8 bits = 1 byte
+                let converted_value = target.clone().from_base_value(bytes);
+                Some(UnitValue::new(converted_value, Some(target.clone())))
+            }
+            // Byte to Bit conversion
+            (UnitType::Data, UnitType::Bit) => {
+                let bytes = current.to_base_value(self.value); // Convert to base bytes
+                let bits = bytes * 8.0; // 1 byte = 8 bits
+                let converted_value = target.clone().from_base_value(bits);
+                Some(UnitValue::new(converted_value, Some(target.clone())))
+            }
+            // Bit rate to Byte rate conversion
+            (UnitType::BitRate, UnitType::DataRate) => {
+                let bits_per_sec = current.to_base_value(self.value); // Convert to base bits/sec
+                let bytes_per_sec = bits_per_sec / 8.0; // 8 bits/sec = 1 byte/sec
+                let converted_value = target.clone().from_base_value(bytes_per_sec);
+                Some(UnitValue::new(converted_value, Some(target.clone())))
+            }
+            // Byte rate to Bit rate conversion
+            (UnitType::DataRate, UnitType::BitRate) => {
+                let bytes_per_sec = current.to_base_value(self.value); // Convert to base bytes/sec
+                let bits_per_sec = bytes_per_sec * 8.0; // 1 byte/sec = 8 bits/sec
+                let converted_value = target.clone().from_base_value(bits_per_sec);
+                Some(UnitValue::new(converted_value, Some(target.clone())))
+            }
+            _ => None,
         }
     }
 

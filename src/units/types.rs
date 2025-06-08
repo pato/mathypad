@@ -20,6 +20,23 @@ pub enum Unit {
     Hour,
     Day,
 
+    // Bit units (base 10)
+    Bit,
+    Kb,  // Kilobit
+    Mb,  // Megabit
+    Gb,  // Gigabit
+    Tb,  // Terabit
+    Pb,  // Petabit
+    Eb,  // Exabit
+
+    // Bit units (base 2)
+    Kib, // Kibibit
+    Mib, // Mebibit
+    Gib, // Gibibit
+    Tib, // Tebibit
+    Pib, // Pebibit
+    Eib, // Exbibit
+
     // Data units (base 10)
     Byte,
     KB, // Kilobyte
@@ -40,6 +57,21 @@ pub enum Unit {
     // Request/Query count (base unit: requests)
     Request,
     Query,
+
+    // Bit rate units
+    BitsPerSecond,
+    KbPerSecond,
+    MbPerSecond,
+    GbPerSecond,
+    TbPerSecond,
+    PbPerSecond,
+    EbPerSecond,
+    KibPerSecond,
+    MibPerSecond,
+    GibPerSecond,
+    TibPerSecond,
+    PibPerSecond,
+    EibPerSecond,
 
     // Data rate units
     BytesPerSecond,
@@ -68,8 +100,10 @@ pub enum Unit {
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnitType {
     Time,
+    Bit,
     Data,
     Request,
+    BitRate,
     DataRate,
     RequestRate,
 }
@@ -83,6 +117,23 @@ impl Unit {
             Unit::Minute => value * 60.0,
             Unit::Hour => value * 3600.0,
             Unit::Day => value * 86400.0,
+
+            // Bit units base 10 (convert to bits)
+            Unit::Bit => value,
+            Unit::Kb => value * 1_000.0,
+            Unit::Mb => value * 1_000_000.0,
+            Unit::Gb => value * 1_000_000_000.0,
+            Unit::Tb => value * 1_000_000_000_000.0,
+            Unit::Pb => value * 1_000_000_000_000_000.0,
+            Unit::Eb => value * 1_000_000_000_000_000_000.0,
+
+            // Bit units base 2 (convert to bits)
+            Unit::Kib => value * 1_024.0,
+            Unit::Mib => value * 1_048_576.0,
+            Unit::Gib => value * 1_073_741_824.0,
+            Unit::Tib => value * 1_099_511_627_776.0,
+            Unit::Pib => value * 1_125_899_906_842_624.0,
+            Unit::Eib => value * 1_152_921_504_606_846_976.0,
 
             // Data units base 10 (convert to bytes)
             Unit::Byte => value,
@@ -104,6 +155,21 @@ impl Unit {
             // Request/Query count (base unit: requests/queries)
             Unit::Request => value,
             Unit::Query => value, // Queries and requests are equivalent
+
+            // Bit rate units (convert to bits per second)
+            Unit::BitsPerSecond => value,
+            Unit::KbPerSecond => value * 1_000.0,
+            Unit::MbPerSecond => value * 1_000_000.0,
+            Unit::GbPerSecond => value * 1_000_000_000.0,
+            Unit::TbPerSecond => value * 1_000_000_000_000.0,
+            Unit::PbPerSecond => value * 1_000_000_000_000_000.0,
+            Unit::EbPerSecond => value * 1_000_000_000_000_000_000.0,
+            Unit::KibPerSecond => value * 1_024.0,
+            Unit::MibPerSecond => value * 1_048_576.0,
+            Unit::GibPerSecond => value * 1_073_741_824.0,
+            Unit::TibPerSecond => value * 1_099_511_627_776.0,
+            Unit::PibPerSecond => value * 1_125_899_906_842_624.0,
+            Unit::EibPerSecond => value * 1_152_921_504_606_846_976.0,
 
             // Data rate units (convert to bytes per second)
             Unit::BytesPerSecond => value,
@@ -140,6 +206,23 @@ impl Unit {
             Unit::Hour => base_value / 3600.0,
             Unit::Day => base_value / 86400.0,
 
+            // Bit units base 10 (from bits)
+            Unit::Bit => base_value,
+            Unit::Kb => base_value / 1_000.0,
+            Unit::Mb => base_value / 1_000_000.0,
+            Unit::Gb => base_value / 1_000_000_000.0,
+            Unit::Tb => base_value / 1_000_000_000_000.0,
+            Unit::Pb => base_value / 1_000_000_000_000_000.0,
+            Unit::Eb => base_value / 1_000_000_000_000_000_000.0,
+
+            // Bit units base 2 (from bits)
+            Unit::Kib => base_value / 1_024.0,
+            Unit::Mib => base_value / 1_048_576.0,
+            Unit::Gib => base_value / 1_073_741_824.0,
+            Unit::Tib => base_value / 1_099_511_627_776.0,
+            Unit::Pib => base_value / 1_125_899_906_842_624.0,
+            Unit::Eib => base_value / 1_152_921_504_606_846_976.0,
+
             // Data units base 10 (from bytes)
             Unit::Byte => base_value,
             Unit::KB => base_value / 1_000.0,
@@ -160,6 +243,21 @@ impl Unit {
             // Request/Query count (from requests/queries)
             Unit::Request => base_value,
             Unit::Query => base_value,
+
+            // Bit rate units (from bits per second)
+            Unit::BitsPerSecond => base_value,
+            Unit::KbPerSecond => base_value / 1_000.0,
+            Unit::MbPerSecond => base_value / 1_000_000.0,
+            Unit::GbPerSecond => base_value / 1_000_000_000.0,
+            Unit::TbPerSecond => base_value / 1_000_000_000_000.0,
+            Unit::PbPerSecond => base_value / 1_000_000_000_000_000.0,
+            Unit::EbPerSecond => base_value / 1_000_000_000_000_000_000.0,
+            Unit::KibPerSecond => base_value / 1_024.0,
+            Unit::MibPerSecond => base_value / 1_048_576.0,
+            Unit::GibPerSecond => base_value / 1_073_741_824.0,
+            Unit::TibPerSecond => base_value / 1_099_511_627_776.0,
+            Unit::PibPerSecond => base_value / 1_125_899_906_842_624.0,
+            Unit::EibPerSecond => base_value / 1_152_921_504_606_846_976.0,
 
             // Data rate units (from bytes per second)
             Unit::BytesPerSecond => base_value,
@@ -190,6 +288,19 @@ impl Unit {
     pub fn unit_type(&self) -> UnitType {
         match self {
             Unit::Second | Unit::Minute | Unit::Hour | Unit::Day => UnitType::Time,
+            Unit::Bit
+            | Unit::Kb
+            | Unit::Mb
+            | Unit::Gb
+            | Unit::Tb
+            | Unit::Pb
+            | Unit::Eb
+            | Unit::Kib
+            | Unit::Mib
+            | Unit::Gib
+            | Unit::Tib
+            | Unit::Pib
+            | Unit::Eib => UnitType::Bit,
             Unit::Byte
             | Unit::KB
             | Unit::MB
@@ -204,6 +315,19 @@ impl Unit {
             | Unit::PiB
             | Unit::EiB => UnitType::Data,
             Unit::Request | Unit::Query => UnitType::Request,
+            Unit::BitsPerSecond
+            | Unit::KbPerSecond
+            | Unit::MbPerSecond
+            | Unit::GbPerSecond
+            | Unit::TbPerSecond
+            | Unit::PbPerSecond
+            | Unit::EbPerSecond
+            | Unit::KibPerSecond
+            | Unit::MibPerSecond
+            | Unit::GibPerSecond
+            | Unit::TibPerSecond
+            | Unit::PibPerSecond
+            | Unit::EibPerSecond => UnitType::BitRate,
             Unit::BytesPerSecond
             | Unit::KBPerSecond
             | Unit::MBPerSecond
@@ -233,6 +357,19 @@ impl Unit {
             Unit::Minute => "min",
             Unit::Hour => "h",
             Unit::Day => "day",
+            Unit::Bit => "bit",
+            Unit::Kb => "Kb",
+            Unit::Mb => "Mb",
+            Unit::Gb => "Gb",
+            Unit::Tb => "Tb",
+            Unit::Pb => "Pb",
+            Unit::Eb => "Eb",
+            Unit::Kib => "Kib",
+            Unit::Mib => "Mib",
+            Unit::Gib => "Gib",
+            Unit::Tib => "Tib",
+            Unit::Pib => "Pib",
+            Unit::Eib => "Eib",
             Unit::Byte => "B",
             Unit::KB => "KB",
             Unit::MB => "MB",
@@ -248,6 +385,19 @@ impl Unit {
             Unit::EiB => "EiB",
             Unit::Request => "req",
             Unit::Query => "query",
+            Unit::BitsPerSecond => "bps",
+            Unit::KbPerSecond => "Kbps",
+            Unit::MbPerSecond => "Mbps",
+            Unit::GbPerSecond => "Gbps",
+            Unit::TbPerSecond => "Tbps",
+            Unit::PbPerSecond => "Pbps",
+            Unit::EbPerSecond => "Ebps",
+            Unit::KibPerSecond => "Kibps",
+            Unit::MibPerSecond => "Mibps",
+            Unit::GibPerSecond => "Gibps",
+            Unit::TibPerSecond => "Tibps",
+            Unit::PibPerSecond => "Pibps",
+            Unit::EibPerSecond => "Eibps",
             Unit::BytesPerSecond => "B/s",
             Unit::KBPerSecond => "KB/s",
             Unit::MBPerSecond => "MB/s",
@@ -273,6 +423,19 @@ impl Unit {
     /// Convert a data unit to its corresponding rate unit
     pub fn to_rate_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
+            Unit::Bit => Ok(Unit::BitsPerSecond),
+            Unit::Kb => Ok(Unit::KbPerSecond),
+            Unit::Mb => Ok(Unit::MbPerSecond),
+            Unit::Gb => Ok(Unit::GbPerSecond),
+            Unit::Tb => Ok(Unit::TbPerSecond),
+            Unit::Pb => Ok(Unit::PbPerSecond),
+            Unit::Eb => Ok(Unit::EbPerSecond),
+            Unit::Kib => Ok(Unit::KibPerSecond),
+            Unit::Mib => Ok(Unit::MibPerSecond),
+            Unit::Gib => Ok(Unit::GibPerSecond),
+            Unit::Tib => Ok(Unit::TibPerSecond),
+            Unit::Pib => Ok(Unit::PibPerSecond),
+            Unit::Eib => Ok(Unit::EibPerSecond),
             Unit::Byte => Ok(Unit::BytesPerSecond),
             Unit::KB => Ok(Unit::KBPerSecond),
             Unit::MB => Ok(Unit::MBPerSecond),
@@ -295,6 +458,19 @@ impl Unit {
     /// Convert a rate unit to its corresponding data unit
     pub fn to_data_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
+            Unit::BitsPerSecond => Ok(Unit::Bit),
+            Unit::KbPerSecond => Ok(Unit::Kb),
+            Unit::MbPerSecond => Ok(Unit::Mb),
+            Unit::GbPerSecond => Ok(Unit::Gb),
+            Unit::TbPerSecond => Ok(Unit::Tb),
+            Unit::PbPerSecond => Ok(Unit::Pb),
+            Unit::EbPerSecond => Ok(Unit::Eb),
+            Unit::KibPerSecond => Ok(Unit::Kib),
+            Unit::MibPerSecond => Ok(Unit::Mib),
+            Unit::GibPerSecond => Ok(Unit::Gib),
+            Unit::TibPerSecond => Ok(Unit::Tib),
+            Unit::PibPerSecond => Ok(Unit::Pib),
+            Unit::EibPerSecond => Ok(Unit::Eib),
             Unit::BytesPerSecond => Ok(Unit::Byte),
             Unit::KBPerSecond => Ok(Unit::KB),
             Unit::MBPerSecond => Ok(Unit::MB),

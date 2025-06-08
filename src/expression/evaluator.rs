@@ -550,6 +550,29 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(data_unit))
                 }
+                // Time * BitRate = Bits (convert time to seconds first)
+                (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
+                    if time_unit.unit_type() == UnitType::Time
+                        && rate_unit.unit_type() == UnitType::BitRate =>
+                {
+                    // Determine which value is time and which is rate
+                    let (time_value, time_u, rate_value, rate_u) =
+                        if time_unit.unit_type() == UnitType::Time {
+                            (a.value, time_unit, b.value, rate_unit)
+                        } else {
+                            (b.value, time_unit, a.value, rate_unit)
+                        };
+
+                    // Convert time to seconds
+                    let time_in_seconds = time_u.to_base_value(time_value);
+
+                    // BitRate * time = bits
+                    let bit_unit = match rate_u.to_data_unit() {
+                        Ok(unit) => unit,
+                        Err(_) => return false,
+                    };
+                    UnitValue::new(rate_value * time_in_seconds, Some(bit_unit))
+                }
                 // Time * RequestRate = Requests (convert time to seconds first)
                 (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
                     if time_unit.unit_type() == UnitType::Time
@@ -624,6 +647,66 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                         Err(_) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
+                }
+                // Data / DataRate = Time
+                (Some(data_unit), Some(rate_unit))
+                    if data_unit.unit_type() == UnitType::Data
+                        && rate_unit.unit_type() == UnitType::DataRate =>
+                {
+                    // Convert data to bytes and rate to bytes per second
+                    let data_in_bytes = data_unit.to_base_value(a.value);
+                    let rate_in_bytes_per_sec = rate_unit.to_base_value(b.value);
+                    if rate_in_bytes_per_sec.abs() < FLOAT_EPSILON {
+                        return false;
+                    }
+                    let time_in_seconds = data_in_bytes / rate_in_bytes_per_sec;
+                    UnitValue::new(time_in_seconds, Some(Unit::Second))
+                }
+                // Data / BitRate = Time (need to convert between bits and bytes)
+                (Some(data_unit), Some(rate_unit))
+                    if data_unit.unit_type() == UnitType::Data
+                        && rate_unit.unit_type() == UnitType::BitRate =>
+                {
+                    // Convert data to bytes and rate to bits per second
+                    let data_in_bytes = data_unit.to_base_value(a.value);
+                    let rate_in_bits_per_sec = rate_unit.to_base_value(b.value);
+                    if rate_in_bits_per_sec.abs() < FLOAT_EPSILON {
+                        return false;
+                    }
+                    // Convert bytes to bits (1 byte = 8 bits)
+                    let data_in_bits = data_in_bytes * 8.0;
+                    let time_in_seconds = data_in_bits / rate_in_bits_per_sec;
+                    UnitValue::new(time_in_seconds, Some(Unit::Second))
+                }
+                // Bit / DataRate = Time (need to convert between bits and bytes)
+                (Some(data_unit), Some(rate_unit))
+                    if data_unit.unit_type() == UnitType::Bit
+                        && rate_unit.unit_type() == UnitType::DataRate =>
+                {
+                    // Convert data to bits and rate to bytes per second
+                    let data_in_bits = data_unit.to_base_value(a.value);
+                    let rate_in_bytes_per_sec = rate_unit.to_base_value(b.value);
+                    if rate_in_bytes_per_sec.abs() < FLOAT_EPSILON {
+                        return false;
+                    }
+                    // Convert bytes to bits (1 byte = 8 bits)
+                    let rate_in_bits_per_sec = rate_in_bytes_per_sec * 8.0;
+                    let time_in_seconds = data_in_bits / rate_in_bits_per_sec;
+                    UnitValue::new(time_in_seconds, Some(Unit::Second))
+                }
+                // Bit / BitRate = Time
+                (Some(data_unit), Some(rate_unit))
+                    if data_unit.unit_type() == UnitType::Bit
+                        && rate_unit.unit_type() == UnitType::BitRate =>
+                {
+                    // Convert data to bits and rate to bits per second
+                    let data_in_bits = data_unit.to_base_value(a.value);
+                    let rate_in_bits_per_sec = rate_unit.to_base_value(b.value);
+                    if rate_in_bits_per_sec.abs() < FLOAT_EPSILON {
+                        return false;
+                    }
+                    let time_in_seconds = data_in_bits / rate_in_bits_per_sec;
+                    UnitValue::new(time_in_seconds, Some(Unit::Second))
                 }
                 (Some(rate_unit), Some(time_unit))
                     if rate_unit.unit_type() == UnitType::RequestRate

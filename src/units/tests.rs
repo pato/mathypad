@@ -697,6 +697,265 @@ fn test_large_data_real_world_scenarios() {
 }
 
 #[test]
+fn test_bit_vs_byte_parsing() {
+    // Test bit units (lowercase 'b')
+    assert_eq!(parse_unit("bit"), Some(Unit::Bit));
+    assert_eq!(parse_unit("Kb"), Some(Unit::Kb));
+    assert_eq!(parse_unit("Mb"), Some(Unit::Mb));
+    assert_eq!(parse_unit("Gb"), Some(Unit::Gb));
+    assert_eq!(parse_unit("Tb"), Some(Unit::Tb));
+    assert_eq!(parse_unit("Kib"), Some(Unit::Kib));
+    assert_eq!(parse_unit("Mib"), Some(Unit::Mib));
+    assert_eq!(parse_unit("Gib"), Some(Unit::Gib));
+    
+    // Test byte units (uppercase 'B')
+    assert_eq!(parse_unit("B"), Some(Unit::Byte));
+    assert_eq!(parse_unit("KB"), Some(Unit::KB));
+    assert_eq!(parse_unit("MB"), Some(Unit::MB));
+    assert_eq!(parse_unit("GB"), Some(Unit::GB));
+    assert_eq!(parse_unit("TB"), Some(Unit::TB));
+    assert_eq!(parse_unit("KiB"), Some(Unit::KiB));
+    assert_eq!(parse_unit("MiB"), Some(Unit::MiB));
+    assert_eq!(parse_unit("GiB"), Some(Unit::GiB));
+    
+    // Test bit rate units (bits per second)
+    assert_eq!(parse_unit("bps"), Some(Unit::BitsPerSecond));
+    assert_eq!(parse_unit("Kbps"), Some(Unit::KbPerSecond));
+    assert_eq!(parse_unit("Mbps"), Some(Unit::MbPerSecond));
+    assert_eq!(parse_unit("Gbps"), Some(Unit::GbPerSecond));
+    assert_eq!(parse_unit("Kibps"), Some(Unit::KibPerSecond));
+    assert_eq!(parse_unit("Mibps"), Some(Unit::MibPerSecond));
+    assert_eq!(parse_unit("Gibps"), Some(Unit::GibPerSecond));
+    
+    // Test byte rate units (bytes per second)
+    assert_eq!(parse_unit("B/s"), Some(Unit::BytesPerSecond));
+    assert_eq!(parse_unit("KB/s"), Some(Unit::KBPerSecond));
+    assert_eq!(parse_unit("MB/s"), Some(Unit::MBPerSecond));
+    assert_eq!(parse_unit("GB/s"), Some(Unit::GBPerSecond));
+    assert_eq!(parse_unit("KiB/s"), Some(Unit::KiBPerSecond));
+    assert_eq!(parse_unit("MiB/s"), Some(Unit::MiBPerSecond));
+    assert_eq!(parse_unit("GiB/s"), Some(Unit::GiBPerSecond));
+}
+
+#[test]
+fn test_bit_byte_conversions() {
+    // Test bit to bit conversions (base 10)
+    let result = evaluate_with_unit_info("1000 Kb to Mb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1000 Kb = 1 Mb
+    
+    let result = evaluate_with_unit_info("8000 Mb to Gb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 8000 Mb = 8 Gb
+    
+    // Test bit to bit conversions (base 2)
+    let result = evaluate_with_unit_info("1024 Kib to Mib");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1024 Kib = 1 Mib
+    
+    let result = evaluate_with_unit_info("8192 Mib to Gib");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 8192 Mib = 8 Gib
+    
+    // Test bits to bytes conversion (8 bits = 1 byte)
+    let result = evaluate_with_unit_info("8 bit to B");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 bits = 1 byte
+    
+    let result = evaluate_with_unit_info("8 Kb to KB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Kb = 1 KB
+    
+    let result = evaluate_with_unit_info("8 Mb to MB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Mb = 1 MB
+    
+    let result = evaluate_with_unit_info("8 Gb to GB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Gb = 1 GB
+    
+    // Test bytes to bits conversion
+    let result = evaluate_with_unit_info("1 B to bit");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 byte = 8 bits
+    
+    let result = evaluate_with_unit_info("1 KB to Kb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 KB = 8 Kb
+    
+    let result = evaluate_with_unit_info("1 MB to Mb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 MB = 8 Mb
+    
+    let result = evaluate_with_unit_info("1 GB to Gb");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 GB = 8 Gb
+}
+
+#[test]
+fn test_bit_byte_rate_conversions() {
+    // Test bit rate to byte rate conversions
+    let result = evaluate_with_unit_info("8 bps to B/s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 bps = 1 B/s
+    
+    let result = evaluate_with_unit_info("8 Kbps to KB/s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Kbps = 1 KB/s
+    
+    let result = evaluate_with_unit_info("8 Mbps to MB/s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Mbps = 1 MB/s
+    
+    let result = evaluate_with_unit_info("8 Gbps to GB/s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 8 Gbps = 1 GB/s
+    
+    // Test byte rate to bit rate conversions
+    let result = evaluate_with_unit_info("1 B/s to bps");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 B/s = 8 bps
+    
+    let result = evaluate_with_unit_info("1 KB/s to Kbps");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 KB/s = 8 Kbps
+    
+    let result = evaluate_with_unit_info("1 MB/s to Mbps");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 MB/s = 8 Mbps
+    
+    let result = evaluate_with_unit_info("1 GB/s to Gbps");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 8.0).abs() < 0.001); // 1 GB/s = 8 Gbps
+}
+
+#[test]
+fn test_network_speed_scenarios() {
+    // Test realistic network speeds
+    assert_eq!(
+        evaluate_test_expression("Internet speed: 100 Mbps to MB/s"),
+        Some("12.5 MB/s".to_string())
+    );
+    
+    assert_eq!(
+        evaluate_test_expression("Gigabit ethernet: 1 Gbps to MB/s"),
+        Some("125 MB/s".to_string())
+    );
+    
+    assert_eq!(
+        evaluate_test_expression("File download: 50 MB/s to Mbps"),
+        Some("400 Mbps".to_string())
+    );
+    
+    // Test large file transfer calculations
+    assert_eq!(
+        evaluate_test_expression("Download time: 1 GB / 10 Mbps"),
+        Some("800 s".to_string())
+    );
+    
+    assert_eq!(
+        evaluate_test_expression("Bandwidth usage: 100 Mbps * 1 hour"),
+        Some("360,000 Mb".to_string())
+    );
+    
+    // Test mixed unit scenarios
+    assert_eq!(
+        evaluate_test_expression("Data transferred: 25 MB/s * 10 minutes to GB"),
+        Some("15 GB".to_string())
+    );
+}
+
+#[test]
+fn test_bit_byte_display_names() {
+    // Test display names for bit units
+    assert_eq!(Unit::Bit.display_name(), "bit");
+    assert_eq!(Unit::Kb.display_name(), "Kb");
+    assert_eq!(Unit::Mb.display_name(), "Mb");
+    assert_eq!(Unit::Gb.display_name(), "Gb");
+    assert_eq!(Unit::Tb.display_name(), "Tb");
+    assert_eq!(Unit::Kib.display_name(), "Kib");
+    assert_eq!(Unit::Mib.display_name(), "Mib");
+    assert_eq!(Unit::Gib.display_name(), "Gib");
+    
+    // Test display names for bit rate units
+    assert_eq!(Unit::BitsPerSecond.display_name(), "bps");
+    assert_eq!(Unit::KbPerSecond.display_name(), "Kbps");
+    assert_eq!(Unit::MbPerSecond.display_name(), "Mbps");
+    assert_eq!(Unit::GbPerSecond.display_name(), "Gbps");
+    assert_eq!(Unit::KibPerSecond.display_name(), "Kibps");
+    assert_eq!(Unit::MibPerSecond.display_name(), "Mibps");
+    assert_eq!(Unit::GibPerSecond.display_name(), "Gibps");
+    
+    // Test display names for byte units (should be unchanged)
+    assert_eq!(Unit::Byte.display_name(), "B");
+    assert_eq!(Unit::KB.display_name(), "KB");
+    assert_eq!(Unit::MB.display_name(), "MB");
+    assert_eq!(Unit::GB.display_name(), "GB");
+    assert_eq!(Unit::KiB.display_name(), "KiB");
+    assert_eq!(Unit::MiB.display_name(), "MiB");
+    assert_eq!(Unit::GiB.display_name(), "GiB");
+}
+
+#[test]
+fn test_bit_byte_unit_type_classification() {
+    // Test that bit units are classified as Bit type
+    assert_eq!(Unit::Bit.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Kb.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Mb.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Gb.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Kib.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Mib.unit_type(), UnitType::Bit);
+    assert_eq!(Unit::Gib.unit_type(), UnitType::Bit);
+    
+    // Test that bit rate units are classified as BitRate type
+    assert_eq!(Unit::BitsPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::KbPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::MbPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::GbPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::KibPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::MibPerSecond.unit_type(), UnitType::BitRate);
+    assert_eq!(Unit::GibPerSecond.unit_type(), UnitType::BitRate);
+    
+    // Test that byte units are still classified as Data type
+    assert_eq!(Unit::Byte.unit_type(), UnitType::Data);
+    assert_eq!(Unit::KB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::MB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::GB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::KiB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::MiB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::GiB.unit_type(), UnitType::Data);
+    
+    // Test that byte rate units are still classified as DataRate type
+    assert_eq!(Unit::BytesPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::KBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::MBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::GBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::KiBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::MiBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::GiBPerSecond.unit_type(), UnitType::DataRate);
+}
+
+#[test]
 fn test_large_data_edge_cases() {
     // Test very small fractions
     assert_eq!(
