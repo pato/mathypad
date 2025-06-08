@@ -64,7 +64,7 @@ Perfect for DevOps, data engineering, and capacity planning:
 ### Interactive or One-Shot
 Use it like a notepad with live results, or fire quick calculations from your terminal:
 
-**Interactive Mode:**
+**Interactive Mode (with vim motions):**
 ```
 $ mathypad
 ┌─ Mathypad ────────────────────┬─ Results ─────────────┐
@@ -73,6 +73,10 @@ $ mathypad
 │   3 │ 50 GB to GiB            │   3 │ 46.566 GiB      │
 │   4 │                         │   4 │                 │
 └───────────────────────────────┴───────────────────────┘
+
+• ESC → Normal mode (hjkl navigation)
+• i/a/o → Insert mode for editing
+• Ctrl+C/Ctrl+Q → Quit
 ```
 
 **Command Line:**

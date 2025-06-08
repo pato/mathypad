@@ -23,12 +23,19 @@ const TICK_RATE_MS: u64 = 250;
 const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;
 const FLOAT_EPSILON: f64 = f64::EPSILON;
 
+#[derive(Debug, Clone, PartialEq)]
+enum Mode {
+    Insert,
+    Normal,
+}
+
 struct App {
     text_lines: Vec<String>,
     cursor_line: usize,
     cursor_col: usize,
     scroll_offset: usize,
     results: Vec<Option<String>>,
+    mode: Mode,
 }
 
 impl Default for App {
@@ -39,6 +46,7 @@ impl Default for App {
             cursor_col: 0,
             scroll_offset: 0,
             results: vec![None],
+            mode: Mode::Insert, // Start in insert mode
         }
     }
 }
@@ -264,28 +272,102 @@ fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                         {
                             break;
                         }
-                        KeyCode::Char(c) => {
-                            app.insert_char(c);
+                        KeyCode::Esc => {
+                            app.mode = Mode::Normal;
                         }
-                        KeyCode::Enter => {
-                            app.new_line();
+                        _ => {
+                            match app.mode {
+                                Mode::Insert => {
+                                    match key.code {
+                                        KeyCode::Char(c) => {
+                                            app.insert_char(c);
+                                        }
+                                        KeyCode::Enter => {
+                                            app.new_line();
+                                        }
+                                        KeyCode::Backspace => {
+                                            app.delete_char();
+                                        }
+                                        KeyCode::Up => {
+                                            app.move_cursor_up();
+                                        }
+                                        KeyCode::Down => {
+                                            app.move_cursor_down();
+                                        }
+                                        KeyCode::Left => {
+                                            app.move_cursor_left();
+                                        }
+                                        KeyCode::Right => {
+                                            app.move_cursor_right();
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                Mode::Normal => {
+                                    match key.code {
+                                        KeyCode::Char('h') => {
+                                            app.move_cursor_left();
+                                        }
+                                        KeyCode::Char('j') => {
+                                            app.move_cursor_down();
+                                        }
+                                        KeyCode::Char('k') => {
+                                            app.move_cursor_up();
+                                        }
+                                        KeyCode::Char('l') => {
+                                            app.move_cursor_right();
+                                        }
+                                        KeyCode::Char('i') => {
+                                            app.mode = Mode::Insert;
+                                        }
+                                        KeyCode::Char('a') => {
+                                            app.move_cursor_right();
+                                            app.mode = Mode::Insert;
+                                        }
+                                        KeyCode::Char('A') => {
+                                            // Move to end of line
+                                            if app.cursor_line < app.text_lines.len() {
+                                                app.cursor_col = app.text_lines[app.cursor_line].len();
+                                            }
+                                            app.mode = Mode::Insert;
+                                        }
+                                        KeyCode::Char('I') => {
+                                            app.cursor_col = 0;
+                                            app.mode = Mode::Insert;
+                                        }
+                                        KeyCode::Char('o') => {
+                                            // Insert new line below and enter insert mode
+                                            if app.cursor_line < app.text_lines.len() {
+                                                app.cursor_col = app.text_lines[app.cursor_line].len();
+                                            }
+                                            app.new_line();
+                                            app.mode = Mode::Insert;
+                                        }
+                                        KeyCode::Char('O') => {
+                                            // Insert new line above and enter insert mode
+                                            app.text_lines.insert(app.cursor_line, String::new());
+                                            app.results.insert(app.cursor_line, None);
+                                            app.cursor_col = 0;
+                                            app.mode = Mode::Insert;
+                                        }
+                                        // Allow arrow keys in normal mode too
+                                        KeyCode::Up => {
+                                            app.move_cursor_up();
+                                        }
+                                        KeyCode::Down => {
+                                            app.move_cursor_down();
+                                        }
+                                        KeyCode::Left => {
+                                            app.move_cursor_left();
+                                        }
+                                        KeyCode::Right => {
+                                            app.move_cursor_right();
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
                         }
-                        KeyCode::Backspace => {
-                            app.delete_char();
-                        }
-                        KeyCode::Up => {
-                            app.move_cursor_up();
-                        }
-                        KeyCode::Down => {
-                            app.move_cursor_down();
-                        }
-                        KeyCode::Left => {
-                            app.move_cursor_left();
-                        }
-                        KeyCode::Right => {
-                            app.move_cursor_right();
-                        }
-                        _ => {}
                     }
                 }
             }
@@ -1930,7 +2012,11 @@ fn ui(f: &mut Frame, app: &App) {
 }
 
 fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
-    let block = Block::default().title("Mathypad").borders(Borders::ALL);
+    let title = match app.mode {
+        Mode::Insert => "Mathypad",
+        Mode::Normal => "Mathypad -- NORMAL --",
+    };
+    let block = Block::default().title(title).borders(Borders::ALL);
 
     let inner_area = block.inner(area);
     f.render_widget(block, area);

@@ -5,10 +5,11 @@ A mathematical notepad application built in Rust that provides real-time express
 ## Features
 
 ### Core Functionality
-- **Interactive TUI Mode**: Text editor interface with syntax highlighting
+- **Interactive TUI Mode**: Text editor interface with syntax highlighting and vim motions
 - **One-shot CLI Mode**: Evaluate expressions directly from command line using `--`
 - **Real-time Evaluation**: Mathematical expressions are evaluated and results shown in right panel
 - **Line References**: Reference results from other lines (e.g., `line1 + 4 GiB`)
+- **Vim Motions**: hjkl navigation, insert/normal modes, and common vim editing commands
 
 ### Unit Support
 
@@ -110,6 +111,18 @@ Line 3: line2 * 2 to MiB           → 28,672 MiB
 ```bash
 cargo run
 ```
+
+**Vim Motion Support:**
+- **Insert mode** (default): Normal typing and editing
+- **Normal mode**: Press `Esc` to enter, use `hjkl` for movement
+- **Mode switching**: 
+  - `i` - insert at cursor
+  - `a` - append after cursor  
+  - `A` - append at end of line
+  - `I` - insert at beginning of line
+  - `o` - new line below cursor
+  - `O` - new line above cursor
+- **Visual indicator**: Title shows "-- NORMAL --" when in normal mode
 
 ### One-shot Mode
 ```bash
