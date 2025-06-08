@@ -7,6 +7,9 @@ mod tokens;
 mod parser;
 mod evaluator;
 
+#[cfg(test)]
+mod tests;
+
 pub use tokens::Token;
 pub use parser::{
     tokenize_with_units, 

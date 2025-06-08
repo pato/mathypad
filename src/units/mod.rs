@@ -9,6 +9,9 @@ mod parser;
 mod types;
 mod value;
 
+#[cfg(test)]
+mod tests;
+
 pub use parser::parse_unit;
 pub use types::{Unit, UnitType, UnitConversionError};
 pub use value::UnitValue;

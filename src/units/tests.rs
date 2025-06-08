@@ -1,0 +1,759 @@
+//! Tests for unit functionality
+
+use super::*;
+use crate::test_helpers::*;
+
+#[test]
+fn test_unit_conversions() {
+    // Data unit conversions (base 2)
+    let result = evaluate_with_unit_info("1 GiB to KiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1048576.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1 TiB to GiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1024.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("2048 KiB to MiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 2.0).abs() < 0.001);
+
+    // Data unit conversions (base 10)
+    let result = evaluate_with_unit_info("1 GB to MB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1000.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("5000 MB to GB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 5.0).abs() < 0.001);
+
+    // Time unit conversions
+    let result = evaluate_with_unit_info("1 hour to minutes");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 60.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("120 seconds to minutes");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 2.0).abs() < 0.001);
+}
+
+#[test]
+fn test_arithmetic_with_units() {
+    // Data rate * time = data
+    assert_eq!(
+        evaluate_test_expression("50 GiB/s * 2 s"),
+        Some("100 GiB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 hour * 10 GiB/s"),
+        Some("36,000 GiB".to_string())
+    );
+
+    // Data / time = rate
+    assert_eq!(
+        evaluate_test_expression("100 GiB / 10 s"),
+        Some("10 GiB/s".to_string())
+    );
+
+    // Same unit addition/subtraction
+    assert_eq!(
+        evaluate_test_expression("1 GiB + 512 MiB"),
+        Some("1,536 MiB".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("2 hours + 30 minutes"),
+        Some("150 min".to_string())
+    );
+}
+
+#[test]
+fn test_mixed_unit_types() {
+    // Base 10 vs Base 2 data units
+    let result = evaluate_with_unit_info("1 GB to GiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 GB = 1,000,000,000 bytes = ~0.931 GiB
+    assert!((unit_val.value - 0.9313225746).abs() < 0.0001);
+
+    let result = evaluate_with_unit_info("1 GiB to GB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 GiB = 1,073,741,824 bytes = ~1.074 GB
+    assert!((unit_val.value - 1.073741824).abs() < 0.0001);
+}
+
+#[test]
+fn test_unit_recognition() {
+    // Test different unit formats
+    let result = evaluate_with_unit_info("1 GiB to kib");
+    assert!(result.is_some());
+
+    let result = evaluate_with_unit_info("60 minutes to h");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1024 bytes to KiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+}
+
+#[test]
+fn test_in_keyword_conversions() {
+    // Test "in" keyword for unit conversions after calculations
+    assert_eq!(
+        evaluate_test_expression("24 MiB * 32 in KiB"),
+        Some("786,432 KiB".to_string())
+    );
+
+    // Test with different operations
+    assert_eq!(
+        evaluate_test_expression("1 GiB + 512 MiB in KiB"),
+        Some("1,572,864 KiB".to_string())
+    );
+
+    // Test with time calculations (using scalar multiplication)
+    assert_eq!(
+        evaluate_test_expression("2 hours * 60 in minutes"),
+        Some("7,200 min".to_string())
+    );
+
+    // Test with complex expressions
+    assert_eq!(
+        evaluate_test_expression("(1 GiB + 1 GiB) / 2 in MiB"),
+        Some("1,024 MiB".to_string())
+    );
+
+    // Test mixed base units (base 10 to base 2)
+    assert_eq!(
+        evaluate_test_expression("1000 MB * 5 in GiB"),
+        Some("4.657 GiB".to_string())
+    );
+
+    // Test rate calculations with time conversion
+    assert_eq!(
+        evaluate_test_expression("500 GiB / 10 seconds in MiB/s"),
+        Some("51,200 MiB/s".to_string())
+    );
+
+    // Test simple unit conversion
+    assert_eq!(
+        evaluate_test_expression("1024 KiB in MiB"),
+        Some("1 MiB".to_string())
+    );
+
+    // Test addition with conversion
+    assert_eq!(
+        evaluate_test_expression("1 hour + 30 minutes in minutes"),
+        Some("90 min".to_string())
+    );
+
+    // Test invalid unit conversion (incompatible types)
+    assert_eq!(evaluate_test_expression("5 GiB + 10 in seconds"), None);
+
+    // Test that "in" without valid target unit falls back to regular calculation
+    assert_eq!(evaluate_test_expression("5 + 3 in"), Some("8".to_string()));
+}
+
+#[test]
+fn test_to_keyword_with_expressions() {
+    // Test "to" keyword with expressions (same functionality as "in")
+    assert_eq!(
+        evaluate_test_expression("12 GiB + 50 MiB to MiB"),
+        Some("12,338 MiB".to_string())
+    );
+
+    // Test with multiplication
+    assert_eq!(
+        evaluate_test_expression("24 MiB * 32 to KiB"),
+        Some("786,432 KiB".to_string())
+    );
+
+    // Test with division that creates a rate
+    assert_eq!(
+        evaluate_test_expression("1000 GiB / 10 seconds to MiB/s"),
+        Some("102,400 MiB/s".to_string())
+    );
+
+    // Test complex expression
+    assert_eq!(
+        evaluate_test_expression("(2 TiB - 1 GiB) / 1024 to GiB"),
+        Some("1.999 GiB".to_string())
+    );
+
+    // Test time calculations
+    assert_eq!(
+        evaluate_test_expression("3 hours + 45 minutes to minutes"),
+        Some("225 min".to_string())
+    );
+
+    // Ensure simple "to" conversions still work (backward compatibility)
+    assert_eq!(
+        evaluate_test_expression("1 GiB to MiB"),
+        Some("1,024 MiB".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("60 seconds to minutes"),
+        Some("1 min".to_string())
+    );
+}
+
+#[test]
+fn test_qps_unit_parsing() {
+    // Test QPS unit parsing
+    assert_eq!(parse_unit("qps"), Some(Unit::QueriesPerSecond));
+    assert_eq!(parse_unit("QPS"), Some(Unit::QueriesPerSecond));
+    assert_eq!(parse_unit("queries/s"), Some(Unit::QueriesPerSecond));
+    assert_eq!(parse_unit("queries/sec"), Some(Unit::QueriesPerSecond));
+    assert_eq!(parse_unit("qpm"), Some(Unit::QueriesPerMinute));
+    assert_eq!(parse_unit("queries/min"), Some(Unit::QueriesPerMinute));
+    assert_eq!(parse_unit("queries/minute"), Some(Unit::QueriesPerMinute));
+    assert_eq!(parse_unit("qph"), Some(Unit::QueriesPerHour));
+    assert_eq!(parse_unit("queries/h"), Some(Unit::QueriesPerHour));
+    assert_eq!(parse_unit("queries/hour"), Some(Unit::QueriesPerHour));
+
+    // Test request rate unit parsing
+    assert_eq!(parse_unit("req/s"), Some(Unit::RequestsPerSecond));
+    assert_eq!(parse_unit("requests/s"), Some(Unit::RequestsPerSecond));
+    assert_eq!(parse_unit("rps"), Some(Unit::RequestsPerSecond));
+    assert_eq!(parse_unit("req/min"), Some(Unit::RequestsPerMinute));
+    assert_eq!(parse_unit("requests/min"), Some(Unit::RequestsPerMinute));
+    assert_eq!(parse_unit("rpm"), Some(Unit::RequestsPerMinute));
+    assert_eq!(parse_unit("req/h"), Some(Unit::RequestsPerHour));
+    assert_eq!(parse_unit("req/hour"), Some(Unit::RequestsPerHour));
+    assert_eq!(parse_unit("requests/h"), Some(Unit::RequestsPerHour));
+    assert_eq!(parse_unit("requests/hour"), Some(Unit::RequestsPerHour));
+    assert_eq!(parse_unit("rph"), Some(Unit::RequestsPerHour));
+
+    // Test request/query count unit parsing
+    assert_eq!(parse_unit("req"), Some(Unit::Request));
+    assert_eq!(parse_unit("request"), Some(Unit::Request));
+    assert_eq!(parse_unit("requests"), Some(Unit::Request));
+    assert_eq!(parse_unit("query"), Some(Unit::Query));
+    assert_eq!(parse_unit("queries"), Some(Unit::Query));
+}
+
+#[test]
+fn test_qps_unit_conversions() {
+    // Test QPS to other rate units
+    let result = evaluate_with_unit_info("100 QPS to req/min");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 6000.0).abs() < 0.001); // 100 * 60 = 6000 req/min
+
+    let result = evaluate_with_unit_info("1 QPS to QPH");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 3600.0).abs() < 0.001); // 1 * 3600 = 3600 QPH
+
+    let result = evaluate_with_unit_info("7200 req/h to req/min");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 120.0).abs() < 0.001); // 7200 / 60 = 120 req/min
+
+    let result = evaluate_with_unit_info("60 QPM to QPS");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 60 / 60 = 1 QPS
+
+    // Test cross-family conversions (QPS to RPS should work since they're equivalent)
+    let result = evaluate_with_unit_info("100 QPS to req/s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 100.0).abs() < 0.001); // Direct equivalence
+
+    let result = evaluate_with_unit_info("150 req/min to QPM");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 150.0).abs() < 0.001); // Direct equivalence
+}
+
+#[test]
+fn test_qps_arithmetic_operations() {
+    // Test QPS * time = total requests
+    assert_eq!(
+        evaluate_test_expression("25 QPS * 1 hour"),
+        Some("90,000 query".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("100 QPS * 30 s"),
+        Some("3,000 query".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("50 req/s * 2 minutes"),
+        Some("6,000 req".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 hour * 10 req/min"),
+        Some("36,000 req".to_string())
+    );
+
+    // Test requests / time = request rate
+    assert_eq!(
+        evaluate_test_expression("3600 queries / 1 hour"),
+        Some("1 QPS".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("6000 req / 10 minutes"),
+        Some("10 req/s".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1200 requests / 20 s"),
+        Some("60 req/s".to_string())
+    );
+
+    // Test QPS arithmetic with conversions
+    assert_eq!(
+        evaluate_test_expression("100 QPS * 30 minutes to req"),
+        Some("180,000 req".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("5000 queries / 10 minutes to QPS"),
+        Some("8.333 QPS".to_string())
+    );
+
+    // Test complex expressions
+    assert_eq!(
+        evaluate_test_expression("(100 QPS + 50 QPS) * 2 hours"),
+        Some("1,080,000 query".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("10000 req / (5 minutes + 5 minutes)"),
+        Some("16.667 req/s".to_string())
+    );
+}
+
+#[test]
+fn test_qps_addition_subtraction() {
+    // Test adding/subtracting same rate units
+    assert_eq!(
+        evaluate_test_expression("100 QPS + 50 QPS"),
+        Some("150 QPS".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("200 req/min - 80 req/min"),
+        Some("120 req/min".to_string())
+    );
+
+    // Test adding different rate units (should convert to common base)
+    assert_eq!(
+        evaluate_test_expression("100 QPS + 60 QPM"),
+        Some("6,060 QPM".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("3600 QPH - 30 QPM"),
+        Some("1,800 QPH".to_string())
+    );
+
+    // Test mixed request rate families
+    assert_eq!(
+        evaluate_test_expression("100 QPS + 100 req/s"),
+        Some("200 req/s".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1000 req/min + 500 QPM"),
+        Some("1,500 QPM".to_string())
+    );
+}
+
+#[test]
+fn test_qps_real_world_scenarios() {
+    // Test realistic QPS scenarios
+    assert_eq!(
+        evaluate_test_expression("API load: 1000 QPS * 5 minutes"),
+        Some("300,000 query".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("Peak traffic: 500 req/s * 1 hour"),
+        Some("1,800,000 req".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("Daily requests: 86400 req / 1 day"),
+        Some("1 req/s".to_string())
+    );
+
+    // Test load balancing scenarios
+    assert_eq!(
+        evaluate_test_expression("Total load: 250 QPS + 150 QPS + 100 QPS"),
+        Some("500 QPS".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("Per server: 1500 QPS / 3"),
+        Some("500 QPS".to_string())
+    );
+
+    // Test capacity planning
+    assert_eq!(
+        evaluate_test_expression("Monthly queries: 100 QPS * 30 days"),
+        Some("259,200,000 query".to_string())
+    );
+
+    // Test rate conversions for monitoring
+    assert_eq!(
+        evaluate_test_expression("Monitor rate: 5000 req/min to req/s"),
+        Some("83.333 req/s".to_string())
+    );
+}
+
+#[test]
+fn test_qps_edge_cases() {
+    // Test very small QPS rates
+    assert_eq!(
+        evaluate_test_expression("0.1 QPS * 10 s"),
+        Some("1 query".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 query / 10 s"),
+        Some("0.1 QPS".to_string())
+    );
+
+    // Test very large QPS rates
+    assert_eq!(
+        evaluate_test_expression("1000000 QPS * 1 s"),
+        Some("1,000,000 query".to_string())
+    );
+
+    // Test fractional results
+    assert_eq!(
+        evaluate_test_expression("100 QPS / 3"),
+        Some("33.333 QPS".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1000 req / 7 minutes"),
+        Some("2.381 req/s".to_string())
+    );
+
+    // Test zero and negative cases (should be valid mathematically)
+    assert_eq!(
+        evaluate_test_expression("0 QPS * 1 hour"),
+        Some("0 query".to_string())
+    );
+
+    // Test incompatible unit operations (should fail)
+    assert_eq!(evaluate_test_expression("100 QPS + 1 GiB"), None);
+    assert_eq!(evaluate_test_expression("50 req/s - 10 seconds"), None);
+    assert_eq!(evaluate_test_expression("1000 queries + 5 hours"), None);
+}
+
+#[test]
+fn test_qps_unit_display_names() {
+    // Test that display names are correct for QPS units
+    assert_eq!(Unit::QueriesPerSecond.display_name(), "QPS");
+    assert_eq!(Unit::QueriesPerMinute.display_name(), "QPM");
+    assert_eq!(Unit::QueriesPerHour.display_name(), "QPH");
+    assert_eq!(Unit::RequestsPerSecond.display_name(), "req/s");
+    assert_eq!(Unit::RequestsPerMinute.display_name(), "req/min");
+    assert_eq!(Unit::RequestsPerHour.display_name(), "req/h");
+    assert_eq!(Unit::Request.display_name(), "req");
+    assert_eq!(Unit::Query.display_name(), "query");
+}
+
+#[test]
+fn test_qps_unit_type_classification() {
+    // Test that QPS units are properly classified
+    assert_eq!(Unit::QueriesPerSecond.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::QueriesPerMinute.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::QueriesPerHour.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::RequestsPerSecond.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::RequestsPerMinute.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::RequestsPerHour.unit_type(), UnitType::RequestRate);
+    assert_eq!(Unit::Request.unit_type(), UnitType::Request);
+    assert_eq!(Unit::Query.unit_type(), UnitType::Request);
+}
+
+#[test]
+fn test_large_data_unit_parsing() {
+    // Test Petabyte unit parsing (base 10)
+    assert_eq!(parse_unit("pb"), Some(Unit::PB));
+    assert_eq!(parse_unit("PB"), Some(Unit::PB));
+
+    // Test Exabyte unit parsing (base 10)
+    assert_eq!(parse_unit("eb"), Some(Unit::EB));
+    assert_eq!(parse_unit("EB"), Some(Unit::EB));
+
+    // Test Pebibyte unit parsing (base 2)
+    assert_eq!(parse_unit("pib"), Some(Unit::PiB));
+    assert_eq!(parse_unit("PiB"), Some(Unit::PiB));
+
+    // Test Exbibyte unit parsing (base 2)
+    assert_eq!(parse_unit("eib"), Some(Unit::EiB));
+    assert_eq!(parse_unit("EiB"), Some(Unit::EiB));
+
+    // Test rate units
+    assert_eq!(parse_unit("pb/s"), Some(Unit::PBPerSecond));
+    assert_eq!(parse_unit("pbps"), Some(Unit::PBPerSecond));
+    assert_eq!(parse_unit("eb/s"), Some(Unit::EBPerSecond));
+    assert_eq!(parse_unit("ebps"), Some(Unit::EBPerSecond));
+    assert_eq!(parse_unit("pib/s"), Some(Unit::PiBPerSecond));
+    assert_eq!(parse_unit("pibps"), Some(Unit::PiBPerSecond));
+    assert_eq!(parse_unit("eib/s"), Some(Unit::EiBPerSecond));
+    assert_eq!(parse_unit("eibps"), Some(Unit::EiBPerSecond));
+}
+
+#[test]
+fn test_large_data_unit_conversions() {
+    // Test TB to PB conversions (base 10)
+    let result = evaluate_with_unit_info("1000 TB to PB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1000 TB = 1 PB
+
+    let result = evaluate_with_unit_info("5 PB to TB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 5000.0).abs() < 0.001); // 5 PB = 5000 TB
+
+    // Test PB to EB conversions (base 10)
+    let result = evaluate_with_unit_info("1000 PB to EB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1000 PB = 1 EB
+
+    let result = evaluate_with_unit_info("2 EB to PB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 2000.0).abs() < 0.001); // 2 EB = 2000 PB
+
+    // Test TiB to PiB conversions (base 2)
+    let result = evaluate_with_unit_info("1024 TiB to PiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1024 TiB = 1 PiB
+
+    let result = evaluate_with_unit_info("3 PiB to TiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 3072.0).abs() < 0.001); // 3 PiB = 3072 TiB
+
+    // Test PiB to EiB conversions (base 2)
+    let result = evaluate_with_unit_info("1024 PiB to EiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001); // 1024 PiB = 1 EiB
+
+    let result = evaluate_with_unit_info("2 EiB to PiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 2048.0).abs() < 0.001); // 2 EiB = 2048 PiB
+
+    // Test mixed base conversions
+    let result = evaluate_with_unit_info("1 PB to PiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 PB = 1,000,000,000,000,000 bytes = ~0.888 PiB
+    assert!((unit_val.value - 0.8881784197).abs() < 0.0001);
+
+    let result = evaluate_with_unit_info("1 EiB to EB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // 1 EiB = 1,152,921,504,606,846,976 bytes = ~1.153 EB
+    assert!((unit_val.value - 1.152921504606847).abs() < 0.0001);
+}
+
+#[test]
+fn test_large_data_unit_arithmetic() {
+    // Test arithmetic with PB units
+    assert_eq!(
+        evaluate_test_expression("2 PB + 500 TB"),
+        Some("2,500 TB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("5 PB - 1000 TB"),
+        Some("4,000 TB".to_string())
+    );
+
+    // Test arithmetic with EB units
+    assert_eq!(
+        evaluate_test_expression("1 EB + 200 PB"),
+        Some("1,200 PB".to_string())
+    );
+
+    // Test arithmetic with PiB units
+    assert_eq!(
+        evaluate_test_expression("1 PiB + 512 TiB"),
+        Some("1,536 TiB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("2 EiB - 1024 PiB"),
+        Some("1,024 PiB".to_string())
+    );
+
+    // Test rate calculations with large units
+    assert_eq!(
+        evaluate_test_expression("1 PB / 1 hour"),
+        Some("0 PB/s".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("10 PB/s * 30 minutes"),
+        Some("18,000 PB".to_string())
+    );
+
+    // Test very large transfers
+    assert_eq!(
+        evaluate_test_expression("1 EB/s * 1 second"),
+        Some("1 EB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("500 EiB / 1 day"),
+        Some("0.006 EiB/s".to_string())
+    );
+}
+
+#[test]
+fn test_large_data_unit_display_names() {
+    // Test display names for large data units
+    assert_eq!(Unit::PB.display_name(), "PB");
+    assert_eq!(Unit::EB.display_name(), "EB");
+    assert_eq!(Unit::PiB.display_name(), "PiB");
+    assert_eq!(Unit::EiB.display_name(), "EiB");
+
+    // Test display names for large rate units
+    assert_eq!(Unit::PBPerSecond.display_name(), "PB/s");
+    assert_eq!(Unit::EBPerSecond.display_name(), "EB/s");
+    assert_eq!(Unit::PiBPerSecond.display_name(), "PiB/s");
+    assert_eq!(Unit::EiBPerSecond.display_name(), "EiB/s");
+}
+
+#[test]
+fn test_large_data_unit_type_classification() {
+    // Test that large data units are properly classified
+    assert_eq!(Unit::PB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::EB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::PiB.unit_type(), UnitType::Data);
+    assert_eq!(Unit::EiB.unit_type(), UnitType::Data);
+
+    // Test that large rate units are properly classified
+    assert_eq!(Unit::PBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::EBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::PiBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::EiBPerSecond.unit_type(), UnitType::DataRate);
+}
+
+#[test]
+fn test_large_data_real_world_scenarios() {
+    // Test data center storage scenarios
+    assert_eq!(
+        evaluate_test_expression("Data center: 50 PB + 10 EB"),
+        Some("10,050 PB".to_string())
+    );
+
+    // Test backup scenarios
+    assert_eq!(
+        evaluate_test_expression("Backup rate: 100 TB/s * 8 hours"),
+        Some("2,880,000 TB".to_string())
+    );
+
+    // Test very large data transfers
+    assert_eq!(
+        evaluate_test_expression("Transfer: 5 EiB to PB"),
+        Some("5,764.608 PB".to_string())
+    );
+
+    // Test scientific computing scenarios
+    assert_eq!(
+        evaluate_test_expression("Dataset: 1.5 EB to TiB"),
+        Some("1,364,242.053 TiB".to_string())
+    );
+
+    // Test network throughput
+    assert_eq!(
+        evaluate_test_expression("Network: 10 PB/s to TB/s"),
+        Some("10,000 TB/s".to_string())
+    );
+
+    // Test storage capacity planning
+    assert_eq!(
+        evaluate_test_expression("Total capacity: 100 PiB + 50 EiB"),
+        Some("51,300 PiB".to_string())
+    );
+}
+
+#[test]
+fn test_large_data_edge_cases() {
+    // Test very small fractions
+    assert_eq!(
+        evaluate_test_expression("0.001 PB to TB"),
+        Some("1 TB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("0.5 EiB to PiB"),
+        Some("512 PiB".to_string())
+    );
+
+    // Test precision with large numbers
+    assert_eq!(
+        evaluate_test_expression("1024.5 PiB to EiB"),
+        Some("1 EiB".to_string())
+    );
+
+    // Test cross-base conversions with precision
+    let result = evaluate_with_unit_info("1.234567 EB to EiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    // Should be approximately 1.071 EiB
+    assert!((unit_val.value - 1.071).abs() < 0.01);
+
+    // Test incompatible operations (should fail)
+    assert_eq!(evaluate_test_expression("1 PB + 5 hours"), None);
+    assert_eq!(evaluate_test_expression("100 EiB - 50 QPS"), None);
+    assert_eq!(evaluate_test_expression("1 EB * 1 query"), None);
+}
+
+#[test]
+fn test_real_world_scenarios() {
+    // File transfer calculations
+    assert_eq!(
+        evaluate_test_expression("Download: 100 MB/s * 5 minutes"),
+        Some("30,000 MB".to_string())
+    );
+
+    // Storage calculations
+    assert_eq!(
+        evaluate_test_expression("Total storage: 2 TB + 500 GB"),
+        Some("2,500 GB".to_string())
+    );
+
+    // Bandwidth calculations
+    assert_eq!(
+        evaluate_test_expression("Bandwidth used: 1,000 GiB / 1 hour"),
+        Some("0.278 GiB/s".to_string())
+    );
+
+    // Data conversion scenarios
+    let result = evaluate_with_unit_info("How many KiB in 5 MiB?");
+    assert!(result.is_some()); // Will find "5 MiB" as a valid expression
+
+    let result = evaluate_with_unit_info("5 MiB to KiB");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 5120.0).abs() < 0.001);
+}
