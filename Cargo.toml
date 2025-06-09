@@ -6,6 +6,7 @@ authors = ["Pato Lankenau <rust@p.lankenau.io>"]
 license = "MIT"
 description = "A smart TUI calculator that understands units and makes complex calculations simple."
 keywords = ["tui", "cli", "calculator", "units", "soulver"]
+homepad = "https://mathypad.app"
 repository = "https://github.com/pato/mathypad"
 
 [dependencies]
