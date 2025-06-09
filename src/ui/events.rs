@@ -51,6 +51,15 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                         {
                             break;
                         }
+                        KeyCode::Char('w')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            if app.mode == Mode::Insert {
+                                app.delete_word();
+                            }
+                        }
                         KeyCode::Esc => {
                             app.mode = Mode::Normal;
                         }

@@ -55,6 +55,47 @@ impl App {
         }
     }
 
+    /// Delete the word before the cursor (Ctrl+W behavior)
+    pub fn delete_word(&mut self) {
+        if self.cursor_line < self.text_lines.len() && self.cursor_col > 0 {
+            let line = &self.text_lines[self.cursor_line];
+            let mut new_col = self.cursor_col;
+
+            // Skip trailing whitespace
+            while new_col > 0 && line.chars().nth(new_col - 1).unwrap_or(' ').is_whitespace() {
+                new_col -= 1;
+            }
+
+            // Delete word characters (alphanumeric and underscore)
+            while new_col > 0 {
+                let ch = line.chars().nth(new_col - 1).unwrap_or(' ');
+                if ch.is_alphanumeric() || ch == '_' {
+                    new_col -= 1;
+                } else {
+                    break;
+                }
+            }
+
+            // If no word was found, delete non-word characters until whitespace
+            if new_col == self.cursor_col {
+                while new_col > 0 {
+                    let ch = line.chars().nth(new_col - 1).unwrap_or(' ');
+                    if ch.is_whitespace() || ch.is_alphanumeric() || ch == '_' {
+                        break;
+                    }
+                    new_col -= 1;
+                }
+            }
+
+            // Delete the characters from new_col to cursor_col
+            if new_col < self.cursor_col {
+                self.text_lines[self.cursor_line].drain(new_col..self.cursor_col);
+                self.cursor_col = new_col;
+                self.update_result(self.cursor_line);
+            }
+        }
+    }
+
     /// Insert a new line at the cursor position
     pub fn new_line(&mut self) {
         if self.cursor_line < self.text_lines.len() {
