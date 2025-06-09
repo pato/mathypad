@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2025-06-09
+
+### Changes
+
+- Add support for the Ctrl-W keybinding in insert mode
+- Add support for subsecond units
+
 ## [0.1.3] - 2025-06-08
+
+### Changes
+
+- Make a one page website!
+- Add meta tags for better sharing
+- Fix deleting empty lines
+
+## [0.1.2] - 2025-06-08
 
 ### Changes
 
@@ -11,9 +26,6 @@ All notable changes to this project will be documented in this file.
 - Restore the tests
 - Add support for Gibps and GiBps
 - Fix bug with MB vs Mib
-- Make a one page website!
-- Add meta tags for better sharing
-- Fix deleting empty lines
 
 ## [0.1.1] - 2025-06-08
 
