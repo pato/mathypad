@@ -71,6 +71,9 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
 
     // Case-insensitive matching for remaining units
     match text.to_lowercase().as_str() {
+        "ns" | "nanosec" | "nanosecond" | "nanoseconds" => Some(Unit::Nanosecond),
+        "us" | "µs" | "microsec" | "microsecond" | "microseconds" => Some(Unit::Microsecond),
+        "ms" | "millisec" | "millisecond" | "milliseconds" => Some(Unit::Millisecond),
         "s" | "sec" | "second" | "seconds" => Some(Unit::Second),
         "min" | "minute" | "minutes" => Some(Unit::Minute),
         "h" | "hr" | "hour" | "hours" => Some(Unit::Hour),

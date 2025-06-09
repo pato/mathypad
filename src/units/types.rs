@@ -15,6 +15,9 @@ impl std::error::Error for UnitConversionError {}
 #[derive(Debug, Clone, PartialEq)]
 pub enum Unit {
     // Time units (base: seconds)
+    Nanosecond,
+    Microsecond,
+    Millisecond,
     Second,
     Minute,
     Hour,
@@ -113,6 +116,9 @@ impl Unit {
     pub fn to_base_value(&self, value: f64) -> f64 {
         match self {
             // Time units (convert to seconds)
+            Unit::Nanosecond => value / 1_000_000_000.0,
+            Unit::Microsecond => value / 1_000_000.0,
+            Unit::Millisecond => value / 1_000.0,
             Unit::Second => value,
             Unit::Minute => value * 60.0,
             Unit::Hour => value * 3600.0,
@@ -201,6 +207,9 @@ impl Unit {
     pub fn from_base_value(self, base_value: f64) -> f64 {
         match self {
             // Time units (from seconds)
+            Unit::Nanosecond => base_value * 1_000_000_000.0,
+            Unit::Microsecond => base_value * 1_000_000.0,
+            Unit::Millisecond => base_value * 1_000.0,
             Unit::Second => base_value,
             Unit::Minute => base_value / 60.0,
             Unit::Hour => base_value / 3600.0,
@@ -287,7 +296,13 @@ impl Unit {
     /// Get the unit type for this unit
     pub fn unit_type(&self) -> UnitType {
         match self {
-            Unit::Second | Unit::Minute | Unit::Hour | Unit::Day => UnitType::Time,
+            Unit::Nanosecond
+            | Unit::Microsecond
+            | Unit::Millisecond
+            | Unit::Second
+            | Unit::Minute
+            | Unit::Hour
+            | Unit::Day => UnitType::Time,
             Unit::Bit
             | Unit::Kb
             | Unit::Mb
@@ -353,6 +368,9 @@ impl Unit {
     /// Get the display name for this unit
     pub fn display_name(&self) -> &'static str {
         match self {
+            Unit::Nanosecond => "ns",
+            Unit::Microsecond => "us",
+            Unit::Millisecond => "ms",
             Unit::Second => "s",
             Unit::Minute => "min",
             Unit::Hour => "h",

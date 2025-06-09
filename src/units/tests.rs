@@ -42,6 +42,86 @@ fn test_unit_conversions() {
     assert!(result.is_some());
     let unit_val = result.unwrap();
     assert!((unit_val.value - 2.0).abs() < 0.001);
+
+    // Sub-second time unit conversions
+    let result = evaluate_with_unit_info("1 s to ms");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1000.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1000 ms to s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1 ms to us");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1000.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1000000 ns to ms");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+}
+
+#[test]
+fn test_sub_second_unit_parsing() {
+    use super::parser::parse_unit;
+    use super::types::Unit;
+
+    // Test parsing of sub-second units
+    assert_eq!(parse_unit("ns"), Some(Unit::Nanosecond));
+    assert_eq!(parse_unit("nanosecond"), Some(Unit::Nanosecond));
+    assert_eq!(parse_unit("nanoseconds"), Some(Unit::Nanosecond));
+
+    assert_eq!(parse_unit("us"), Some(Unit::Microsecond));
+    assert_eq!(parse_unit("µs"), Some(Unit::Microsecond));
+    assert_eq!(parse_unit("microsecond"), Some(Unit::Microsecond));
+    assert_eq!(parse_unit("microseconds"), Some(Unit::Microsecond));
+
+    assert_eq!(parse_unit("ms"), Some(Unit::Millisecond));
+    assert_eq!(parse_unit("millisecond"), Some(Unit::Millisecond));
+    assert_eq!(parse_unit("milliseconds"), Some(Unit::Millisecond));
+}
+
+#[test]
+fn test_sub_second_unit_conversions() {
+    // Comprehensive sub-second conversions
+
+    // Nanoseconds
+    let result = evaluate_with_unit_info("1000000000 ns to s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+
+    // Microseconds
+    let result = evaluate_with_unit_info("1000000 us to s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("1000 us to ms");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.001);
+
+    // Milliseconds
+    let result = evaluate_with_unit_info("500 ms to s");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 0.5).abs() < 0.001);
+
+    let result = evaluate_with_unit_info("2.5 s to ms");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 2500.0).abs() < 0.001);
+
+    // Cross-conversions
+    let result = evaluate_with_unit_info("5000 ns to us");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 5.0).abs() < 0.001);
 }
 
 #[test]
