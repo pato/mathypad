@@ -87,7 +87,6 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         .then(
             just(' ')
                 .repeated()
-                .at_least(1)
                 .then(identifier)
                 .try_map(|(_, unit_str): ((), String), span| {
                     // Don't treat keywords as units in this context
@@ -267,5 +266,51 @@ mod tests {
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::NumberWithUnit(1000000.0, Unit::Byte)));
+    }
+
+    #[test]
+    fn test_numbers_without_spaces() {
+        // Test basic numbers without spaces
+        let result = parse_expression_chumsky("5GiB");
+        assert!(result.is_ok(), "Parsing '5GiB' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(5.0, Unit::GiB)));
+
+        let result = parse_expression_chumsky("100MB");
+        assert!(result.is_ok(), "Parsing '100MB' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MB)));
+
+        // Test decimal numbers without spaces
+        let result = parse_expression_chumsky("2.5TiB");
+        assert!(result.is_ok(), "Parsing '2.5TiB' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(2.5, Unit::TiB)));
+
+        // Test comma numbers without spaces
+        let result = parse_expression_chumsky("1,000GiB");
+        assert!(result.is_ok(), "Parsing '1,000GiB' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+
+        // Test compound units without spaces
+        let result = parse_expression_chumsky("10GiB/s");
+        assert!(result.is_ok(), "Parsing '10GiB/s' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(10.0, Unit::GiBPerSecond)));
+
+        // Test expressions with multiple units without spaces
+        let result = parse_expression_chumsky("1,000GiB + 512MiB");
+        assert!(result.is_ok(), "Parsing '1,000GiB + 512MiB' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+        assert!(matches!(tokens[1], Token::Plus));
+        assert!(matches!(tokens[2], Token::NumberWithUnit(512.0, Unit::MiB)));
     }
 }
