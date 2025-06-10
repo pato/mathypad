@@ -78,7 +78,12 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
 
     // Parser for identifiers (words, including compound units with slashes)
     let identifier = text::ascii::ident()
-        .then(just('/').then(text::ascii::ident()).or_not())
+        .then(
+            just('/')
+                .padded()  // Allow spaces around the slash
+                .then(text::ascii::ident())
+                .or_not()
+        )
         .map(|(base, slash_part): (&str, Option<(char, &str)>)| {
             if let Some((_, suffix)) = slash_part {
                 format!("{}/{}", base, suffix)
@@ -495,6 +500,41 @@ mod tests {
         assert!(result.is_ok(), "Parsing no spaces failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 5);
+    }
+
+    #[test]
+    fn test_compound_units_with_spaces() {
+        // Test compound units with spaces around slash
+        let result = parse_expression_chumsky("100 MB / s");
+        assert!(result.is_ok(), "Parsing 'MB / s' with spaces failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MBPerSecond)));
+
+        // Test compound units without spaces (should still work)
+        let result = parse_expression_chumsky("100 MB/s");
+        assert!(result.is_ok(), "Parsing 'MB/s' without spaces failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MBPerSecond)));
+
+        // Test conversion with compound units with spaces
+        let result = parse_expression_chumsky("25 QPS to req / min");
+        assert!(result.is_ok(), "Parsing QPS conversion with spaces failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(25.0, Unit::QueriesPerSecond)));
+        assert!(matches!(tokens[1], Token::To));
+        assert!(matches!(tokens[2], Token::NumberWithUnit(1.0, Unit::RequestsPerMinute)));
+
+        // Test various request rate units with spaces
+        let result = parse_expression_chumsky("50 req / s + 30 requests / min");
+        assert!(result.is_ok(), "Parsing request rates with spaces failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(50.0, Unit::RequestsPerSecond)));
+        assert!(matches!(tokens[1], Token::Plus));
+        assert!(matches!(tokens[2], Token::NumberWithUnit(30.0, Unit::RequestsPerMinute)));
     }
 
     #[test]
