@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-06-10
+
+### Changes
+
+- Write chumksy parser
+- Switch to using chumsky parser (with fallback)
+- Fully replace with chumsky
+- Fix parsing 5GiB (no space)
+- Fix finding mathematical expressions
+- Fix whitespace padded compound units
+
 ## [0.1.4] - 2025-06-09
 
 ### Changes
