@@ -24,13 +24,21 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
 /// Create the main token parser
 fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<Rich<'a, char>>> {
     // Parser for numbers (integers and decimals with optional commas)
-    let number = text::int(10)
-        .then(just('.').then(text::digits(10)).or_not())
-        .to_slice()
-        .map(|s: &str| {
-            let cleaned = s.replace(",", "");
-            cleaned.parse::<f64>().unwrap_or(0.0)
-        });
+    let number = choice((
+        // Numbers with commas (like 1,000 or 1,234.56)
+        text::digits(10)
+            .then(just(',').then(text::digits(10)).repeated())
+            .then(just('.').then(text::digits(10)).or_not())
+            .to_slice(),
+        // Regular numbers without commas
+        text::int(10)
+            .then(just('.').then(text::digits(10)).or_not())
+            .to_slice(),
+    ))
+    .map(|s: &str| {
+        let cleaned = s.replace(",", "");
+        cleaned.parse::<f64>().unwrap_or(0.0)
+    });
 
     // Parser for identifiers (words, including compound units with slashes)
     let identifier = text::ascii::ident()
@@ -238,5 +246,26 @@ mod tests {
         assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, _)));
         assert!(matches!(tokens[1], Token::Multiply));
         assert!(matches!(tokens[2], Token::NumberWithUnit(10.0, _)));
+    }
+
+    #[test]
+    fn test_comma_separated_numbers() {
+        let result = parse_expression_chumsky("1,000 GiB");
+        assert!(result.is_ok(), "Parsing failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+
+        let result = parse_expression_chumsky("1,234.56 MB");
+        assert!(result.is_ok(), "Parsing failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1234.56, Unit::MB)));
+
+        let result = parse_expression_chumsky("1,000,000 bytes");
+        assert!(result.is_ok(), "Parsing failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1000000.0, Unit::Byte)));
     }
 }
