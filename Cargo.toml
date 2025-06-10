@@ -13,6 +13,7 @@ repository = "https://github.com/pato/mathypad"
 ratatui = "0.29"
 crossterm = "0.29"
 clap = { version = "4.5", features = ["derive"] }
+chumsky = "0.10.1"
 
 [[bin]]
 name = "mathypad"

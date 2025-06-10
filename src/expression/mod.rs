@@ -6,6 +6,7 @@
 mod evaluator;
 mod parser;
 mod tokens;
+mod chumsky_parser;
 
 #[cfg(test)]
 mod tests;
@@ -17,4 +18,5 @@ pub use evaluator::{
 pub use parser::{
     find_math_expression, is_valid_math_expression, parse_line_reference, tokenize_with_units,
 };
+pub use chumsky_parser::parse_expression_chumsky;
 pub use tokens::Token;
