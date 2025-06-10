@@ -15,6 +15,9 @@ pub mod mode;
 pub mod ui;
 pub mod units;
 
+#[cfg(test)]
+mod integration_tests;
+
 // Re-export commonly used types for convenience
 pub use app::App;
 pub use cli::run_one_shot_mode;

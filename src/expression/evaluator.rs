@@ -1,6 +1,6 @@
 //! Expression evaluation functions with unit-aware arithmetic
 
-use super::parser::{is_valid_math_expression, tokenize_with_units};
+use super::parser::tokenize_with_units;
 use super::tokens::Token;
 use crate::FLOAT_EPSILON;
 use crate::units::{Unit, UnitType, UnitValue, parse_unit};
@@ -12,7 +12,7 @@ pub fn evaluate_expression_with_context(
     current_line: usize,
 ) -> Option<String> {
     // Find the longest valid mathematical expression in the text
-    let expressions = find_math_expressions(text);
+    let expressions = super::parser::find_math_expression(text);
 
     for expr in expressions {
         // Try unit-aware parsing first
@@ -259,201 +259,6 @@ fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
     evaluate_tokens(&tokens)
 }
 
-/// Find mathematical expressions in text (fallback function)
-fn find_math_expressions(text: &str) -> Vec<String> {
-    let mut expressions = Vec::new();
-    let chars: Vec<char> = text.chars().collect();
-
-    // First check if the entire text is a valid math expression
-    let trimmed_text = text.trim();
-    if !trimmed_text.is_empty() && is_valid_math_expression(trimmed_text) {
-        expressions.push(trimmed_text.to_string());
-        // If the entire text is valid, don't look for sub-expressions
-        return expressions;
-    }
-
-    // Early validation - check for obviously invalid expressions
-    if has_invalid_expression_structure(trimmed_text) {
-        return expressions; // Return empty - invalid expression
-    }
-
-    // Then look for sub-expressions only if the entire text is NOT valid
-    for start in 0..chars.len() {
-        if chars[start].is_ascii_digit() || chars[start] == '(' {
-            for end in start + 1..=chars.len() {
-                let candidate = chars[start..end].iter().collect::<String>();
-                let trimmed_candidate = extract_math_portion(&candidate);
-
-                if !trimmed_candidate.is_empty()
-                    && is_valid_math_expression(&trimmed_candidate)
-                    && trimmed_candidate != trimmed_text
-                {
-                    // Don't re-add the full text
-                    expressions.push(trimmed_candidate);
-                }
-            }
-        }
-    }
-
-    // Sort by complexity (length and operator count) descending
-    expressions.sort_by(|a, b| {
-        let complexity_a = a.len() + a.chars().filter(|c| "+-*/()".contains(*c)).count() * 2;
-        let complexity_b = b.len() + b.chars().filter(|c| "+-*/()".contains(*c)).count() * 2;
-        complexity_b.cmp(&complexity_a)
-    });
-
-    // Remove duplicates and sub-expressions
-    let mut filtered_expressions = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-
-    for expr in &expressions {
-        if seen.insert(expr.clone()) {
-            let mut is_subexpression = false;
-            for other_expr in &expressions {
-                if other_expr != expr && other_expr.len() > expr.len() && other_expr.contains(expr)
-                {
-                    is_subexpression = true;
-                    break;
-                }
-            }
-            if !is_subexpression {
-                filtered_expressions.push(expr.clone());
-            }
-        }
-    }
-
-    filtered_expressions
-}
-
-/// Check if an expression has invalid structure
-fn has_invalid_expression_structure(text: &str) -> bool {
-    // Check if the text ends with an operator OR starts with an operator (except minus for negation)
-    let text_ends_with_operator = {
-        let last_char = text.chars().rev().find(|c| !c.is_whitespace());
-        matches!(last_char, Some('+') | Some('-') | Some('*') | Some('/'))
-    };
-
-    let text_starts_with_operator = {
-        let first_char = text.chars().find(|c| !c.is_whitespace());
-        matches!(first_char, Some('*') | Some('/') | Some('+'))
-    };
-
-    // Check for unbalanced parentheses
-    let has_unbalanced_parens = {
-        let mut paren_count = 0;
-        for ch in text.chars() {
-            match ch {
-                '(' => paren_count += 1,
-                ')' => {
-                    paren_count -= 1;
-                    if paren_count < 0 {
-                        return true;
-                    }
-                }
-                _ => {}
-            }
-        }
-        paren_count != 0
-    };
-
-    text_ends_with_operator || text_starts_with_operator || has_unbalanced_parens
-}
-
-/// Extract the mathematical portion from text
-fn extract_math_portion(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    let mut math_end = 0;
-    let mut found_digit = false;
-    let mut i = 0;
-    let mut last_was_operator = false;
-
-    while i < chars.len() {
-        let ch = chars[i];
-        match ch {
-            '0'..='9' | '.' | ',' => {
-                found_digit = true;
-                math_end = i + 1;
-                last_was_operator = false;
-            }
-            '+' | '-' | '*' | '/' => {
-                if found_digit {
-                    last_was_operator = true;
-                    // Don't update math_end yet - wait for next operand
-                }
-            }
-            '(' => {
-                math_end = i + 1;
-                last_was_operator = false;
-            }
-            ')' => {
-                math_end = i + 1;
-                last_was_operator = false;
-                // Don't break here - continue to see if there are more operators
-            }
-            ' ' => {
-                // Continue, space is okay
-                // Don't change last_was_operator
-            }
-            _ => {
-                if ch.is_ascii_alphabetic() {
-                    // Check if this starts a complete known unit (with word boundaries)
-                    let remaining = &text[i..];
-                    let mut word_end = i;
-                    for (j, word_char) in remaining.chars().enumerate() {
-                        if word_char.is_ascii_alphabetic() || word_char == '/' {
-                            word_end = i + j + 1;
-                        } else {
-                            break;
-                        }
-                    }
-                    let potential_word = &text[i..word_end];
-
-                    // Only treat as unit if it's a complete unit word, "to", "in", or line reference
-                    if (parse_unit(potential_word).is_some()
-                        || potential_word.to_lowercase() == "to"
-                        || potential_word.to_lowercase() == "in")
-                        && (word_end >= text.len()
-                            || !text.chars().nth(word_end).unwrap().is_ascii_alphabetic())
-                    {
-                        math_end = word_end;
-                        last_was_operator = false;
-                        // Skip to the end of this word
-                        i = word_end;
-                        continue;
-                    } else {
-                        // Unknown or partial word, end of math expression here
-                        break;
-                    }
-                } else {
-                    // Other character, end of math expression
-                    break;
-                }
-            }
-        }
-
-        // If we just processed an operator, update math_end only if we find more content
-        if last_was_operator && i + 1 < chars.len() {
-            // Look ahead for more content
-            let mut j = i + 1;
-            while j < chars.len() && chars[j] == ' ' {
-                j += 1;
-            }
-            if j < chars.len()
-                && (chars[j].is_ascii_digit() || chars[j] == '(' || chars[j].is_ascii_alphabetic())
-            {
-                math_end = i + 1;
-            }
-        }
-
-        i += 1;
-    }
-
-    chars[..math_end]
-        .iter()
-        .collect::<String>()
-        .trim()
-        .to_string()
-}
 
 /// Get operator precedence for unit-aware evaluation
 fn precedence_unit(token: &Token) -> i32 {
