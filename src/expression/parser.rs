@@ -1,6 +1,7 @@
 //! Expression parsing and tokenization functions
 
 use super::tokens::Token;
+use super::chumsky_parser::parse_expression_chumsky;
 use crate::units::parse_unit;
 
 /// Parse a line reference string like "line1", "line2" etc.
@@ -18,6 +19,17 @@ pub fn parse_line_reference(text: &str) -> Option<usize> {
 
 /// Tokenize a mathematical expression with unit support
 pub fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
+    // First try the chumsky parser
+    if let Ok(tokens) = parse_expression_chumsky(expr) {
+        return Some(tokens);
+    }
+    
+    // Fall back to the original hand-written parser
+    tokenize_with_units_fallback(expr)
+}
+
+/// Fallback tokenizer using the original hand-written parser
+fn tokenize_with_units_fallback(expr: &str) -> Option<Vec<Token>> {
     let mut tokens = Vec::new();
     let chars: Vec<char> = expr.chars().collect();
     let mut i = 0;

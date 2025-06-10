@@ -32,8 +32,16 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
             cleaned.parse::<f64>().unwrap_or(0.0)
         });
 
-    // Parser for identifiers (words)
-    let identifier = text::ascii::ident();
+    // Parser for identifiers (words, including compound units with slashes)
+    let identifier = text::ascii::ident()
+        .then(just('/').then(text::ascii::ident()).or_not())
+        .map(|(base, slash_part): (&str, Option<(char, &str)>)| {
+            if let Some((_, suffix)) = slash_part {
+                format!("{}/{}", base, suffix)
+            } else {
+                base.to_string()
+            }
+        });
 
     // Parser for line references (like "line1", "line2", etc.)
     let line_ref = just("line")
@@ -66,22 +74,28 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just(')').to(Token::RightParen),
     ));
 
-    // Parser for numbers with optional units
+    // Parser for numbers with optional units  
     let number_with_unit = number
         .then(
             just(' ')
                 .repeated()
                 .at_least(1)
                 .then(identifier)
+                .try_map(|(_, unit_str): ((), String), span| {
+                    // Don't treat keywords as units in this context
+                    if unit_str == "to" || unit_str == "in" {
+                        Err(Rich::custom(span, "Keywords are not units"))
+                    } else if let Some(unit) = parse_unit(&unit_str) {
+                        Ok(unit)
+                    } else {
+                        Err(Rich::custom(span, format!("Unknown unit: {}", unit_str)))
+                    }
+                })
                 .or_not()
         )
         .map(|(num, unit_opt)| {
-            if let Some((_, unit_str)) = unit_opt {
-                if let Some(unit) = parse_unit(unit_str) {
-                    Token::NumberWithUnit(num, unit)
-                } else {
-                    Token::Number(num) // Fallback if unit parsing fails
-                }
+            if let Some(unit) = unit_opt {
+                Token::NumberWithUnit(num, unit)
             } else {
                 Token::Number(num)
             }
@@ -89,8 +103,8 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
 
     // Parser for standalone units (for conversions like "to KiB")
     let standalone_unit = identifier
-        .try_map(|word, span| {
-            if let Some(unit) = parse_unit(word) {
+        .try_map(|word: String, span| {
+            if let Some(unit) = parse_unit(&word) {
                 Ok(Token::NumberWithUnit(1.0, unit))
             } else {
                 Err(Rich::custom(span, format!("Unknown unit: {}", word)))
@@ -198,5 +212,31 @@ mod tests {
         assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, Unit::GiB)));
         assert!(matches!(tokens[1], Token::To));
         assert!(matches!(tokens[2], Token::NumberWithUnit(1.0, Unit::KiB)));
+    }
+
+    #[test]
+    fn test_in_keyword() {
+        let result = parse_expression_chumsky("24 MiB * 32 in KiB");
+        assert!(result.is_ok(), "Parsing failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(24.0, Unit::MiB)));
+        assert!(matches!(tokens[1], Token::Multiply));
+        assert!(matches!(tokens[2], Token::Number(32.0)));
+        assert!(matches!(tokens[3], Token::In));
+        assert!(matches!(tokens[4], Token::NumberWithUnit(1.0, Unit::KiB)));
+    }
+
+    #[test]
+    fn test_time_rate_multiplication() {
+        let result = parse_expression_chumsky("1 hour * 10 GiB/s");
+        println!("Tokens for '1 hour * 10 GiB/s': {:?}", result);
+        assert!(result.is_ok(), "Parsing failed: {:?}", result);
+        let tokens = result.unwrap();
+        // Should parse as: NumberWithUnit(1.0, Hour), Multiply, NumberWithUnit(10.0, GiBPerSecond)
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, _)));
+        assert!(matches!(tokens[1], Token::Multiply));
+        assert!(matches!(tokens[2], Token::NumberWithUnit(10.0, _)));
     }
 }
