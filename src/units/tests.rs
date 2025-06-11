@@ -514,20 +514,20 @@ fn test_unit_division_ratios() {
         evaluate_test_expression("2 EB / 1000 PB"),
         Some("2".to_string())
     );
-    
+
     // Test real-world scenarios
     // Storage utilization
     assert_eq!(
         evaluate_test_expression("(500 GiB + 300 GiB) / 1 TiB"),
         Some("0.781".to_string())
     );
-    
+
     // Cache hit rate
     assert_eq!(
         evaluate_test_expression("950 req / 1000 req"),
         Some("0.95".to_string())
     );
-    
+
     // CPU utilization (if we had percentage units, but using ratio for now)
     assert_eq!(
         evaluate_test_expression("75 / 100"),

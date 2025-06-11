@@ -17,5 +17,5 @@ pub enum Token {
     In,                   // for conversions like "in KiB"
     LineReference(usize), // for referencing other lines like "line1", "line2"
     Variable(String),     // for variable references like "servers", "ram"
-    Assign,              // for assignment operator "="
+    Assign,               // for assignment operator "="
 }

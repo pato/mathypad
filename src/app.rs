@@ -149,18 +149,14 @@ impl App {
     pub fn update_result(&mut self, line_index: usize) {
         if line_index < self.text_lines.len() && line_index < self.results.len() {
             let line = &self.text_lines[line_index];
-            let (result, variable_assignment) = evaluate_with_variables(
-                line, 
-                &self.variables, 
-                &self.results, 
-                line_index
-            );
-            
+            let (result, variable_assignment) =
+                evaluate_with_variables(line, &self.variables, &self.results, line_index);
+
             // If this is a variable assignment, store it
             if let Some((var_name, var_value)) = variable_assignment {
                 self.variables.insert(var_name, var_value);
             }
-            
+
             self.results[line_index] = result;
         } else {
             // This should never happen in normal operation, but let's be defensive

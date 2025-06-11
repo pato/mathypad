@@ -132,7 +132,10 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
             } else if variables.contains_key(&word_text) {
                 // Highlight variables that are defined
-                spans.push(Span::styled(word_text, Style::default().fg(Color::LightCyan)));
+                spans.push(Span::styled(
+                    word_text,
+                    Style::default().fg(Color::LightCyan),
+                ));
             } else {
                 spans.push(Span::raw(word_text));
             }

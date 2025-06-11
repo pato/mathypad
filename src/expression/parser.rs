@@ -1,7 +1,7 @@
 //! Expression parsing and tokenization functions
 
-use super::tokens::Token;
 use super::chumsky_parser::parse_expression_chumsky;
+use super::tokens::Token;
 use crate::units::parse_unit;
 
 /// Parse a line reference string like "line1", "line2" etc.
@@ -22,8 +22,8 @@ pub fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
     // Use the chumsky parser - now accepts any input
     match parse_expression_chumsky(expr) {
         Ok(tokens) if tokens.is_empty() => None, // Only fail on truly empty input
-        Ok(tokens) => Some(tokens), // Accept any non-empty token sequence
-        Err(_) => None, // Only fail on parse errors
+        Ok(tokens) => Some(tokens),              // Accept any non-empty token sequence
+        Err(_) => None,                          // Only fail on parse errors
     }
 }
 
@@ -32,50 +32,56 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
     if tokens.is_empty() {
         return false;
     }
-    
+
     // Count different token types
     let mut has_number_or_value = false;
     let mut consecutive_operators = 0;
     let mut consecutive_values = 0;
-    
+
     for (i, token) in tokens.iter().enumerate() {
         match token {
-            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_) => {
+            Token::Number(_)
+            | Token::NumberWithUnit(_, _)
+            | Token::LineReference(_)
+            | Token::Variable(_) => {
                 has_number_or_value = true;
                 consecutive_values += 1;
                 consecutive_operators = 0;
-                
+
                 // More than 1 consecutive value without operators is invalid (except for assignments and conversions)
                 if consecutive_values > 1 {
                     // Allow if this is part of an assignment (Variable = Expression)
-                    if i >= 2 && matches!(tokens[i-1], Token::Assign) && matches!(tokens[i-2], Token::Variable(_)) {
+                    if i >= 2
+                        && matches!(tokens[i - 1], Token::Assign)
+                        && matches!(tokens[i - 2], Token::Variable(_))
+                    {
                         consecutive_values = 1; // Reset count after assignment
                     } else {
                         return false;
                     }
                 }
-            },
+            }
             Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
                 consecutive_operators += 1;
                 consecutive_values = 0;
-                
+
                 // More than 1 consecutive operator is invalid (except minus for negation)
                 if consecutive_operators > 1 && !matches!(token, Token::Minus) {
                     return false;
                 }
-            },
+            }
             Token::LeftParen | Token::RightParen => {
                 consecutive_operators = 0;
                 consecutive_values = 0;
-            },
+            }
             Token::To | Token::In => {
                 // These are OK for conversions
                 consecutive_operators = 0;
                 consecutive_values = 0;
-            },
+            }
             Token::Assign => {
                 // Assignment is only valid after a variable
-                if i == 0 || !matches!(tokens[i-1], Token::Variable(_)) {
+                if i == 0 || !matches!(tokens[i - 1], Token::Variable(_)) {
                     return false;
                 }
                 consecutive_operators = 0;
@@ -83,13 +89,10 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
             }
         }
     }
-    
+
     // Must have at least one number/value to be a mathematical expression
     has_number_or_value
 }
-
-
-
 
 /// Check if a string represents a valid mathematical expression
 pub fn is_valid_math_expression(expr: &str) -> bool {
@@ -231,12 +234,12 @@ mod parser_tests {
 
         // Test invalid line references
         assert_eq!(parse_line_reference("line0"), None); // 0 is invalid
-        assert_eq!(parse_line_reference("line"), None);  // No number
+        assert_eq!(parse_line_reference("line"), None); // No number
         assert_eq!(parse_line_reference("line-1"), None); // Negative
-        assert_eq!(parse_line_reference("linea"), None);  // Not a number
+        assert_eq!(parse_line_reference("linea"), None); // Not a number
         assert_eq!(parse_line_reference("notline1"), None); // Wrong prefix
-        assert_eq!(parse_line_reference(""), None);       // Empty
-        assert_eq!(parse_line_reference("1line"), None);  // Wrong order
+        assert_eq!(parse_line_reference(""), None); // Empty
+        assert_eq!(parse_line_reference("1line"), None); // Wrong order
     }
 
     #[test]
@@ -264,17 +267,16 @@ mod parser_tests {
         // Test that tokenizer now accepts all text (refactored approach)
         let result = tokenize_with_units("invalid text");
         assert!(result.is_some()); // Tokenizer now accepts everything
-        
+
         // Still fails on clearly malformed expressions
         assert!(tokenize_with_units("1 + 2)").is_none());
         assert!(tokenize_with_units("1 invalidunit").is_some()); // Now parses as [Number, Variable]
-        
+
         // Note: empty string actually returns Ok([]) in chumsky parser
         // but tokenize_with_units returns None for empty results
         let result = tokenize_with_units("");
         assert!(result.is_none());
     }
-
 
     #[test]
     fn test_is_valid_math_expression() {
@@ -295,7 +297,7 @@ mod parser_tests {
         assert!(!is_valid_math_expression("1 + + 2"));
         assert!(!is_valid_math_expression("(1 + 2"));
         assert!(!is_valid_math_expression("1 + 2)"));
-        
+
         // Note: "1 invalidunit" is actually considered valid by is_valid_math_expression
         // because it sees "1" as a valid number and stops there
         // The actual parsing will fail later, but this function is for syntax validation
@@ -379,14 +381,13 @@ mod parser_tests {
         assert!(is_valid_math_expression("1   +   2"));
         assert!(is_valid_math_expression("1\t+\t2"));
         assert!(is_valid_math_expression("1+2")); // No spaces
-        
+
         // Test whitespace in units
         assert!(is_valid_math_expression("5   GiB"));
         assert!(is_valid_math_expression("5GiB"));
-        
+
         // Test whitespace around keywords
         assert!(is_valid_math_expression("1 GiB  to  MiB"));
         assert!(is_valid_math_expression("1 GiB to MiB"));
     }
-
 }

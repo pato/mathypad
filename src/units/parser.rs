@@ -137,7 +137,9 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "query" | "queries" => Some(Unit::Query),
 
         "req/s" | "requests/s" | "rps" => Some(Unit::RequestsPerSecond),
-        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => Some(Unit::RequestsPerMinute),
+        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => {
+            Some(Unit::RequestsPerMinute)
+        }
         "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => {
             Some(Unit::RequestsPerHour)
         }

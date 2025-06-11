@@ -15,11 +15,13 @@ pub fn evaluate_expression_with_context(
     // New approach: tokenize everything then find mathematical patterns
     if let Some(tokens) = super::parser::tokenize_with_units(text) {
         // Try to find and evaluate mathematical patterns in the token stream
-        if let Some(result) = evaluate_tokens_stream_with_context(&tokens, previous_results, current_line) {
+        if let Some(result) =
+            evaluate_tokens_stream_with_context(&tokens, previous_results, current_line)
+        {
             return Some(result.format());
         }
     }
-    
+
     None
 }
 
@@ -32,15 +34,18 @@ pub fn evaluate_tokens_stream_with_context(
     if tokens.is_empty() {
         return None;
     }
-    
+
     // Look for the longest valid mathematical subsequence
     // Try different starting positions and lengths
     for start in 0..tokens.len() {
-        for end in (start + 1..=tokens.len()).rev() { // Try longest first
+        for end in (start + 1..=tokens.len()).rev() {
+            // Try longest first
             let subseq = &tokens[start..end];
             if is_valid_mathematical_sequence(subseq) {
                 // Try to evaluate this subsequence
-                if let Some(result) = evaluate_tokens_with_units_and_context(subseq, previous_results, current_line) {
+                if let Some(result) =
+                    evaluate_tokens_with_units_and_context(subseq, previous_results, current_line)
+                {
                     return Some(result);
                 }
                 // If this subsequence failed to evaluate and it spans the entire input with operators,
@@ -51,15 +56,18 @@ pub fn evaluate_tokens_stream_with_context(
             }
         }
     }
-    
+
     None
 }
 
 /// Check if a token sequence contains mathematical operators
 fn has_mathematical_operators(tokens: &[Token]) -> bool {
-    tokens.iter().any(|t| matches!(t, 
-        Token::Plus | Token::Minus | Token::Multiply | Token::Divide
-    ))
+    tokens.iter().any(|t| {
+        matches!(
+            t,
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+        )
+    })
 }
 
 /// Check if a token sequence forms a valid mathematical expression
@@ -67,61 +75,91 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
     if tokens.is_empty() {
         return false;
     }
-    
+
     // Must have at least one number, unit, line reference, or variable
-    let has_value = tokens.iter().any(|t| matches!(t, 
-        Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
-    ));
-    
+    let has_value = tokens.iter().any(|t| {
+        matches!(
+            t,
+            Token::Number(_)
+                | Token::NumberWithUnit(_, _)
+                | Token::LineReference(_)
+                | Token::Variable(_)
+        )
+    });
+
     if !has_value {
         return false;
     }
-    
+
     // Simple validation: check for basic mathematical patterns
     // More sophisticated validation can be added as needed
-    
+
     // Pattern 1: Single value (number, unit, variable, line ref)
     if tokens.len() == 1 {
-        return matches!(tokens[0], 
-            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
+        return matches!(
+            tokens[0],
+            Token::Number(_)
+                | Token::NumberWithUnit(_, _)
+                | Token::LineReference(_)
+                | Token::Variable(_)
         );
     }
-    
+
     // Pattern 2: Value + unit conversion (e.g., "5 GiB to TB", "storage to TB")
     if tokens.len() == 3 {
-        let is_value_or_var = |t: &Token| matches!(t, 
-            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
-        );
-        let is_unit_or_var = |t: &Token| matches!(t, 
-            Token::NumberWithUnit(_, _) | Token::Variable(_)
-        );
-        
-        if is_value_or_var(&tokens[0]) && matches!(tokens[1], Token::To | Token::In) && is_unit_or_var(&tokens[2]) {
+        let is_value_or_var = |t: &Token| {
+            matches!(
+                t,
+                Token::Number(_)
+                    | Token::NumberWithUnit(_, _)
+                    | Token::LineReference(_)
+                    | Token::Variable(_)
+            )
+        };
+        let is_unit_or_var =
+            |t: &Token| matches!(t, Token::NumberWithUnit(_, _) | Token::Variable(_));
+
+        if is_value_or_var(&tokens[0])
+            && matches!(tokens[1], Token::To | Token::In)
+            && is_unit_or_var(&tokens[2])
+        {
             return true;
         }
     }
-    
+
     // Pattern 3: Binary operations (value op value)
     if tokens.len() == 3 {
-        let is_value = |t: &Token| matches!(t, 
-            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
-        );
-        let is_op = |t: &Token| matches!(t, 
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
-        );
-        
+        let is_value = |t: &Token| {
+            matches!(
+                t,
+                Token::Number(_)
+                    | Token::NumberWithUnit(_, _)
+                    | Token::LineReference(_)
+                    | Token::Variable(_)
+            )
+        };
+        let is_op = |t: &Token| {
+            matches!(
+                t,
+                Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+            )
+        };
+
         if is_value(&tokens[0]) && is_op(&tokens[1]) && is_value(&tokens[2]) {
             return true;
         }
     }
-    
+
     // Pattern 4: More complex expressions with parentheses, multiple operations
     // For now, if we have values and operators, assume it could be valid
     // The actual evaluation will determine if it's truly valid
-    let has_operator = tokens.iter().any(|t| matches!(t, 
-        Token::Plus | Token::Minus | Token::Multiply | Token::Divide
-    ));
-    
+    let has_operator = tokens.iter().any(|t| {
+        matches!(
+            t,
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+        )
+    });
+
     has_value && (tokens.len() == 1 || has_operator)
 }
 
@@ -133,16 +171,23 @@ pub fn evaluate_with_variables(
     current_line: usize,
 ) -> (Option<String>, Option<(String, String)>) {
     // Return (result, optional_variable_assignment)
-    
+
     // New approach: tokenize everything then find patterns
     if let Some(tokens) = super::parser::tokenize_with_units(text) {
         // First check for variable assignments
-        if let Some(assignment) = find_variable_assignment_in_tokens(&tokens, variables, previous_results, current_line) {
+        if let Some(assignment) =
+            find_variable_assignment_in_tokens(&tokens, variables, previous_results, current_line)
+        {
             return (Some(assignment.1.clone()), Some(assignment));
         }
-        
+
         // Then look for mathematical expressions
-        if let Some(result) = evaluate_tokens_stream_with_variables(&tokens, variables, previous_results, current_line) {
+        if let Some(result) = evaluate_tokens_stream_with_variables(
+            &tokens,
+            variables,
+            previous_results,
+            current_line,
+        ) {
             return (Some(result.format()), None);
         }
     }
@@ -162,16 +207,19 @@ fn find_variable_assignment_in_tokens(
         if let (Token::Variable(var_name), Token::Assign) = (&tokens[0], &tokens[1]) {
             // Extract the right-hand side (everything after =)
             let rhs_tokens = &tokens[2..];
-            
+
             // Evaluate the right-hand side
             if let Some(value) = evaluate_tokens_with_units_and_context_and_variables(
-                rhs_tokens, variables, previous_results, current_line
+                rhs_tokens,
+                variables,
+                previous_results,
+                current_line,
             ) {
                 return Some((var_name.clone(), value.format()));
             }
         }
     }
-    
+
     None
 }
 
@@ -185,21 +233,25 @@ fn evaluate_tokens_stream_with_variables(
     if tokens.is_empty() {
         return None;
     }
-    
+
     // First check if we have undefined variables in what looks like a mathematical context
     if has_undefined_variables_in_math_context(tokens, variables) {
         return None; // Fail entirely if undefined variables are in mathematical expressions
     }
-    
+
     // Look for the longest valid mathematical subsequence
     // Try different starting positions and lengths
     for start in 0..tokens.len() {
-        for end in (start + 1..=tokens.len()).rev() { // Try longest first
+        for end in (start + 1..=tokens.len()).rev() {
+            // Try longest first
             let subseq = &tokens[start..end];
             if is_valid_mathematical_sequence(subseq) && all_variables_defined(subseq, variables) {
                 // Try to evaluate this subsequence
                 if let Some(result) = evaluate_tokens_with_units_and_context_and_variables(
-                    subseq, variables, previous_results, current_line
+                    subseq,
+                    variables,
+                    previous_results,
+                    current_line,
                 ) {
                     return Some(result);
                 }
@@ -211,20 +263,23 @@ fn evaluate_tokens_stream_with_variables(
             }
         }
     }
-    
+
     None
 }
 
 /// Check if there are undefined variables in what appears to be a mathematical context
-fn has_undefined_variables_in_math_context(tokens: &[Token], variables: &HashMap<String, String>) -> bool {
+fn has_undefined_variables_in_math_context(
+    tokens: &[Token],
+    variables: &HashMap<String, String>,
+) -> bool {
     // Look for undefined variables that are adjacent to mathematical operators or values
     for i in 0..tokens.len() {
         if let Token::Variable(var_name) = &tokens[i] {
             if !variables.contains_key(var_name) {
                 // Check if this undefined variable is in a mathematical context
-                let has_math_neighbor = (i > 0 && is_math_token(&tokens[i - 1])) ||
-                                      (i + 1 < tokens.len() && is_math_token(&tokens[i + 1]));
-                
+                let has_math_neighbor = (i > 0 && is_math_token(&tokens[i - 1]))
+                    || (i + 1 < tokens.len() && is_math_token(&tokens[i + 1]));
+
                 if has_math_neighbor {
                     return true;
                 }
@@ -236,10 +291,19 @@ fn has_undefined_variables_in_math_context(tokens: &[Token], variables: &HashMap
 
 /// Check if a token is mathematical (operator, number, unit, etc.)
 fn is_math_token(token: &Token) -> bool {
-    matches!(token,
-        Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) |
-        Token::Plus | Token::Minus | Token::Multiply | Token::Divide |
-        Token::LeftParen | Token::RightParen | Token::To | Token::In
+    matches!(
+        token,
+        Token::Number(_)
+            | Token::NumberWithUnit(_, _)
+            | Token::LineReference(_)
+            | Token::Plus
+            | Token::Minus
+            | Token::Multiply
+            | Token::Divide
+            | Token::LeftParen
+            | Token::RightParen
+            | Token::To
+            | Token::In
     )
 }
 
@@ -254,8 +318,6 @@ fn all_variables_defined(tokens: &[Token], variables: &HashMap<String, String>) 
     }
     true
 }
-
-
 
 /// Parse and evaluate with context for line references
 pub fn parse_and_evaluate_with_context(
@@ -566,8 +628,6 @@ pub fn parse_result_string(result_str: &str) -> Option<UnitValue> {
     None
 }
 
-
-
 /// Get operator precedence for unit-aware evaluation
 fn precedence_unit(token: &Token) -> i32 {
     match token {
@@ -833,22 +893,28 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Compatible units divided = dimensionless ratio
                 (Some(unit_a), Some(unit_b)) => {
                     // Check if units are compatible (same unit type or bit/data conversion)
-                    let compatible = unit_a.unit_type() == unit_b.unit_type() || 
-                        (unit_a.unit_type() == UnitType::Bit && unit_b.unit_type() == UnitType::Data) ||
-                        (unit_a.unit_type() == UnitType::Data && unit_b.unit_type() == UnitType::Bit);
-                    
+                    let compatible = unit_a.unit_type() == unit_b.unit_type()
+                        || (unit_a.unit_type() == UnitType::Bit
+                            && unit_b.unit_type() == UnitType::Data)
+                        || (unit_a.unit_type() == UnitType::Data
+                            && unit_b.unit_type() == UnitType::Bit);
+
                     if compatible {
                         // Convert both to base values and divide to get dimensionless ratio
                         let mut base_a = unit_a.to_base_value(a.value);
                         let mut base_b = unit_b.to_base_value(b.value);
-                        
+
                         // Handle bit/byte conversions: normalize to same base (bits)
-                        if unit_a.unit_type() == UnitType::Data && unit_b.unit_type() == UnitType::Bit {
+                        if unit_a.unit_type() == UnitType::Data
+                            && unit_b.unit_type() == UnitType::Bit
+                        {
                             base_a *= 8.0; // Convert bytes to bits
-                        } else if unit_a.unit_type() == UnitType::Bit && unit_b.unit_type() == UnitType::Data {
+                        } else if unit_a.unit_type() == UnitType::Bit
+                            && unit_b.unit_type() == UnitType::Data
+                        {
                             base_b *= 8.0; // Convert bytes to bits
                         }
-                        
+
                         if base_b.abs() < FLOAT_EPSILON {
                             return false;
                         }
@@ -880,4 +946,3 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
     stack.push(result);
     true
 }
-

@@ -43,8 +43,8 @@ pub mod test_helpers {
     // Helper function to get unit conversion results for testing
     pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
         // Use the new token-based approach
-        use crate::expression::{tokenize_with_units, evaluate_tokens_stream_with_context};
-        
+        use crate::expression::{evaluate_tokens_stream_with_context, tokenize_with_units};
+
         if let Some(tokens) = tokenize_with_units(input) {
             evaluate_tokens_stream_with_context(&tokens, &[], 0)
         } else {

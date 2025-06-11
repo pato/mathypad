@@ -8,7 +8,7 @@ use chumsky::prelude::*;
 pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
     // Create a simple parser that directly parses from string to tokens
     let parser = create_token_parser();
-    
+
     match parser.parse(input).into_result() {
         Ok(tokens) => {
             // Validate parentheses are balanced
@@ -28,15 +28,21 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
             if paren_count != 0 {
                 return Err("Unmatched opening parenthesis".to_string());
             }
-            
+
             // Validate no consecutive operators (except minus for negation)
             for i in 0..tokens.len().saturating_sub(1) {
                 let current = &tokens[i];
                 let next = &tokens[i + 1];
-                
-                let is_current_op = matches!(current, Token::Plus | Token::Minus | Token::Multiply | Token::Divide);
-                let is_next_op = matches!(next, Token::Plus | Token::Minus | Token::Multiply | Token::Divide);
-                
+
+                let is_current_op = matches!(
+                    current,
+                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+                );
+                let is_next_op = matches!(
+                    next,
+                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+                );
+
                 if is_current_op && is_next_op {
                     // Allow minus after operators for negation, but not other combinations
                     if !matches!(next, Token::Minus) {
@@ -44,11 +50,12 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
                     }
                 }
             }
-            
+
             Ok(tokens)
-        },
+        }
         Err(errs) => {
-            let error_msg = errs.into_iter()
+            let error_msg = errs
+                .into_iter()
                 .map(|e| format!("{:?}", e))
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -78,13 +85,13 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
 
     // Parser for identifiers (words, but not compound with slashes - those are handled separately)
     let identifier = text::ascii::ident().map(|s: &str| s.to_string());
-    
+
     // Parser for compound identifiers (like "GiB/s") - only for valid units
     let compound_identifier = text::ascii::ident()
         .then(
             just('/')
-                .padded()  // Allow spaces around the slash
-                .then(text::ascii::ident())
+                .padded() // Allow spaces around the slash
+                .then(text::ascii::ident()),
         )
         .try_map(|(base, (_, suffix)): (&str, (char, &str)), span| {
             let compound = format!("{}/{}", base, suffix);
@@ -92,7 +99,10 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
             if parse_unit(&compound).is_some() {
                 Ok(compound)
             } else {
-                Err(Rich::custom(span, "Invalid compound identifier - not a valid unit"))
+                Err(Rich::custom(
+                    span,
+                    "Invalid compound identifier - not a valid unit",
+                ))
             }
         });
 
@@ -131,7 +141,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     // Combined unit parser (tries compound units first, then simple identifiers)
     let unit_identifier = choice((compound_identifier, identifier));
 
-    // Parser for numbers with optional units  
+    // Parser for numbers with optional units
     let number_with_unit = number
         .then(
             just(' ')
@@ -147,7 +157,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
                         Err(Rich::custom(span, format!("Unknown unit: {}", unit_str)))
                     }
                 })
-                .or_not()
+                .or_not(),
         )
         .map(|(num, unit_opt)| {
             if let Some(unit) = unit_opt {
@@ -158,27 +168,26 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         });
 
     // Parser for standalone units (for conversions like "to KiB")
-    let standalone_unit = unit_identifier.clone()
-        .try_map(|word: String, span| {
-            if let Some(unit) = parse_unit(&word) {
-                Ok(Token::NumberWithUnit(1.0, unit))
-            } else {
-                // Don't fail - let it be handled as a variable instead
-                Err(Rich::custom(span, "Not a unit"))
-            }
-        });
+    let standalone_unit = unit_identifier.clone().try_map(|word: String, span| {
+        if let Some(unit) = parse_unit(&word) {
+            Ok(Token::NumberWithUnit(1.0, unit))
+        } else {
+            // Don't fail - let it be handled as a variable instead
+            Err(Rich::custom(span, "Not a unit"))
+        }
+    });
 
     // Parser for variables (catch-all for any identifier not handled above)
     let variable = identifier.map(|word: String| Token::Variable(word));
 
     // Main token parser - try each option in order (most specific first)
     let token = choice((
-        line_ref,           // Must come first to catch "line1" before "line" is treated as unit
-        keyword,            // "to" and "in" keywords
-        number_with_unit,   // Numbers with optional units
-        operator,           // Mathematical operators
-        standalone_unit,    // Standalone units for conversions
-        variable,           // Variables (identifiers that aren't units/keywords/line refs)
+        line_ref,         // Must come first to catch "line1" before "line" is treated as unit
+        keyword,          // "to" and "in" keywords
+        number_with_unit, // Numbers with optional units
+        operator,         // Mathematical operators
+        standalone_unit,  // Standalone units for conversions
+        variable,         // Variables (identifiers that aren't units/keywords/line refs)
     ));
 
     // Parser for punctuation/separators to skip
@@ -209,10 +218,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     ));
 
     // Combined parser that tries tokens first, then skips punctuation
-    let element = choice((
-        token.map(Some),
-        punctuation.to(None),
-    ));
+    let element = choice((token.map(Some), punctuation.to(None)));
 
     // Parse elements separated by whitespace, filter out None (punctuation)
     element
@@ -341,19 +347,28 @@ mod tests {
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(1000.0, Unit::GiB)
+        ));
 
         let result = parse_expression_chumsky("1,234.56 MB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1234.56, Unit::MB)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(1234.56, Unit::MB)
+        ));
 
         let result = parse_expression_chumsky("1,000,000 bytes");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1000000.0, Unit::Byte)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(1000000.0, Unit::Byte)
+        ));
     }
 
     #[test]
@@ -383,21 +398,34 @@ mod tests {
         assert!(result.is_ok(), "Parsing '1,000GiB' failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(1000.0, Unit::GiB)
+        ));
 
         // Test compound units without spaces
         let result = parse_expression_chumsky("10GiB/s");
         assert!(result.is_ok(), "Parsing '10GiB/s' failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(10.0, Unit::GiBPerSecond)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(10.0, Unit::GiBPerSecond)
+        ));
 
         // Test expressions with multiple units without spaces
         let result = parse_expression_chumsky("1,000GiB + 512MiB");
-        assert!(result.is_ok(), "Parsing '1,000GiB + 512MiB' failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing '1,000GiB + 512MiB' failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1000.0, Unit::GiB)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(1000.0, Unit::GiB)
+        ));
         assert!(matches!(tokens[1], Token::Plus));
         assert!(matches!(tokens[2], Token::NumberWithUnit(512.0, Unit::MiB)));
     }
@@ -430,14 +458,20 @@ mod tests {
         assert!(result.is_ok(), "Parsing large number failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(999999999.99, Unit::TB)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(999999999.99, Unit::TB)
+        ));
 
         // Test very small decimal
         let result = parse_expression_chumsky("0.000001 seconds");
         assert!(result.is_ok(), "Parsing small decimal failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(0.000001, Unit::Second)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(0.000001, Unit::Second)
+        ));
     }
 
     #[test]
@@ -461,7 +495,11 @@ mod tests {
     #[test]
     fn test_nested_parentheses() {
         let result = parse_expression_chumsky("((1 + 2) * (3 - 4)) / 5");
-        assert!(result.is_ok(), "Parsing nested parentheses failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing nested parentheses failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 15);
         assert!(matches!(tokens[0], Token::LeftParen));
@@ -474,7 +512,11 @@ mod tests {
     #[test]
     fn test_multiple_line_references() {
         let result = parse_expression_chumsky("line1 + line2 * line10");
-        assert!(result.is_ok(), "Parsing multiple line refs failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing multiple line refs failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 5);
         assert!(matches!(tokens[0], Token::LineReference(0)));
@@ -489,10 +531,14 @@ mod tests {
         // Test data units
         let result = parse_expression_chumsky("1 B + 2 KB + 3 MB + 4 GB + 5 TB + 6 PB + 7 EB");
         assert!(result.is_ok(), "Parsing data units failed: {:?}", result);
-        
+
         // Test binary data units
         let result = parse_expression_chumsky("1 KiB + 2 MiB + 3 GiB + 4 TiB + 5 PiB + 6 EiB");
-        assert!(result.is_ok(), "Parsing binary data units failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing binary data units failed: {:?}",
+            result
+        );
 
         // Test time units
         let result = parse_expression_chumsky("1 ns + 2 us + 3 ms + 4 s + 5 min + 6 h + 7 day");
@@ -523,11 +569,19 @@ mod tests {
 
         // Test keywords with line references
         let result = parse_expression_chumsky("line1 to GiB");
-        assert!(result.is_ok(), "Parsing line ref + keyword failed: {:?}", result);
-        
+        assert!(
+            result.is_ok(),
+            "Parsing line ref + keyword failed: {:?}",
+            result
+        );
+
         // Test keywords with complex expressions
         let result = parse_expression_chumsky("(1 GiB + 512 MiB) * 2 to TB");
-        assert!(result.is_ok(), "Parsing complex + keyword failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing complex + keyword failed: {:?}",
+            result
+        );
     }
 
     #[test]
@@ -553,35 +607,69 @@ mod tests {
     fn test_compound_units_with_spaces() {
         // Test compound units with spaces around slash
         let result = parse_expression_chumsky("100 MB / s");
-        assert!(result.is_ok(), "Parsing 'MB / s' with spaces failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing 'MB / s' with spaces failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MBPerSecond)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
+        ));
 
         // Test compound units without spaces (should still work)
         let result = parse_expression_chumsky("100 MB/s");
-        assert!(result.is_ok(), "Parsing 'MB/s' without spaces failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing 'MB/s' without spaces failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MBPerSecond)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
+        ));
 
         // Test conversion with compound units with spaces
         let result = parse_expression_chumsky("25 QPS to req / min");
-        assert!(result.is_ok(), "Parsing QPS conversion with spaces failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing QPS conversion with spaces failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(25.0, Unit::QueriesPerSecond)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(25.0, Unit::QueriesPerSecond)
+        ));
         assert!(matches!(tokens[1], Token::To));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(1.0, Unit::RequestsPerMinute)));
+        assert!(matches!(
+            tokens[2],
+            Token::NumberWithUnit(1.0, Unit::RequestsPerMinute)
+        ));
 
         // Test various request rate units with spaces
         let result = parse_expression_chumsky("50 req / s + 30 requests / min");
-        assert!(result.is_ok(), "Parsing request rates with spaces failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Parsing request rates with spaces failed: {:?}",
+            result
+        );
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(50.0, Unit::RequestsPerSecond)));
+        assert!(matches!(
+            tokens[0],
+            Token::NumberWithUnit(50.0, Unit::RequestsPerSecond)
+        ));
         assert!(matches!(tokens[1], Token::Plus));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(30.0, Unit::RequestsPerMinute)));
+        assert!(matches!(
+            tokens[2],
+            Token::NumberWithUnit(30.0, Unit::RequestsPerMinute)
+        ));
     }
 
     #[test]
@@ -593,7 +681,10 @@ mod tests {
 
         // Test invalid line reference
         let result = parse_expression_chumsky("line0");
-        assert!(result.is_ok(), "line0 should be valid (0-indexed internally)");
+        assert!(
+            result.is_ok(),
+            "line0 should be valid (0-indexed internally)"
+        );
 
         // Note: "1 +" might actually parse as just "1" in chumsky due to how we handle it
         // The incomplete operator is handled during evaluation, not parsing
@@ -633,7 +724,11 @@ mod tests {
     fn test_complex_real_world_expressions() {
         // Test realistic data center calculation
         let result = parse_expression_chumsky("(50PB + 10EB) / 1000 to TB/s");
-        assert!(result.is_ok(), "Complex data center calc failed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Complex data center calc failed: {:?}",
+            result
+        );
 
         // Test realistic QPS calculation
         let result = parse_expression_chumsky("(100QPS + 50req/s) * 1hour to queries");
