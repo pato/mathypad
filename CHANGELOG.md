@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2025-06-11
+
+### Changes
+
+- Add support for expressions with units resulting in ratios
+- Add support for variables
+- Change tokenizer to parse text
+
 ## [0.1.5] - 2025-06-10
 
 ### Changes

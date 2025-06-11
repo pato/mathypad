@@ -448,7 +448,7 @@ dependencies = [
 
 [[package]]
 name = "mathypad"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "chumsky",
  "clap",
