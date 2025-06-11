@@ -22,9 +22,71 @@ pub fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
     // Use the chumsky parser as the sole implementation
     match parse_expression_chumsky(expr) {
         Ok(tokens) if tokens.is_empty() => None, // Empty token list = invalid
-        Ok(tokens) => Some(tokens),
+        Ok(tokens) if is_valid_mathematical_expression(&tokens) => Some(tokens),
+        Ok(_) => None, // Tokens exist but don't form a valid mathematical expression
         Err(_) => None,
     }
+}
+
+/// Check if a sequence of tokens forms a valid mathematical expression
+pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
+    if tokens.is_empty() {
+        return false;
+    }
+    
+    // Count different token types
+    let mut has_number_or_value = false;
+    let mut consecutive_operators = 0;
+    let mut consecutive_values = 0;
+    
+    for (i, token) in tokens.iter().enumerate() {
+        match token {
+            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_) => {
+                has_number_or_value = true;
+                consecutive_values += 1;
+                consecutive_operators = 0;
+                
+                // More than 1 consecutive value without operators is invalid (except for assignments and conversions)
+                if consecutive_values > 1 {
+                    // Allow if this is part of an assignment (Variable = Expression)
+                    if i >= 2 && matches!(tokens[i-1], Token::Assign) && matches!(tokens[i-2], Token::Variable(_)) {
+                        consecutive_values = 1; // Reset count after assignment
+                    } else {
+                        return false;
+                    }
+                }
+            },
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+                consecutive_operators += 1;
+                consecutive_values = 0;
+                
+                // More than 1 consecutive operator is invalid (except minus for negation)
+                if consecutive_operators > 1 && !matches!(token, Token::Minus) {
+                    return false;
+                }
+            },
+            Token::LeftParen | Token::RightParen => {
+                consecutive_operators = 0;
+                consecutive_values = 0;
+            },
+            Token::To | Token::In => {
+                // These are OK for conversions
+                consecutive_operators = 0;
+                consecutive_values = 0;
+            },
+            Token::Assign => {
+                // Assignment is only valid after a variable
+                if i == 0 || !matches!(tokens[i-1], Token::Variable(_)) {
+                    return false;
+                }
+                consecutive_operators = 0;
+                consecutive_values = 0;
+            }
+        }
+    }
+    
+    // Must have at least one number/value to be a mathematical expression
+    has_number_or_value
 }
 
 
@@ -38,7 +100,7 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
     let trimmed = text.trim();
     if !trimmed.is_empty() {
         if let Ok(tokens) = parse_expression_chumsky(trimmed) {
-            if !tokens.is_empty() {
+            if !tokens.is_empty() && is_valid_mathematical_expression(&tokens) {
                 expressions.push(trimmed.to_string());
                 return expressions; // If entire text is valid, don't look for sub-expressions
             }
@@ -84,7 +146,7 @@ pub fn find_math_expression(text: &str) -> Vec<String> {
     // Validate candidates using the chumsky parser
     for candidate in candidates {
         if let Ok(tokens) = parse_expression_chumsky(&candidate) {
-            if !tokens.is_empty() {
+            if !tokens.is_empty() && is_valid_mathematical_expression(&tokens) {
                 expressions.push(candidate);
             }
         }

@@ -4,6 +4,7 @@ use super::parser::tokenize_with_units;
 use super::tokens::Token;
 use crate::FLOAT_EPSILON;
 use crate::units::{Unit, UnitType, UnitValue, parse_unit};
+use std::collections::HashMap;
 
 /// Main evaluation function that handles context for line references
 pub fn evaluate_expression_with_context(
@@ -29,6 +30,98 @@ pub fn evaluate_expression_with_context(
     }
 
     None
+}
+
+/// Enhanced evaluation function that handles both expressions and variable assignments
+pub fn evaluate_with_variables(
+    text: &str,
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> (Option<String>, Option<(String, String)>) {
+    // Return (result, optional_variable_assignment)
+    
+    // Find the longest valid mathematical expression in the text
+    let expressions = super::parser::find_math_expression(text);
+
+    for expr in expressions {
+        // Check if this is a variable assignment (contains =)
+        if let Some(assignment) = parse_variable_assignment(&expr, variables, previous_results, current_line) {
+            return (Some(assignment.1.clone()), Some(assignment));
+        }
+        
+        // Try unit-aware parsing first with variable substitution
+        if let Some(unit_value) =
+            parse_and_evaluate_with_variables(&expr, variables, previous_results, current_line)
+        {
+            return (Some(unit_value.format()), None);
+        }
+        // Then try simple parsing with variable substitution
+        if let Some(simple_result) = parse_and_evaluate_simple_with_variables(&expr, variables) {
+            let unit_value = UnitValue::new(simple_result, None);
+            return (Some(unit_value.format()), None);
+        }
+    }
+
+    (None, None)
+}
+
+/// Parse a variable assignment like "servers = 40" or "ram = 1 TiB"
+fn parse_variable_assignment(
+    expr: &str,
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<(String, String)> {
+    let tokens = tokenize_with_units(expr)?;
+    
+    // Look for pattern: Variable Assign Expression
+    if tokens.len() >= 3 {
+        if let (Token::Variable(var_name), Token::Assign) = (&tokens[0], &tokens[1]) {
+            // Extract the right-hand side (everything after =)
+            let rhs_tokens = &tokens[2..];
+            
+            // Evaluate the right-hand side
+            if let Some(value) = evaluate_tokens_with_units_and_context_and_variables(
+                rhs_tokens, variables, previous_results, current_line
+            ) {
+                return Some((var_name.clone(), value.format()));
+            }
+        }
+    }
+    
+    None
+}
+
+/// Parse and evaluate with variable substitution
+fn parse_and_evaluate_with_variables(
+    expr: &str,
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
+    let tokens = tokenize_with_units(expr)?;
+    evaluate_tokens_with_units_and_context_and_variables(&tokens, variables, previous_results, current_line)
+}
+
+/// Simple evaluation with variable substitution
+fn parse_and_evaluate_simple_with_variables(
+    expr: &str,
+    variables: &HashMap<String, String>,
+) -> Option<f64> {
+    // For simple evaluation, substitute variables with their numeric values
+    let mut substituted_expr = expr.to_string();
+    
+    // Simple variable substitution for numeric-only expressions
+    for (var_name, var_value) in variables {
+        // Only substitute if the variable value is a simple number
+        if let Ok(_) = var_value.replace(",", "").parse::<f64>() {
+            substituted_expr = substituted_expr.replace(var_name, var_value);
+        }
+    }
+    
+    // Use the existing simple parser
+    parse_and_evaluate_simple(&substituted_expr)
 }
 
 /// Parse and evaluate with context for line references
@@ -152,6 +245,141 @@ pub fn evaluate_tokens_with_units_and_context(
         }
 
         Some(result)
+    } else {
+        None
+    }
+}
+
+/// Variable-aware version of evaluate_tokens_with_units_and_context
+fn evaluate_tokens_with_units_and_context_and_variables(
+    tokens: &[Token],
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
+    if tokens.is_empty() {
+        return None;
+    }
+
+    // Handle simple conversion expressions like "1 GiB to KiB" (only if it's the entire expression)
+    if tokens.len() == 3 {
+        if let (
+            Token::NumberWithUnit(value, from_unit),
+            Token::To,
+            Token::NumberWithUnit(_, to_unit),
+        ) = (&tokens[0], &tokens[1], &tokens[2])
+        {
+            let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
+            return unit_value.to_unit(to_unit);
+        }
+    }
+
+    // Check if we have an "in" or "to" conversion request at the end
+    let mut target_unit_for_conversion = None;
+    let mut evaluation_tokens = tokens;
+
+    // Look for "in" or "to" followed by a unit at the end
+    for i in 0..tokens.len().saturating_sub(1) {
+        if let Token::In | Token::To = &tokens[i] {
+            // Look for unit after "in" or "to"
+            for j in (i + 1)..tokens.len() {
+                if let Token::NumberWithUnit(_, unit) = &tokens[j] {
+                    target_unit_for_conversion = Some(unit.clone());
+                    evaluation_tokens = &tokens[..i]; // Evaluate everything before "in"/"to"
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    // Handle simple arithmetic with units
+    let mut operator_stack = Vec::new();
+    let mut value_stack = Vec::new();
+
+    for token in evaluation_tokens {
+        match token {
+            Token::Number(n) => {
+                value_stack.push(UnitValue::new(*n, None));
+            }
+            Token::NumberWithUnit(value, unit) => {
+                value_stack.push(UnitValue::new(*value, Some(unit.clone())));
+            }
+            Token::LineReference(line_index) => {
+                // Resolve line reference to its calculated result
+                if let Some(line_result) =
+                    resolve_line_reference(*line_index, previous_results, current_line)
+                {
+                    value_stack.push(line_result);
+                } else {
+                    return None; // Invalid or circular reference
+                }
+            }
+            Token::Variable(var_name) => {
+                // Resolve variable to its value
+                if let Some(var_result) = resolve_variable(var_name, variables) {
+                    value_stack.push(var_result);
+                } else {
+                    return None; // Undefined variable
+                }
+            }
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+                while let Some(top_op) = operator_stack.last() {
+                    if precedence_unit(token) <= precedence_unit(top_op) {
+                        let op = operator_stack.pop().unwrap();
+                        if !apply_operator_with_units(&mut value_stack, &op) {
+                            return None;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                operator_stack.push(token.clone());
+            }
+            Token::LeftParen => {
+                operator_stack.push(token.clone());
+            }
+            Token::RightParen => {
+                while let Some(op) = operator_stack.pop() {
+                    if matches!(op, Token::LeftParen) {
+                        break;
+                    }
+                    if !apply_operator_with_units(&mut value_stack, &op) {
+                        return None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    while let Some(op) = operator_stack.pop() {
+        if !apply_operator_with_units(&mut value_stack, &op) {
+            return None;
+        }
+    }
+
+    if value_stack.len() == 1 {
+        let mut result = value_stack.pop().unwrap();
+
+        // If we have a target unit for conversion, convert the result
+        if let Some(target_unit) = target_unit_for_conversion {
+            if let Some(converted) = result.to_unit(&target_unit) {
+                result = converted;
+            }
+        }
+
+        Some(result)
+    } else {
+        None
+    }
+}
+
+/// Resolve a variable to its UnitValue
+fn resolve_variable(var_name: &str, variables: &HashMap<String, String>) -> Option<UnitValue> {
+    if let Some(var_value_str) = variables.get(var_name) {
+        // Parse the variable value back into a UnitValue
+        parse_result_string(var_value_str)
     } else {
         None
     }

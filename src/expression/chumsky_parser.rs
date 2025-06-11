@@ -76,19 +76,23 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         cleaned.parse::<f64>().unwrap_or(0.0)
     });
 
-    // Parser for identifiers (words, including compound units with slashes)
-    let identifier = text::ascii::ident()
+    // Parser for identifiers (words, but not compound with slashes - those are handled separately)
+    let identifier = text::ascii::ident().map(|s: &str| s.to_string());
+    
+    // Parser for compound identifiers (like "GiB/s") - only for valid units
+    let compound_identifier = text::ascii::ident()
         .then(
             just('/')
                 .padded()  // Allow spaces around the slash
                 .then(text::ascii::ident())
-                .or_not()
         )
-        .map(|(base, slash_part): (&str, Option<(char, &str)>)| {
-            if let Some((_, suffix)) = slash_part {
-                format!("{}/{}", base, suffix)
+        .try_map(|(base, (_, suffix)): (&str, (char, &str)), span| {
+            let compound = format!("{}/{}", base, suffix);
+            // Only allow compound identifiers if they form a valid unit
+            if parse_unit(&compound).is_some() {
+                Ok(compound)
             } else {
-                base.to_string()
+                Err(Rich::custom(span, "Invalid compound identifier - not a valid unit"))
             }
         });
 
@@ -113,7 +117,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         text::keyword("in").to(Token::In),
     ));
 
-    // Parser for operators
+    // Parser for operators (including assignment)
     let operator = choice((
         just('+').to(Token::Plus),
         just('-').to(Token::Minus),
@@ -121,14 +125,18 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('/').to(Token::Divide),
         just('(').to(Token::LeftParen),
         just(')').to(Token::RightParen),
+        just('=').to(Token::Assign),
     ));
+
+    // Combined unit parser (tries compound units first, then simple identifiers)
+    let unit_identifier = choice((compound_identifier, identifier));
 
     // Parser for numbers with optional units  
     let number_with_unit = number
         .then(
             just(' ')
                 .repeated()
-                .then(identifier)
+                .then(unit_identifier.clone())
                 .try_map(|(_, unit_str): ((), String), span| {
                     // Don't treat keywords as units in this context
                     if unit_str == "to" || unit_str == "in" {
@@ -150,12 +158,27 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         });
 
     // Parser for standalone units (for conversions like "to KiB")
-    let standalone_unit = identifier
+    let standalone_unit = unit_identifier.clone()
         .try_map(|word: String, span| {
             if let Some(unit) = parse_unit(&word) {
                 Ok(Token::NumberWithUnit(1.0, unit))
             } else {
                 Err(Rich::custom(span, format!("Unknown unit: {}", word)))
+            }
+        });
+
+    // Parser for variables (identifiers that are not units, keywords, or line references)
+    let variable = identifier
+        .try_map(|word: String, span| {
+            // Don't treat units, keywords, or line references as variables
+            if parse_unit(&word).is_some() {
+                Err(Rich::custom(span, "Unit, not variable"))
+            } else if word == "to" || word == "in" {
+                Err(Rich::custom(span, "Keyword, not variable"))
+            } else if word.starts_with("line") && word[4..].parse::<usize>().is_ok() {
+                Err(Rich::custom(span, "Line reference, not variable"))
+            } else {
+                Ok(Token::Variable(word))
             }
         });
 
@@ -166,6 +189,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         number_with_unit,   // Numbers with optional units
         operator,           // Mathematical operators
         standalone_unit,    // Standalone units for conversions
+        variable,           // Variables (identifiers that aren't units/keywords/line refs)
     ));
 
     // Parse tokens separated by whitespace
@@ -539,9 +563,10 @@ mod tests {
 
     #[test]
     fn test_error_cases() {
-        // Test invalid unit
+        // Test invalid unit - now that we have variables, this parses as Number + Variable
+        // The error happens at evaluation time, not parse time
         let result = parse_expression_chumsky("1 invalidunit");
-        assert!(result.is_err(), "Should fail on invalid unit");
+        assert!(result.is_ok(), "Should parse as number + variable");
 
         // Test invalid line reference
         let result = parse_expression_chumsky("line0");

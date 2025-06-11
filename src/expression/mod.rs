@@ -14,9 +14,11 @@ mod tests;
 pub use evaluator::{
     evaluate_expression_with_context, evaluate_tokens_with_units_and_context,
     parse_and_evaluate_with_context, parse_result_string, resolve_line_reference,
+    evaluate_with_variables,
 };
 pub use parser::{
     find_math_expression, is_valid_math_expression, parse_line_reference, tokenize_with_units,
+    is_valid_mathematical_expression,
 };
 pub use chumsky_parser::parse_expression_chumsky;
 pub use tokens::Token;

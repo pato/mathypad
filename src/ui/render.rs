@@ -10,6 +10,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
+use std::collections::HashMap;
 
 /// Main UI layout and rendering
 pub fn ui(f: &mut Frame, app: &App) {
@@ -52,11 +53,11 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
 
         if start_line + i == app.cursor_line {
             let (before_cursor, after_cursor) = line_text.split_at(app.cursor_col);
-            spans.extend(parse_colors(before_cursor));
+            spans.extend(parse_colors(before_cursor, &app.variables));
             spans.push(Span::styled("█", Style::default().fg(Color::White)));
-            spans.extend(parse_colors(after_cursor));
+            spans.extend(parse_colors(after_cursor, &app.variables));
         } else {
-            spans.extend(parse_colors(line_text));
+            spans.extend(parse_colors(line_text, &app.variables));
         }
 
         lines.push(Line::from(spans));
@@ -102,7 +103,7 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Parse text and return colored spans for syntax highlighting
-pub fn parse_colors(text: &str) -> Vec<Span> {
+pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -> Vec<Span<'a>> {
     let mut spans = Vec::new();
     let mut current_pos = 0;
     let chars: Vec<char> = text.chars().collect();
@@ -122,13 +123,16 @@ pub fn parse_colors(text: &str) -> Vec<Span> {
 
             let word_text: String = chars[start_pos..current_pos].iter().collect();
 
-            // Check if it's a valid unit, keyword, or line reference
+            // Check if it's a valid unit, keyword, line reference, or variable
             if parse_line_reference(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
             } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Yellow)));
             } else if parse_unit(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
+            } else if variables.contains_key(&word_text) {
+                // Highlight variables that are defined
+                spans.push(Span::styled(word_text, Style::default().fg(Color::LightCyan)));
             } else {
                 spans.push(Span::raw(word_text));
             }
@@ -163,8 +167,8 @@ pub fn parse_colors(text: &str) -> Vec<Span> {
                 spans.push(Span::raw(chars[start_pos].to_string()));
                 current_pos = start_pos + 1;
             }
-        } else if "+-*/()".contains(chars[current_pos]) {
-            // Handle operators
+        } else if "+-*/()=".contains(chars[current_pos]) {
+            // Handle operators (including assignment)
             spans.push(Span::styled(
                 chars[current_pos].to_string(),
                 Style::default().fg(Color::Cyan),
