@@ -456,6 +456,86 @@ fn test_qps_addition_subtraction() {
 }
 
 #[test]
+fn test_unit_division_ratios() {
+    // Test dividing same units to get dimensionless ratios
+    assert_eq!(
+        evaluate_test_expression("(277 GiB + 207 GiB) / 270 GiB"),
+        Some("1.793".to_string())
+    );
+
+    // Test simple ratio calculations
+    assert_eq!(
+        evaluate_test_expression("512 MiB / 1 GiB"),
+        Some("0.5".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("2 TB / 1 TB"),
+        Some("2".to_string())
+    );
+
+    // Test cross-base unit ratios (base-2 / base-10)
+    assert_eq!(
+        evaluate_test_expression("1 GiB / 1 GB"),
+        Some("1.074".to_string())
+    );
+
+    // Test request rate ratios
+    assert_eq!(
+        evaluate_test_expression("150 QPS / 100 QPS"),
+        Some("1.5".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("3600 req/h / 1800 req/h"),
+        Some("2".to_string())
+    );
+
+    // Test time ratios
+    assert_eq!(
+        evaluate_test_expression("2 hours / 30 minutes"),
+        Some("4".to_string())
+    );
+
+    // Test mixed compatible unit ratios
+    assert_eq!(
+        evaluate_test_expression("120 QPM / 2 QPS"),
+        Some("1".to_string())
+    );
+
+    // Test bit/byte ratios
+    assert_eq!(
+        evaluate_test_expression("8 bit / 1 B"),
+        Some("1".to_string())
+    );
+
+    // Test large data unit ratios
+    assert_eq!(
+        evaluate_test_expression("2 EB / 1000 PB"),
+        Some("2".to_string())
+    );
+    
+    // Test real-world scenarios
+    // Storage utilization
+    assert_eq!(
+        evaluate_test_expression("(500 GiB + 300 GiB) / 1 TiB"),
+        Some("0.781".to_string())
+    );
+    
+    // Cache hit rate
+    assert_eq!(
+        evaluate_test_expression("950 req / 1000 req"),
+        Some("0.95".to_string())
+    );
+    
+    // CPU utilization (if we had percentage units, but using ratio for now)
+    assert_eq!(
+        evaluate_test_expression("75 / 100"),
+        Some("0.75".to_string())
+    );
+}
+
+#[test]
 fn test_qps_real_world_scenarios() {
     // Test realistic QPS scenarios
     assert_eq!(

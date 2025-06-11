@@ -522,6 +522,34 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     // For now, we'll treat this as invalid
                     return false;
                 }
+                // Compatible units divided = dimensionless ratio
+                (Some(unit_a), Some(unit_b)) => {
+                    // Check if units are compatible (same unit type or bit/data conversion)
+                    let compatible = unit_a.unit_type() == unit_b.unit_type() || 
+                        (unit_a.unit_type() == UnitType::Bit && unit_b.unit_type() == UnitType::Data) ||
+                        (unit_a.unit_type() == UnitType::Data && unit_b.unit_type() == UnitType::Bit);
+                    
+                    if compatible {
+                        // Convert both to base values and divide to get dimensionless ratio
+                        let mut base_a = unit_a.to_base_value(a.value);
+                        let mut base_b = unit_b.to_base_value(b.value);
+                        
+                        // Handle bit/byte conversions: normalize to same base (bits)
+                        if unit_a.unit_type() == UnitType::Data && unit_b.unit_type() == UnitType::Bit {
+                            base_a *= 8.0; // Convert bytes to bits
+                        } else if unit_a.unit_type() == UnitType::Bit && unit_b.unit_type() == UnitType::Data {
+                            base_b *= 8.0; // Convert bytes to bits
+                        }
+                        
+                        if base_b.abs() < FLOAT_EPSILON {
+                            return false;
+                        }
+                        let ratio = base_a / base_b;
+                        UnitValue::new(ratio, None) // No unit = dimensionless
+                    } else {
+                        return false; // Incompatible unit types
+                    }
+                }
                 (Some(unit), None) => {
                     // unit / number = unit
                     if b.value.abs() < FLOAT_EPSILON {
