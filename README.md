@@ -1,16 +1,16 @@
 # Mathypad
 
-A smart TUI calculator that understands units and makes complex calculations
-simple.
+A smart TUI calculator that understands units, variables, and makes complex calculations
+simple within natural language text.
 
 ![Mathypad](./screenshots/screen1.png "Mathypad")
 
 ## What is it?
 
 Mathypad is like a notepad where you can write math expressions with real-world
-units, and it automatically calculates results for you. Think "Google
+units and variables, and it automatically calculates results for you. Think "Google
 calculator" or [Soulver][soulver] but for your terminal, with support for data
-sizes, time, and API performance metrics.
+sizes, time, API performance metrics, and variable assignment.
 
 [soulver]: https://soulver.app/
 
@@ -37,7 +37,8 @@ mathypad
 # Or use it directly from command line
 mathypad -- "100 QPS * 1 hour"           # → 360,000 query
 mathypad -- "5 GB to GiB"                # → 4.657 GiB
-mathypad -- "1 TB/s * 30 minutes"        # → 1,800 TB
+mathypad -- "Cost: 100 * 12 dollars"     # → 1,200
+mathypad -- "1 TiB/s * 30 min"           # → 1,800 TiB
 ```
 
 ## Why You'll Love It
@@ -69,17 +70,40 @@ Perfect for DevOps, data engineering, and capacity planning:
 5 TB + 2.5 TB + 1024 GiB             → 8.524 TB
 ```
 
+### Variables and Multiline Calculations
+Define variables and reference them in later calculations:
+
+```
+servers = 40                            → 40
+ram = 1 TiB                            → 1 TiB  
+servers * ram                          → 40 TiB
+memory = 40 GiB                        → 40 GiB
+time = 18 s                            → 18 s
+memory / time                          → 2.222 GiB/s
+```
+
+### Natural Language Processing
+Write mathematical expressions within natural text - punctuation, colons, and extra words are gracefully handled:
+
+```
+Cost: 100 * 12 dollars                → 1,200
+Download: 1,000 MB at 50 MB/s          → 1,000 MB
+Data center: 50 PB + 10 EB             → 10,050 PB
+API performance: (100 QPS + 50 req/s) * 1 hour → 540,000 req
+Transfer: 5 PB in 2 days               → 28.935 TB/s
+```
+
 ### Interactive or One-Shot
 Use it like a notepad with live results, or fire quick calculations from your terminal:
 
-**Interactive Mode (with vim motions):**
+**Interactive Mode (with vim motions and variables):**
 ```
 $ mathypad
 ┌─ Mathypad ────────────────────┬─ Results ─────────────┐
-│   1 │ 100 QPS * 8 hours       │   1 │ 2,880,000 query │
-│   2 │ line1 / 1000            │   2 │ 2,880 query     │
-│   3 │ 50 GB to GiB            │   3 │ 46.566 GiB      │
-│   4 │                         │   4 │                 │
+│   1 │ servers = 40            │   1 │ 40              │
+│   2 │ ram = 2 GiB             │   2 │ 2 GiB           │
+│   3 │ servers * ram           │   3 │ 80 GiB          │
+│   4 │ Cost: line3 * $50       │   4 │ 4,000           │
 └── NORMAL ─────────────────────┴─────┴─────────────────┘
 
 • ESC → Normal mode (hjkl navigation, indicator at bottom)
@@ -89,7 +113,7 @@ $ mathypad
 
 **Command Line:**
 ```bash
-mathypad -- "1.5 EB / 100 Gbps"         → 33.333 h
+mathypad -- "Cost: 1.5 EB / 100 Gbps"  → 33.333 h
 ```
 
 ## What It Handles
@@ -108,6 +132,11 @@ mathypad -- "1.5 EB / 100 Gbps"         → 33.333 h
 - Seconds, minutes, hours, days
 - Mix and match: `90 minutes + 1.5 hours = 240 min`
 
+### Variables
+- **Assignment**: `servers = 40`, `ram = 1 TiB`
+- **References**: Use variables in calculations: `servers * ram`
+- **Complex expressions**: `total = servers * ram + overhead`
+
 ## Complex Operations Made Simple
 
 ### Data Center Planning
@@ -124,14 +153,18 @@ mathypad -- "1.5 EB / 100 Gbps"         → 33.333 h
 
 ### API Performance Analysis
 ```
-# Peak load calculation
-1000 QPS * 1.5 peak_multiplier       → 1,500 QPS
+# Using variables for capacity planning
+baseline = 250 QPS                   → 250 QPS
+peak_multiplier = 2.5                → 2.5
+peak_load = baseline * peak_multiplier → 625 QPS
 
 # Monthly request volume
 250 QPS * 30 days                    → 648,000,000 query
 
 # Load balancer distribution
-5000 QPS / 10 servers                → 500 QPS
+servers = 10                         → 10
+total_qps = 5000 QPS                 → 5,000 QPS
+per_server = total_qps / servers     → 500 QPS
 ```
 
 ### Mixed Unit Calculations
@@ -156,20 +189,33 @@ mathypad -- "1.5 EB / 100 Gbps"         → 33.333 h
 
 ## Advanced Features
 
-### Line References
-Reference previous calculations in your notepad:
+### Variables & Line References
+Define and reference variables, plus reference previous line calculations:
 ```
+# Variable definitions
+servers = 40                         → 40
+ram_per_server = 2 GiB               → 2 GiB
+total_ram = servers * ram_per_server → 80 GiB
+
+# Line references
 Line 1: 100 TB
-Line 2: line1 * 0.8                  → 80 TB
-Line 3: line2 to TiB                 → 72.760 TiB
+Line 2: line1 * 0.8                 → 80 TB
+Line 3: line2 to TiB                → 72.760 TiB
+
+# Combine variables and line references
+storage_overhead = line3 * 0.2       → 14.552 TiB
+total_storage = line3 + storage_overhead → 87.312 TiB
 ```
 
-### Smart Parsing
-It figures out what you mean:
+### Smart Parsing & Natural Language
+It figures out what you mean from natural text with punctuation and extra words:
 ```
 Transfer: 5 PB in 2 days             → 28.935 TB/s
 API load during peak: 2000 QPS       → 2,000 QPS
 Storage needed: 500 GB * 12 months    → 6,000 GB
+Calculate: (5 GiB + 3 GiB) * 2       → 16 GiB
+Download: 1,000 MB at 50 MB/s        → 1,000 MB
+Bandwidth usage: 100 Mbps * 1 hour   → 360,000 Mb
 ```
 
 ### Flexible Syntax
@@ -183,36 +229,60 @@ Use "to" or "in" for conversions:
 
 Requires [Rust](https://rustup.rs/):
 
+The simplest way is through cargo install
+
+```bash
+cargo install mathypad
+```
+
+Or build it from the repository
+
 ```bash
 git clone https://github.com/pato/mathypad.git
 cd mathypad
 cargo build --release
 ```
 
-Or run directly:
-```bash
-mathypad                         # Interactive mode
-mathypad -- "your calculation"   # One-shot mode
-```
-
 ## Use Cases
 
-- **DevOps**: Storage capacity planning, bandwidth calculations
-- **Data Engineering**: Dataset size estimates, transfer time calculations  
-- **API Design**: Rate limiting, capacity planning, load testing
-- **System Administration**: Resource allocation, performance monitoring
-- **General Computing**: Any calculation involving data sizes or rates
+- **DevOps**: Storage capacity planning, bandwidth calculations, infrastructure cost modeling
+- **Data Engineering**: Dataset size estimates, transfer time calculations, ETL planning
+- **API Design**: Rate limiting, capacity planning, load testing, scaling calculations
+- **System Administration**: Resource allocation, performance monitoring, server planning
+- **Financial Planning**: Cost calculations with variables for different scenarios
+- **Research & Analysis**: Reusable calculations with variables and documentation
+- **General Computing**: Any calculation involving data sizes, rates, or reusable parameters
 
 ## Why Not Just Use a Regular Calculator?
 
+**Traditional approach - Unit conversions:**
 ```bash
-# Traditional way:
 # 1. Convert 1 PB to bytes: 1,000,000,000,000,000
 # 2. Divide by bytes per GiB: 1,000,000,000,000,000 ÷ 1,073,741,824
 # 3. Get: 931,322.574615479
+```
 
-# Mathypad way:
+**Traditional approach - Reusable calculations:**
+```bash
+# 1. Calculate servers: 40
+# 2. Remember that number
+# 3. Calculate RAM: 2 GB each
+# 4. Multiply: 40 * 2 = 80 GB
+# 5. Lose track of what 40 and 2 represented
+```
+
+**Mathypad way:**
+```bash
+# Unit conversions
 1 PB to GiB                          → 931,322.575 GiB
+
+# Reusable calculations with variables
+servers = 40                         → 40
+ram_per_server = 2 GiB               → 2 GiB  
+total_ram = servers * ram_per_server → 80 GiB
+
+# Natural language processing  
+Cost: servers * $500 each            → 20,000
 ```
 
 Much better, right?
