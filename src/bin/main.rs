@@ -1,12 +1,12 @@
 //! Binary entry point for mathypad
 
-use clap::{Arg, Command};
+use clap::{Arg, Command, crate_version};
 use mathypad::{run_interactive_mode, run_one_shot_mode};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = Command::new("mathypad")
-        .version("0.1.0")
+        .version(crate_version!())
         .about("A mathematical notepad with unit conversion support")
         .arg(
             Arg::new("expression")
