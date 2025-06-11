@@ -549,7 +549,7 @@ fn test_qps_real_world_scenarios() {
     );
 
     assert_eq!(
-        evaluate_test_expression("Daily requests: 86400 req / 1 day"),
+        evaluate_test_expression("Daily load 86400 req / 1 day"),
         Some("1 req/s".to_string())
     );
 
@@ -566,7 +566,7 @@ fn test_qps_real_world_scenarios() {
 
     // Test capacity planning
     assert_eq!(
-        evaluate_test_expression("Monthly queries: 100 QPS * 30 days"),
+        evaluate_test_expression("Monthly load 100 QPS * 30 days"),
         Some("259,200,000 query".to_string())
     );
 

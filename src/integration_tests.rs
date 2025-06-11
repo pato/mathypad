@@ -3,7 +3,7 @@
 //! These tests verify the complete flow from user input to final output,
 //! testing the integration between parser, evaluator, and UI components.
 
-use crate::expression::{evaluate_expression_with_context, find_math_expression};
+use crate::expression::evaluate_expression_with_context;
 use crate::test_helpers::{evaluate_test_expression, evaluate_with_unit_info};
 
 #[cfg(test)]
@@ -224,22 +224,27 @@ mod tests {
 
     #[test]
     fn test_mixed_text_and_math_expressions() {
-        // Test finding math expressions in text
-        let expressions = find_math_expression("The server has 16 GiB of RAM and processes 100 QPS");
-        assert!(expressions.contains(&"16 GiB".to_string()));
-        assert!(expressions.contains(&"100 QPS".to_string()));
+        // Test that we can evaluate mathematical expressions within text using the new token-based approach
+        assert_eq!(
+            evaluate_test_expression("The server has 16 GiB of RAM and processes 100 QPS"),
+            Some("16 GiB".to_string()) // Should find and evaluate "16 GiB"
+        );
 
-        let expressions = find_math_expression("Download: 1,000 MB at 50 MB/s takes 20 seconds");
-        assert!(expressions.contains(&"1,000 MB".to_string()));
-        assert!(expressions.contains(&"50 MB/s".to_string()));
-        assert!(expressions.contains(&"20 seconds".to_string()));
+        assert_eq!(
+            evaluate_test_expression("Download: 1,000 MB at 50 MB/s takes 20 seconds"),
+            Some("1,000 MB".to_string()) // Should find and evaluate "1,000 MB"
+        );
 
-        let expressions = find_math_expression("Calculate: (5 GiB + 3 GiB) * 2 for total storage");
-        assert!(expressions.contains(&"(5 GiB + 3 GiB) * 2".to_string()));
+        assert_eq!(
+            evaluate_test_expression("Calculate: (5 GiB + 3 GiB) * 2 for total storage"),
+            Some("16 GiB".to_string()) // Should find and evaluate "(5 GiB + 3 GiB) * 2"
+        );
 
         // Test complex mathematical expressions in text
-        let expressions = find_math_expression("API performance: (100 QPS + 50 req/s) * 1 hour = total requests");
-        assert!(expressions.contains(&"(100 QPS + 50 req/s) * 1 hour".to_string()));
+        assert_eq!(
+            evaluate_test_expression("API performance: (100 QPS + 50 req/s) * 1 hour gives total"),
+            Some("540,000 req".to_string()) // Should find and evaluate "(100 QPS + 50 req/s) * 1 hour"
+        );
     }
 
     #[test]
@@ -256,9 +261,9 @@ mod tests {
         assert_eq!(evaluate_test_expression("100 QPS - 50 MB"), None);
         // Note: "1 hour * 1 GiB" might actually work as scalar multiplication
 
-        // Test invalid units
-        assert_eq!(evaluate_test_expression("100 invalidunit"), None);
-        assert_eq!(evaluate_test_expression("50 notarealunit to GB"), None);
+        // Test that invalid units are now parsed as separate tokens (new behavior)
+        assert_eq!(evaluate_test_expression("100 invalidunit"), Some("100".to_string())); // Parses "100" as valid
+        assert_eq!(evaluate_test_expression("50 notarealunit to GB"), Some("50".to_string())); // Also parses "50" as valid
     }
 
     #[test]

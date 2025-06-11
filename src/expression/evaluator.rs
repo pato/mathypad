@@ -12,24 +12,117 @@ pub fn evaluate_expression_with_context(
     previous_results: &[Option<String>],
     current_line: usize,
 ) -> Option<String> {
-    // Find the longest valid mathematical expression in the text
-    let expressions = super::parser::find_math_expression(text);
-
-    for expr in expressions {
-        // Try unit-aware parsing first
-        if let Some(unit_value) =
-            parse_and_evaluate_with_context(&expr, previous_results, current_line)
-        {
-            return Some(unit_value.format());
-        }
-        // Then try simple parsing
-        if let Some(simple_result) = parse_and_evaluate_simple(&expr) {
-            let unit_value = UnitValue::new(simple_result, None);
-            return Some(unit_value.format());
+    // New approach: tokenize everything then find mathematical patterns
+    if let Some(tokens) = super::parser::tokenize_with_units(text) {
+        // Try to find and evaluate mathematical patterns in the token stream
+        if let Some(result) = evaluate_tokens_stream_with_context(&tokens, previous_results, current_line) {
+            return Some(result.format());
         }
     }
-
+    
     None
+}
+
+/// Find and evaluate mathematical patterns in a token stream
+pub fn evaluate_tokens_stream_with_context(
+    tokens: &[Token],
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
+    if tokens.is_empty() {
+        return None;
+    }
+    
+    // Look for the longest valid mathematical subsequence
+    // Try different starting positions and lengths
+    for start in 0..tokens.len() {
+        for end in (start + 1..=tokens.len()).rev() { // Try longest first
+            let subseq = &tokens[start..end];
+            if is_valid_mathematical_sequence(subseq) {
+                // Try to evaluate this subsequence
+                if let Some(result) = evaluate_tokens_with_units_and_context(subseq, previous_results, current_line) {
+                    return Some(result);
+                }
+                // If this subsequence failed to evaluate and it spans the entire input with operators,
+                // don't try shorter subsequences (this prevents "5 / 0" from evaluating as "5")
+                if has_mathematical_operators(subseq) && start == 0 && end == tokens.len() {
+                    return None; // Fail entirely for the full expression
+                }
+            }
+        }
+    }
+    
+    None
+}
+
+/// Check if a token sequence contains mathematical operators
+fn has_mathematical_operators(tokens: &[Token]) -> bool {
+    tokens.iter().any(|t| matches!(t, 
+        Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+    ))
+}
+
+/// Check if a token sequence forms a valid mathematical expression
+fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
+    if tokens.is_empty() {
+        return false;
+    }
+    
+    // Must have at least one number, unit, line reference, or variable
+    let has_value = tokens.iter().any(|t| matches!(t, 
+        Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
+    ));
+    
+    if !has_value {
+        return false;
+    }
+    
+    // Simple validation: check for basic mathematical patterns
+    // More sophisticated validation can be added as needed
+    
+    // Pattern 1: Single value (number, unit, variable, line ref)
+    if tokens.len() == 1 {
+        return matches!(tokens[0], 
+            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
+        );
+    }
+    
+    // Pattern 2: Value + unit conversion (e.g., "5 GiB to TB", "storage to TB")
+    if tokens.len() == 3 {
+        let is_value_or_var = |t: &Token| matches!(t, 
+            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
+        );
+        let is_unit_or_var = |t: &Token| matches!(t, 
+            Token::NumberWithUnit(_, _) | Token::Variable(_)
+        );
+        
+        if is_value_or_var(&tokens[0]) && matches!(tokens[1], Token::To | Token::In) && is_unit_or_var(&tokens[2]) {
+            return true;
+        }
+    }
+    
+    // Pattern 3: Binary operations (value op value)
+    if tokens.len() == 3 {
+        let is_value = |t: &Token| matches!(t, 
+            Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) | Token::Variable(_)
+        );
+        let is_op = |t: &Token| matches!(t, 
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+        );
+        
+        if is_value(&tokens[0]) && is_op(&tokens[1]) && is_value(&tokens[2]) {
+            return true;
+        }
+    }
+    
+    // Pattern 4: More complex expressions with parentheses, multiple operations
+    // For now, if we have values and operators, assume it could be valid
+    // The actual evaluation will determine if it's truly valid
+    let has_operator = tokens.iter().any(|t| matches!(t, 
+        Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+    ));
+    
+    has_value && (tokens.len() == 1 || has_operator)
 }
 
 /// Enhanced evaluation function that handles both expressions and variable assignments
@@ -41,40 +134,29 @@ pub fn evaluate_with_variables(
 ) -> (Option<String>, Option<(String, String)>) {
     // Return (result, optional_variable_assignment)
     
-    // Find the longest valid mathematical expression in the text
-    let expressions = super::parser::find_math_expression(text);
-
-    for expr in expressions {
-        // Check if this is a variable assignment (contains =)
-        if let Some(assignment) = parse_variable_assignment(&expr, variables, previous_results, current_line) {
+    // New approach: tokenize everything then find patterns
+    if let Some(tokens) = super::parser::tokenize_with_units(text) {
+        // First check for variable assignments
+        if let Some(assignment) = find_variable_assignment_in_tokens(&tokens, variables, previous_results, current_line) {
             return (Some(assignment.1.clone()), Some(assignment));
         }
         
-        // Try unit-aware parsing first with variable substitution
-        if let Some(unit_value) =
-            parse_and_evaluate_with_variables(&expr, variables, previous_results, current_line)
-        {
-            return (Some(unit_value.format()), None);
-        }
-        // Then try simple parsing with variable substitution
-        if let Some(simple_result) = parse_and_evaluate_simple_with_variables(&expr, variables) {
-            let unit_value = UnitValue::new(simple_result, None);
-            return (Some(unit_value.format()), None);
+        // Then look for mathematical expressions
+        if let Some(result) = evaluate_tokens_stream_with_variables(&tokens, variables, previous_results, current_line) {
+            return (Some(result.format()), None);
         }
     }
 
     (None, None)
 }
 
-/// Parse a variable assignment like "servers = 40" or "ram = 1 TiB"
-fn parse_variable_assignment(
-    expr: &str,
+/// Find variable assignment pattern in token stream
+fn find_variable_assignment_in_tokens(
+    tokens: &[Token],
     variables: &HashMap<String, String>,
     previous_results: &[Option<String>],
     current_line: usize,
 ) -> Option<(String, String)> {
-    let tokens = tokenize_with_units(expr)?;
-    
     // Look for pattern: Variable Assign Expression
     if tokens.len() >= 3 {
         if let (Token::Variable(var_name), Token::Assign) = (&tokens[0], &tokens[1]) {
@@ -93,36 +175,87 @@ fn parse_variable_assignment(
     None
 }
 
-/// Parse and evaluate with variable substitution
-fn parse_and_evaluate_with_variables(
-    expr: &str,
+/// Find and evaluate mathematical patterns in a token stream with variable support
+fn evaluate_tokens_stream_with_variables(
+    tokens: &[Token],
     variables: &HashMap<String, String>,
     previous_results: &[Option<String>],
     current_line: usize,
 ) -> Option<UnitValue> {
-    let tokens = tokenize_with_units(expr)?;
-    evaluate_tokens_with_units_and_context_and_variables(&tokens, variables, previous_results, current_line)
-}
-
-/// Simple evaluation with variable substitution
-fn parse_and_evaluate_simple_with_variables(
-    expr: &str,
-    variables: &HashMap<String, String>,
-) -> Option<f64> {
-    // For simple evaluation, substitute variables with their numeric values
-    let mut substituted_expr = expr.to_string();
+    if tokens.is_empty() {
+        return None;
+    }
     
-    // Simple variable substitution for numeric-only expressions
-    for (var_name, var_value) in variables {
-        // Only substitute if the variable value is a simple number
-        if let Ok(_) = var_value.replace(",", "").parse::<f64>() {
-            substituted_expr = substituted_expr.replace(var_name, var_value);
+    // First check if we have undefined variables in what looks like a mathematical context
+    if has_undefined_variables_in_math_context(tokens, variables) {
+        return None; // Fail entirely if undefined variables are in mathematical expressions
+    }
+    
+    // Look for the longest valid mathematical subsequence
+    // Try different starting positions and lengths
+    for start in 0..tokens.len() {
+        for end in (start + 1..=tokens.len()).rev() { // Try longest first
+            let subseq = &tokens[start..end];
+            if is_valid_mathematical_sequence(subseq) && all_variables_defined(subseq, variables) {
+                // Try to evaluate this subsequence
+                if let Some(result) = evaluate_tokens_with_units_and_context_and_variables(
+                    subseq, variables, previous_results, current_line
+                ) {
+                    return Some(result);
+                }
+                // If this subsequence failed to evaluate and it spans the entire input with operators,
+                // don't try shorter subsequences (this prevents "5 / 0" from evaluating as "5")
+                if has_mathematical_operators(subseq) && start == 0 && end == tokens.len() {
+                    return None; // Fail entirely for the full expression
+                }
+            }
         }
     }
     
-    // Use the existing simple parser
-    parse_and_evaluate_simple(&substituted_expr)
+    None
 }
+
+/// Check if there are undefined variables in what appears to be a mathematical context
+fn has_undefined_variables_in_math_context(tokens: &[Token], variables: &HashMap<String, String>) -> bool {
+    // Look for undefined variables that are adjacent to mathematical operators or values
+    for i in 0..tokens.len() {
+        if let Token::Variable(var_name) = &tokens[i] {
+            if !variables.contains_key(var_name) {
+                // Check if this undefined variable is in a mathematical context
+                let has_math_neighbor = (i > 0 && is_math_token(&tokens[i - 1])) ||
+                                      (i + 1 < tokens.len() && is_math_token(&tokens[i + 1]));
+                
+                if has_math_neighbor {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Check if a token is mathematical (operator, number, unit, etc.)
+fn is_math_token(token: &Token) -> bool {
+    matches!(token,
+        Token::Number(_) | Token::NumberWithUnit(_, _) | Token::LineReference(_) |
+        Token::Plus | Token::Minus | Token::Multiply | Token::Divide |
+        Token::LeftParen | Token::RightParen | Token::To | Token::In
+    )
+}
+
+/// Check if all variables in a token sequence are defined
+fn all_variables_defined(tokens: &[Token], variables: &HashMap<String, String>) -> bool {
+    for token in tokens {
+        if let Token::Variable(var_name) = token {
+            if !variables.contains_key(var_name) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+
 
 /// Parse and evaluate with context for line references
 pub fn parse_and_evaluate_with_context(
@@ -433,59 +566,6 @@ pub fn parse_result_string(result_str: &str) -> Option<UnitValue> {
     None
 }
 
-/// Simple mathematical expression parsing without units
-fn parse_and_evaluate_simple(expr: &str) -> Option<f64> {
-    let expr = expr.replace(" ", "");
-
-    if expr.is_empty() {
-        return None;
-    }
-
-    let mut tokens = Vec::new();
-    let mut current_number = String::new();
-
-    for ch in expr.chars() {
-        match ch {
-            '0'..='9' | '.' | ',' => {
-                current_number.push(ch);
-            }
-            '+' | '-' | '*' | '/' | '(' | ')' => {
-                if !current_number.is_empty() {
-                    // Remove commas before parsing
-                    let cleaned_number = current_number.replace(",", "");
-                    if let Ok(num) = cleaned_number.parse::<f64>() {
-                        tokens.push(Token::Number(num));
-                    } else {
-                        return None;
-                    }
-                    current_number.clear();
-                }
-                tokens.push(match ch {
-                    '+' => Token::Plus,
-                    '-' => Token::Minus,
-                    '*' => Token::Multiply,
-                    '/' => Token::Divide,
-                    '(' => Token::LeftParen,
-                    ')' => Token::RightParen,
-                    _ => return None,
-                });
-            }
-            _ => return None,
-        }
-    }
-
-    if !current_number.is_empty() {
-        // Remove commas before parsing
-        let cleaned_number = current_number.replace(",", "");
-        if let Ok(num) = cleaned_number.parse::<f64>() {
-            tokens.push(Token::Number(num));
-        } else {
-            return None;
-        }
-    }
-
-    evaluate_tokens(&tokens)
-}
 
 
 /// Get operator precedence for unit-aware evaluation
@@ -801,88 +881,3 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
     true
 }
 
-/// Simple token evaluation without units
-fn evaluate_tokens(tokens: &[Token]) -> Option<f64> {
-    if tokens.is_empty() {
-        return None;
-    }
-
-    let mut output = Vec::new();
-    let mut operators = Vec::new();
-
-    for token in tokens {
-        match token {
-            Token::Number(n) => output.push(*n),
-            Token::LeftParen => operators.push(token.clone()),
-            Token::RightParen => {
-                while let Some(op) = operators.pop() {
-                    if matches!(op, Token::LeftParen) {
-                        break;
-                    }
-                    if !apply_operator(&mut output, &op) {
-                        return None;
-                    }
-                }
-            }
-            op => {
-                while let Some(top_op) = operators.last() {
-                    if matches!(top_op, Token::LeftParen) || precedence(op) > precedence(top_op) {
-                        break;
-                    }
-                    let op_to_apply = operators.pop().unwrap();
-                    if !apply_operator(&mut output, &op_to_apply) {
-                        return None;
-                    }
-                }
-                operators.push(op.clone());
-            }
-        }
-    }
-
-    while let Some(op) = operators.pop() {
-        if !apply_operator(&mut output, &op) {
-            return None;
-        }
-    }
-
-    if output.len() == 1 {
-        Some(output[0])
-    } else {
-        None
-    }
-}
-
-/// Get operator precedence for simple evaluation
-fn precedence(token: &Token) -> i32 {
-    match token {
-        Token::Plus | Token::Minus => 1,
-        Token::Multiply | Token::Divide => 2,
-        _ => 0,
-    }
-}
-
-/// Apply an operator to two numeric values
-fn apply_operator(output: &mut Vec<f64>, op: &Token) -> bool {
-    if output.len() < 2 {
-        return false;
-    }
-
-    let b = output.pop().unwrap();
-    let a = output.pop().unwrap();
-
-    let result = match op {
-        Token::Plus => a + b,
-        Token::Minus => a - b,
-        Token::Multiply => a * b,
-        Token::Divide => {
-            if b.abs() < f64::EPSILON {
-                return false;
-            }
-            a / b
-        }
-        _ => return false,
-    };
-
-    output.push(result);
-    true
-}

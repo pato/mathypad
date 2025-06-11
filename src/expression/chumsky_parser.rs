@@ -163,24 +163,13 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
             if let Some(unit) = parse_unit(&word) {
                 Ok(Token::NumberWithUnit(1.0, unit))
             } else {
-                Err(Rich::custom(span, format!("Unknown unit: {}", word)))
+                // Don't fail - let it be handled as a variable instead
+                Err(Rich::custom(span, "Not a unit"))
             }
         });
 
-    // Parser for variables (identifiers that are not units, keywords, or line references)
-    let variable = identifier
-        .try_map(|word: String, span| {
-            // Don't treat units, keywords, or line references as variables
-            if parse_unit(&word).is_some() {
-                Err(Rich::custom(span, "Unit, not variable"))
-            } else if word == "to" || word == "in" {
-                Err(Rich::custom(span, "Keyword, not variable"))
-            } else if word.starts_with("line") && word[4..].parse::<usize>().is_ok() {
-                Err(Rich::custom(span, "Line reference, not variable"))
-            } else {
-                Ok(Token::Variable(word))
-            }
-        });
+    // Parser for variables (catch-all for any identifier not handled above)
+    let variable = identifier.map(|word: String| Token::Variable(word));
 
     // Main token parser - try each option in order (most specific first)
     let token = choice((
@@ -192,11 +181,45 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         variable,           // Variables (identifiers that aren't units/keywords/line refs)
     ));
 
-    // Parse tokens separated by whitespace
-    token
+    // Parser for punctuation/separators to skip
+    let punctuation = choice((
+        just(':'),
+        just(';'),
+        just(','),
+        just('!'),
+        just('?'),
+        just('.'), // Keep it simple - decimal points in numbers are handled in number parser
+        just('"'),
+        just('\''),
+        just('`'),
+        just('|'),
+        just('&'),
+        just('#'),
+        just('@'),
+        just('$'),
+        just('%'),
+        just('^'),
+        just('~'),
+        just('['),
+        just(']'),
+        just('{'),
+        just('}'),
+        just('<'),
+        just('>'),
+    ));
+
+    // Combined parser that tries tokens first, then skips punctuation
+    let element = choice((
+        token.map(Some),
+        punctuation.to(None),
+    ));
+
+    // Parse elements separated by whitespace, filter out None (punctuation)
+    element
         .padded()
         .repeated()
-        .collect()
+        .collect::<Vec<_>>()
+        .map(|elements| elements.into_iter().flatten().collect())
         .then_ignore(end())
 }
 
@@ -585,9 +608,11 @@ mod tests {
         let result = parse_expression_chumsky("1 ++ 2");
         assert!(result.is_err(), "Should fail on double operators");
 
-        // Test invalid decimal
+        // Test that malformed decimals are now parsed as separate tokens
         let result = parse_expression_chumsky("1.2.3");
-        assert!(result.is_err(), "Should fail on invalid decimal");
+        assert!(result.is_ok(), "Should parse as separate tokens: 1.2 and 3");
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 2); // Should be [Number(1.2), Number(3)]
     }
 
     #[test]

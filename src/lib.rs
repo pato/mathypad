@@ -34,7 +34,6 @@ pub const FLOAT_EPSILON: f64 = f64::EPSILON;
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use crate::expression::{find_math_expression, parse_and_evaluate_with_context};
 
     // Helper function to evaluate expressions for testing
     pub fn evaluate_test_expression(input: &str) -> Option<String> {
@@ -43,12 +42,13 @@ pub mod test_helpers {
 
     // Helper function to get unit conversion results for testing
     pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
-        let expressions = find_math_expression(input);
-        for expr in expressions {
-            if let Some(result) = parse_and_evaluate_with_context(&expr, &[], 0) {
-                return Some(result);
-            }
+        // Use the new token-based approach
+        use crate::expression::{tokenize_with_units, evaluate_tokens_stream_with_context};
+        
+        if let Some(tokens) = tokenize_with_units(input) {
+            evaluate_tokens_stream_with_context(&tokens, &[], 0)
+        } else {
+            None
         }
-        None
     }
 }
