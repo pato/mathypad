@@ -1,4 +1,5 @@
 # Todo 
 
 - Doesn't seem to handle days or weeks
-- Add ability to save to markdown
+- Update the readme.md with all the latest functionality
+- Update the website with all the latest functionality
