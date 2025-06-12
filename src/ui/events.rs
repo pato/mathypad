@@ -30,9 +30,19 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| ui(f, &app))?;
 
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
+        // Check if we have active animations to determine timeout
+        let has_active_animations = app.result_animations.iter().any(|anim| {
+            anim.as_ref().map_or(false, |a| !a.is_complete())
+        });
+        
+        let timeout = if has_active_animations {
+            // Use a shorter timeout during animations for smooth rendering
+            Duration::from_millis(16) // ~60 FPS
+        } else {
+            // Use normal timeout when no animations are running
+            tick_rate.checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0))
+        };
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
@@ -77,8 +87,8 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        if last_tick.elapsed() >= tick_rate {
-            // Update animations on each tick
+        if last_tick.elapsed() >= tick_rate || has_active_animations {
+            // Update animations on each tick or when animations are active
             app.update_animations();
             last_tick = Instant::now();
         }
@@ -115,9 +125,19 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
     loop {
         terminal.draw(|f| ui(f, &app))?;
 
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
+        // Check if we have active animations to determine timeout
+        let has_active_animations = app.result_animations.iter().any(|anim| {
+            anim.as_ref().map_or(false, |a| !a.is_complete())
+        });
+        
+        let timeout = if has_active_animations {
+            // Use a shorter timeout during animations for smooth rendering
+            Duration::from_millis(16) // ~60 FPS
+        } else {
+            // Use normal timeout when no animations are running
+            tick_rate.checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0))
+        };
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
@@ -162,8 +182,8 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
             }
         }
 
-        if last_tick.elapsed() >= tick_rate {
-            // Update animations on each tick
+        if last_tick.elapsed() >= tick_rate || has_active_animations {
+            // Update animations on each tick or when animations are active
             app.update_animations();
             last_tick = Instant::now();
         }

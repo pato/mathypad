@@ -27,7 +27,7 @@ pub use ui::{run_interactive_mode, run_interactive_mode_with_file};
 pub use units::{Unit, UnitType, UnitValue};
 
 // Constants used throughout the application
-pub const TICK_RATE_MS: u64 = 250;
+pub const TICK_RATE_MS: u64 = 16; // ~60 FPS for smooth animations
 pub const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;
 pub const FLOAT_EPSILON: f64 = f64::EPSILON;
 
