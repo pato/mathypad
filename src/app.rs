@@ -5,6 +5,7 @@ use crate::{
     expression::{evaluate_with_variables, update_line_references_in_text},
 };
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Instant;
 
 /// Animation state for a result line
@@ -63,6 +64,8 @@ pub struct App {
     pub variables: HashMap<String, String>, // variable_name -> value_string
     pub mode: Mode,
     pub result_animations: Vec<Option<ResultAnimation>>, // Animation state for each result
+    pub file_path: Option<PathBuf>,                      // Path to the currently opened file
+    pub has_unsaved_changes: bool,                       // Track if there are unsaved changes
 }
 
 impl Default for App {
@@ -76,6 +79,8 @@ impl Default for App {
             variables: HashMap::new(),
             mode: Mode::Insert,            // Start in insert mode
             result_animations: vec![None], // Start with no animations
+            file_path: None,               // No file loaded initially
+            has_unsaved_changes: false,    // Start with no changes
         }
     }
 }
@@ -114,6 +119,7 @@ impl App {
             self.text_lines[self.cursor_line].insert(self.cursor_col, c);
             self.cursor_col += 1;
             self.update_result(self.cursor_line);
+            self.has_unsaved_changes = true;
         }
     }
 
@@ -125,6 +131,7 @@ impl App {
                 self.text_lines[self.cursor_line].remove(self.cursor_col - 1);
                 self.cursor_col -= 1;
                 self.update_result(self.cursor_line);
+                self.has_unsaved_changes = true;
             } else if self.cursor_line > 0 {
                 // Cursor is at beginning of line - merge with previous line
                 let current_line = self.text_lines.remove(self.cursor_line);
@@ -159,6 +166,7 @@ impl App {
                 for i in (self.cursor_line + 1)..self.text_lines.len() {
                     self.update_result(i);
                 }
+                self.has_unsaved_changes = true;
             }
         }
     }
@@ -200,6 +208,7 @@ impl App {
                 self.text_lines[self.cursor_line].drain(new_col..self.cursor_col);
                 self.cursor_col = new_col;
                 self.update_result(self.cursor_line);
+                self.has_unsaved_changes = true;
             }
         }
     }
@@ -257,6 +266,7 @@ impl App {
             for i in (self.cursor_line + 1)..self.text_lines.len() {
                 self.update_result(i);
             }
+            self.has_unsaved_changes = true;
         }
     }
 
@@ -473,6 +483,38 @@ impl App {
     /// Get the animation for a specific line
     pub fn get_result_animation(&self, line_index: usize) -> Option<&ResultAnimation> {
         self.result_animations.get(line_index)?.as_ref()
+    }
+
+    /// Save the current content to the file
+    pub fn save(&mut self) -> Result<(), std::io::Error> {
+        if let Some(ref path) = self.file_path {
+            use std::fs;
+            let content = self.text_lines.join("\n");
+            fs::write(path, content)?;
+            self.has_unsaved_changes = false;
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "No file path set",
+            ))
+        }
+    }
+
+    /// Save the current content to a new file
+    pub fn save_as(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
+        use std::fs;
+        let content = self.text_lines.join("\n");
+        fs::write(&path, content)?;
+        self.file_path = Some(path);
+        self.has_unsaved_changes = false;
+        Ok(())
+    }
+
+    /// Set the file path (used when loading a file)
+    pub fn set_file_path(&mut self, path: Option<PathBuf>) {
+        self.file_path = path;
+        self.has_unsaved_changes = false;
     }
 }
 

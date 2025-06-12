@@ -57,7 +57,11 @@ pub fn ui(f: &mut Frame, app: &App) {
 
 /// Render the main text editing area
 pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
-    let title = "Mathypad";
+    let title = if app.has_unsaved_changes {
+        "Mathypad * "
+    } else {
+        "Mathypad"
+    };
     let block = match app.mode {
         Mode::Insert => Block::default().title(title).borders(Borders::ALL),
         Mode::Normal => Block::default()

@@ -593,4 +593,171 @@ mod tests {
         assert_eq!(app.text_lines[0], "");
         assert_eq!(app.results[0], None);
     }
+
+    #[test]
+    fn test_save_functionality() {
+        use crate::App;
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Create a temporary file
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_path_buf();
+
+        // Create an app with some content
+        let mut app = App::default();
+        app.text_lines = vec![
+            "5 + 3".to_string(),
+            "x = 42".to_string(),
+            "x * 2".to_string(),
+        ];
+        app.results = vec![None, None, None];
+        app.set_file_path(Some(temp_path.clone()));
+
+        // Verify initial state
+        assert!(!app.has_unsaved_changes);
+
+        // Make a change - move cursor to end of first line then insert
+        app.cursor_col = 5; // Move to end of "5 + 3"
+        app.insert_char('!');
+        assert!(app.has_unsaved_changes);
+
+        // Save the file
+        app.save().unwrap();
+        assert!(!app.has_unsaved_changes);
+
+        // Verify the file content
+        let saved_content = fs::read_to_string(&temp_path).unwrap();
+        assert_eq!(saved_content, "5 + 3!\nx = 42\nx * 2");
+    }
+
+    #[test]
+    fn test_save_as_functionality() {
+        use crate::App;
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Create an app with some content but no file path
+        let mut app = App::default();
+        app.text_lines = vec!["test content".to_string()];
+        app.results = vec![None];
+        app.has_unsaved_changes = true;
+
+        // Create a temporary file to save to
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_path_buf();
+
+        // Save as new file
+        app.save_as(temp_path.clone()).unwrap();
+
+        // Verify state after save_as
+        assert_eq!(app.file_path, Some(temp_path.clone()));
+        assert!(!app.has_unsaved_changes);
+
+        // Verify the file content
+        let saved_content = fs::read_to_string(&temp_path).unwrap();
+        assert_eq!(saved_content, "test content");
+    }
+
+    #[test]
+    fn test_unsaved_changes_tracking() {
+        use crate::App;
+
+        let mut app = App::default();
+
+        // Initially no unsaved changes
+        assert!(!app.has_unsaved_changes);
+
+        // Insert character should mark as unsaved
+        app.insert_char('a');
+        assert!(app.has_unsaved_changes);
+
+        // Set file path and clear unsaved flag
+        app.has_unsaved_changes = false;
+
+        // Delete character should mark as unsaved
+        app.delete_char();
+        assert!(app.has_unsaved_changes);
+
+        // Clear unsaved flag
+        app.has_unsaved_changes = false;
+
+        // New line should mark as unsaved
+        app.new_line();
+        assert!(app.has_unsaved_changes);
+
+        // Clear unsaved flag
+        app.has_unsaved_changes = false;
+
+        // Delete word should mark as unsaved
+        app.text_lines[0] = "hello world".to_string();
+        app.cursor_line = 0; // Make sure we're on the line with text
+        app.cursor_col = 11;
+        app.delete_word();
+        assert!(app.has_unsaved_changes);
+    }
+    
+    #[test]
+    fn test_loading_non_existent_file() {
+        use crate::App;
+        use tempfile::TempDir;
+        
+        // Create a temporary directory
+        let temp_dir = TempDir::new().unwrap();
+        let non_existent_file = temp_dir.path().join("does_not_exist.mathypad");
+        
+        // Verify the file doesn't exist
+        assert!(!non_existent_file.exists());
+        
+        // Test the behavior by creating an app and setting a non-existent file path
+        let mut app = App::default();
+        
+        // Set a non-existent file path
+        app.set_file_path(Some(non_existent_file.clone()));
+        
+        // Add some content
+        app.insert_char('t');
+        app.insert_char('e');
+        app.insert_char('s');
+        app.insert_char('t');
+        
+        // Save should create the file
+        app.save().unwrap();
+        
+        // Verify the file was created
+        assert!(non_existent_file.exists());
+        
+        // Verify the content
+        let content = std::fs::read_to_string(&non_existent_file).unwrap();
+        assert_eq!(content, "test");
+    }
+    
+    #[test]
+    fn test_non_existent_file_creation() {
+        use crate::App;
+        use tempfile::TempDir;
+        
+        // Create a temporary directory
+        let temp_dir = TempDir::new().unwrap();
+        let non_existent_file = temp_dir.path().join("new_file.mathypad");
+        
+        // Verify the file doesn't exist
+        assert!(!non_existent_file.exists());
+        
+        // Test that we can create a new file by setting a path and saving
+        let mut app = App::default();
+        app.set_file_path(Some(non_existent_file.clone()));
+        app.insert_char('h');
+        app.insert_char('i');
+        
+        // File still shouldn't exist until we save
+        assert!(!non_existent_file.exists());
+        
+        // Save should create it
+        app.save().unwrap();
+        assert!(non_existent_file.exists());
+        
+        let content = std::fs::read_to_string(&non_existent_file).unwrap();
+        assert_eq!(content, "hi");
+    }
 }

@@ -31,16 +31,18 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
         terminal.draw(|f| ui(f, &app))?;
 
         // Check if we have active animations to determine timeout
-        let has_active_animations = app.result_animations.iter().any(|anim| {
-            anim.as_ref().map_or(false, |a| !a.is_complete())
-        });
-        
+        let has_active_animations = app
+            .result_animations
+            .iter()
+            .any(|anim| anim.as_ref().map_or(false, |a| !a.is_complete()));
+
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering
             Duration::from_millis(16) // ~60 FPS
         } else {
             // Use normal timeout when no animations are running
-            tick_rate.checked_sub(last_tick.elapsed())
+            tick_rate
+                .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0))
         };
 
@@ -53,6 +55,12 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
+                            // Auto-save on exit if there are unsaved changes and a file path
+                            if app.has_unsaved_changes && app.file_path.is_some() {
+                                if let Err(e) = app.save() {
+                                    eprintln!("Auto-save failed: {}", e);
+                                }
+                            }
                             break;
                         }
                         KeyCode::Char('c')
@@ -60,6 +68,12 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
+                            // Auto-save on exit if there are unsaved changes and a file path
+                            if app.has_unsaved_changes && app.file_path.is_some() {
+                                if let Err(e) = app.save() {
+                                    eprintln!("Auto-save failed: {}", e);
+                                }
+                            }
                             break;
                         }
                         KeyCode::Char('w')
@@ -69,6 +83,17 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                         {
                             if app.mode == Mode::Insert {
                                 app.delete_word();
+                            }
+                        }
+                        KeyCode::Char('s')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            if let Err(e) = app.save() {
+                                // For now, just ignore save errors in the UI
+                                // In a full implementation, you might show an error message
+                                eprintln!("Save failed: {}", e);
                             }
                         }
                         KeyCode::Esc => {
@@ -126,16 +151,18 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         terminal.draw(|f| ui(f, &app))?;
 
         // Check if we have active animations to determine timeout
-        let has_active_animations = app.result_animations.iter().any(|anim| {
-            anim.as_ref().map_or(false, |a| !a.is_complete())
-        });
-        
+        let has_active_animations = app
+            .result_animations
+            .iter()
+            .any(|anim| anim.as_ref().map_or(false, |a| !a.is_complete()));
+
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering
             Duration::from_millis(16) // ~60 FPS
         } else {
             // Use normal timeout when no animations are running
-            tick_rate.checked_sub(last_tick.elapsed())
+            tick_rate
+                .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0))
         };
 
@@ -148,6 +175,12 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
+                            // Auto-save on exit if there are unsaved changes and a file path
+                            if app.has_unsaved_changes && app.file_path.is_some() {
+                                if let Err(e) = app.save() {
+                                    eprintln!("Auto-save failed: {}", e);
+                                }
+                            }
                             break;
                         }
                         KeyCode::Char('c')
@@ -155,6 +188,12 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
+                            // Auto-save on exit if there are unsaved changes and a file path
+                            if app.has_unsaved_changes && app.file_path.is_some() {
+                                if let Err(e) = app.save() {
+                                    eprintln!("Auto-save failed: {}", e);
+                                }
+                            }
                             break;
                         }
                         KeyCode::Char('w')
@@ -164,6 +203,17 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                         {
                             if app.mode == Mode::Insert {
                                 app.delete_word();
+                            }
+                        }
+                        KeyCode::Char('s')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            if let Err(e) = app.save() {
+                                // For now, just ignore save errors in the UI
+                                // In a full implementation, you might show an error message
+                                eprintln!("Save failed: {}", e);
                             }
                         }
                         KeyCode::Esc => {
@@ -200,9 +250,18 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
     Ok(())
 }
 
-/// Load an App from a file
+/// Load an App from a file, creating the file if it doesn't exist
 fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
-    let contents = fs::read_to_string(&path)?;
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            // File doesn't exist, create it with empty content
+            // We don't actually write the file yet - it will be created on first save
+            String::new()
+        }
+        Err(e) => return Err(Box::new(e)),
+    };
+    
     let mut app = App::default();
 
     // Clear the default empty line if we have file content
@@ -228,6 +287,14 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
 
     // Recalculate all lines
     app.recalculate_all();
+
+    // Set the file path and mark as saved (for existing files) or unsaved (for new files)
+    app.set_file_path(Some(path.clone()));
+    
+    // If the file didn't exist, mark it as having unsaved changes so it gets created on save
+    if !path.exists() {
+        app.has_unsaved_changes = true;
+    }
 
     Ok(app)
 }
