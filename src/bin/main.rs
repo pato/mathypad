@@ -24,6 +24,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .version(crate_version!())
         .about("A mathematical notepad with unit conversion support")
         .arg(
+            Arg::new("help_alt")
+                .short('?')
+                .action(clap::ArgAction::Help)
+                .help("Print help"),
+        )
+        .arg(
             Arg::new("file")
                 .help("File to open")
                 .value_name("FILE")
