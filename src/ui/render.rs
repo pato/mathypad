@@ -126,7 +126,7 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
             // Check if it's a valid unit, keyword, line reference, or variable
             if parse_line_reference(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
-            } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" {
+            } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" || word_text.to_lowercase() == "of" {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Yellow)));
             } else if parse_unit(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
@@ -170,6 +170,13 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
                 spans.push(Span::raw(chars[start_pos].to_string()));
                 current_pos = start_pos + 1;
             }
+        } else if chars[current_pos] == '%' {
+            // Handle percentage symbol as a unit
+            spans.push(Span::styled(
+                "%".to_string(),
+                Style::default().fg(Color::Green),
+            ));
+            current_pos += 1;
         } else if "+-*/()=".contains(chars[current_pos]) {
             // Handle operators (including assignment)
             spans.push(Span::styled(
