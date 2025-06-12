@@ -181,6 +181,12 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
     let contents = fs::read_to_string(&path)?;
     let mut app = App::default();
 
+    // Clear the default empty line if we have file content
+    if !contents.trim().is_empty() {
+        app.text_lines.clear();
+        app.results.clear();
+    }
+
     // Split the contents into lines and load them into the app
     for line in contents.lines() {
         app.text_lines.push(line.to_string());

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn Error>> {
     // Get command line arguments
     let args: Vec<String> = std::env::args().collect();
-    
+
     // Check for "--" separator first (one-shot mode)
     if let Some(dash_pos) = args.iter().position(|arg| arg == "--") {
         let expression_parts: Vec<String> = args.iter().skip(dash_pos + 1).cloned().collect();
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
     }
-    
+
     // Use clap for file argument and help/version
     let matches = Command::new("mathypad")
         .version(crate_version!())
@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
         .after_help("Examples:\n  mathypad                      # Start empty interactive mode\n  mathypad calculations.txt     # Open file in interactive mode\n  mathypad -- \"100 GB to GiB\"   # One-shot calculation")
         .get_matches();
-    
+
     // Check if we have a file to open
     let file_path = matches.get_one::<String>("file").map(PathBuf::from);
 

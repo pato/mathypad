@@ -533,19 +533,19 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         fs::write(temp_file.path(), file_content).unwrap();
 
-        // Load the file into an App
+        // Load the file into an App using our load function logic
         let mut app = App::default();
         let contents = fs::read_to_string(temp_file.path()).unwrap();
+
+        // Clear the default empty line if we have file content
+        if !contents.trim().is_empty() {
+            app.text_lines.clear();
+            app.results.clear();
+        }
 
         for line in contents.lines() {
             app.text_lines.push(line.to_string());
             app.results.push(None);
-        }
-
-        // Remove the default empty line if we added content
-        if app.text_lines.len() > 1 && app.text_lines[0].is_empty() {
-            app.text_lines.remove(0);
-            app.results.remove(0);
         }
 
         app.recalculate_all();
