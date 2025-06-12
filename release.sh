@@ -9,7 +9,7 @@ echo "========================================"
 echo
 
 # Step 1: Generate changelog preview
-echo "[1/6] Generating changelog preview..."
+echo "[1/9] Generating changelog preview..."
 if ! git cliff --bump > temp_changelog.md; then
     echo "ERROR: Failed to generate changelog preview"
     rm -f temp_changelog.md
@@ -30,7 +30,7 @@ echo "Found new version: $NEW_VERSION"
 echo
 
 # Step 2: Show changes for the new version
-echo "[2/6] Changes in version $NEW_VERSION:"
+echo "[2/9] Changes in version $NEW_VERSION:"
 echo "========================================"
 
 # Extract content between the first ## and second ## (or end of file)
@@ -60,7 +60,7 @@ echo "Proceeding with release $NEW_VERSION..."
 echo
 
 # Step 4: Write the changelog file
-echo "[3/6] Writing changelog file..."
+echo "[3/9] Writing changelog file..."
 if ! git cliff --bump -o CHANGELOG.md; then
     echo "ERROR: Failed to write changelog file"
     rm -f temp_changelog.md
@@ -68,7 +68,7 @@ if ! git cliff --bump -o CHANGELOG.md; then
 fi
 
 # Step 5: Update Cargo.toml version
-echo "[4/6] Updating Cargo.toml version to $NEW_VERSION..."
+echo "[4/9] Updating Cargo.toml version to $NEW_VERSION..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
     sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
@@ -78,7 +78,7 @@ else
 fi
 
 # Step 6: Run cargo check to update lock file
-echo "[5/6] Running cargo check to update lock file..."
+echo "[5/9] Running cargo check to update lock file..."
 if ! cargo check; then
     echo "ERROR: cargo check failed"
     rm -f temp_changelog.md
@@ -86,7 +86,7 @@ if ! cargo check; then
 fi
 
 # Step 7: Git commit
-echo "[6/6] Creating git commit and tag..."
+echo "[6/9] Creating git commit..."
 git add CHANGELOG.md Cargo.toml Cargo.lock
 if ! git commit -m "no ai: v$NEW_VERSION"; then
     echo "ERROR: Git commit failed"
@@ -95,7 +95,7 @@ if ! git commit -m "no ai: v$NEW_VERSION"; then
 fi
 
 # Step 8: Create git tag with changelog content
-echo "Creating git tag v$NEW_VERSION..."
+echo "[7/9] Creating git tag v$NEW_VERSION..."
 
 # Extract just the changes for this version (without the version header)
 awk '
@@ -114,6 +114,24 @@ if ! git tag -a "v$NEW_VERSION" -F tag_message.tmp; then
     exit 1
 fi
 
+# Step 9: Push to remote with tags
+echo "[8/9] Pushing to remote repository..."
+if ! git push origin main --tags; then
+    echo "ERROR: Git push failed"
+    rm -f temp_changelog.md tag_message.tmp
+    exit 1
+fi
+
+# Step 10: Publish to crates.io
+echo "[9/9] Publishing to crates.io..."
+if ! cargo publish; then
+    echo "ERROR: cargo publish failed"
+    echo "The commit and tag have been pushed, but crates.io publish failed."
+    echo "You may need to run 'cargo publish' manually."
+    rm -f temp_changelog.md tag_message.tmp
+    exit 1
+fi
+
 # Cleanup
 rm -f temp_changelog.md tag_message.tmp
 
@@ -122,8 +140,14 @@ echo "========================================"
 echo "    Release v$NEW_VERSION completed successfully!"
 echo "========================================"
 echo
-echo "Next steps:"
-echo "  1. Review the commit and tag: git log --oneline -n 2"
-echo "  2. Push to remote: git push origin main --tags"
-echo "  3. Create release on GitHub if needed"
+echo "✅ Changelog updated"
+echo "✅ Version bumped in Cargo.toml"
+echo "✅ Git commit created"
+echo "✅ Git tag created"
+echo "✅ Pushed to remote repository"
+echo "✅ Published to crates.io"
+echo
+echo "Your release is now live!"
+echo "  📦 crates.io: https://crates.io/crates/mathypad"
+echo "  🏷️ GitHub: https://github.com/pato/mathypad/releases/tag/v$NEW_VERSION"
 echo
