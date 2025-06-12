@@ -52,10 +52,8 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
         )];
 
         if start_line + i == app.cursor_line {
-            let (before_cursor, after_cursor) = line_text.split_at(app.cursor_col);
-            spans.extend(parse_colors(before_cursor, &app.variables));
-            spans.push(Span::styled("█", Style::default().fg(Color::White)));
-            spans.extend(parse_colors(after_cursor, &app.variables));
+            // Parse with cursor highlighting
+            spans.extend(parse_colors_with_cursor(line_text, app.cursor_col, &app.variables));
         } else {
             spans.extend(parse_colors(line_text, &app.variables));
         }
@@ -189,6 +187,168 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
             spans.push(Span::raw(chars[current_pos].to_string()));
             current_pos += 1;
         }
+    }
+
+    spans
+}
+
+/// Parse text and return colored spans with cursor highlighting
+pub fn parse_colors_with_cursor<'a>(text: &'a str, cursor_col: usize, variables: &'a HashMap<String, String>) -> Vec<Span<'a>> {
+    let mut spans = Vec::new();
+    let mut current_pos = 0;
+    let chars: Vec<char> = text.chars().collect();
+    let mut char_index = 0; // Track character position for cursor
+
+    while current_pos < chars.len() {
+        if chars[current_pos].is_ascii_alphabetic() {
+            // Handle potential units, keywords, and line references first
+            let start_pos = current_pos;
+            let start_char_index = char_index;
+
+            while current_pos < chars.len()
+                && (chars[current_pos].is_ascii_alphabetic()
+                    || chars[current_pos].is_ascii_digit()
+                    || chars[current_pos] == '/')
+            {
+                current_pos += 1;
+                char_index += 1;
+            }
+
+            let word_text: String = chars[start_pos..current_pos].iter().collect();
+
+            // Determine the style for this word
+            let style = if parse_line_reference(&word_text).is_some() {
+                Style::default().fg(Color::Magenta)
+            } else if word_text.to_lowercase() == "to" || word_text.to_lowercase() == "in" || word_text.to_lowercase() == "of" {
+                Style::default().fg(Color::Yellow)
+            } else if parse_unit(&word_text).is_some() {
+                Style::default().fg(Color::Green)
+            } else if variables.contains_key(&word_text) {
+                Style::default().fg(Color::LightCyan)
+            } else {
+                Style::default()
+            };
+
+            // Check if cursor is within this word
+            if cursor_col >= start_char_index && cursor_col < char_index {
+                // Split the word to highlight the cursor character
+                let cursor_offset = cursor_col - start_char_index;
+                let word_chars: Vec<char> = word_text.chars().collect();
+                
+                if cursor_offset > 0 {
+                    let before: String = word_chars[..cursor_offset].iter().collect();
+                    spans.push(Span::styled(before, style));
+                }
+                
+                let cursor_char = word_chars[cursor_offset];
+                spans.push(Span::styled(
+                    cursor_char.to_string(),
+                    style.bg(Color::White).fg(Color::Black)
+                ));
+                
+                if cursor_offset + 1 < word_chars.len() {
+                    let after: String = word_chars[cursor_offset + 1..].iter().collect();
+                    spans.push(Span::styled(after, style));
+                }
+            } else {
+                spans.push(Span::styled(word_text, style));
+            }
+        } else if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
+            // Handle numbers
+            let start_pos = current_pos;
+            let start_char_index = char_index;
+            let mut has_digit = false;
+            let mut has_dot = false;
+
+            while current_pos < chars.len() {
+                let ch = chars[current_pos];
+                if ch.is_ascii_digit() {
+                    has_digit = true;
+                    current_pos += 1;
+                    char_index += 1;
+                } else if ch == '.' && !has_dot {
+                    has_dot = true;
+                    current_pos += 1;
+                    char_index += 1;
+                } else if ch == ',' {
+                    current_pos += 1;
+                    char_index += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if has_digit {
+                let number_text: String = chars[start_pos..current_pos].iter().collect();
+                let style = Style::default().fg(Color::LightBlue);
+
+                // Check if cursor is within this number
+                if cursor_col >= start_char_index && cursor_col < char_index {
+                    let cursor_offset = cursor_col - start_char_index;
+                    let number_chars: Vec<char> = number_text.chars().collect();
+                    
+                    if cursor_offset > 0 {
+                        let before: String = number_chars[..cursor_offset].iter().collect();
+                        spans.push(Span::styled(before, style));
+                    }
+                    
+                    let cursor_char = number_chars[cursor_offset];
+                    spans.push(Span::styled(
+                        cursor_char.to_string(),
+                        style.bg(Color::White).fg(Color::Black)
+                    ));
+                    
+                    if cursor_offset + 1 < number_chars.len() {
+                        let after: String = number_chars[cursor_offset + 1..].iter().collect();
+                        spans.push(Span::styled(after, style));
+                    }
+                } else {
+                    spans.push(Span::styled(number_text, style));
+                }
+            } else {
+                let ch = chars[start_pos];
+                if cursor_col == char_index {
+                    spans.push(Span::styled(
+                        ch.to_string(),
+                        Style::default().bg(Color::White).fg(Color::Black)
+                    ));
+                } else {
+                    spans.push(Span::raw(ch.to_string()));
+                }
+                current_pos = start_pos + 1;
+                char_index += 1;
+            }
+        } else {
+            // Handle single characters (operators, punctuation, etc.)
+            let ch = chars[current_pos];
+            let style = if ch == '%' {
+                Style::default().fg(Color::Green)
+            } else if "+-*/()=".contains(ch) {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default()
+            };
+
+            if cursor_col == char_index {
+                spans.push(Span::styled(
+                    ch.to_string(),
+                    style.bg(Color::White).fg(Color::Black)
+                ));
+            } else {
+                spans.push(Span::styled(ch.to_string(), style));
+            }
+            
+            current_pos += 1;
+            char_index += 1;
+        }
+    }
+
+    // If cursor is at the end of the line, add a space with cursor background
+    if cursor_col == char_index {
+        spans.push(Span::styled(
+            " ",
+            Style::default().bg(Color::White).fg(Color::Black)
+        ));
     }
 
     spans
