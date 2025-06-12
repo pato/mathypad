@@ -66,6 +66,10 @@ pub struct App {
     pub result_animations: Vec<Option<ResultAnimation>>, // Animation state for each result
     pub file_path: Option<PathBuf>,                      // Path to the currently opened file
     pub has_unsaved_changes: bool,                       // Track if there are unsaved changes
+    pub show_unsaved_dialog: bool,                       // Show the unsaved changes dialog
+    pub show_save_as_dialog: bool,                       // Show the save as dialog
+    pub save_as_input: String,                           // Current input for save as filename
+    pub save_as_and_quit: bool,                          // Whether to quit after saving in save as dialog
 }
 
 impl Default for App {
@@ -81,6 +85,10 @@ impl Default for App {
             result_animations: vec![None], // Start with no animations
             file_path: None,               // No file loaded initially
             has_unsaved_changes: false,    // Start with no changes
+            show_unsaved_dialog: false,    // Start without showing dialog
+            show_save_as_dialog: false,    // Start without showing save as dialog
+            save_as_input: String::new(),  // Start with empty filename input
+            save_as_and_quit: false,       // Start without quit flag
         }
     }
 }
@@ -515,6 +523,29 @@ impl App {
     pub fn set_file_path(&mut self, path: Option<PathBuf>) {
         self.file_path = path;
         self.has_unsaved_changes = false;
+    }
+
+    /// Show the save as dialog
+    pub fn show_save_as_dialog(&mut self, quit_after_save: bool) {
+        self.show_save_as_dialog = true;
+        self.save_as_and_quit = quit_after_save;
+        self.save_as_input.clear();
+    }
+
+    /// Try to save with the current save-as filename
+    pub fn save_as_from_dialog(&mut self) -> Result<bool, std::io::Error> {
+        if !self.save_as_input.trim().is_empty() {
+            let path = PathBuf::from(self.save_as_input.trim());
+            self.save_as(path)?;
+            self.show_save_as_dialog = false;
+            
+            let should_quit = self.save_as_and_quit;
+            self.save_as_and_quit = false;
+            Ok(should_quit)
+        } else {
+            // Empty filename, don't save
+            Ok(false)
+        }
     }
 }
 

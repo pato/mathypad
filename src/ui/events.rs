@@ -55,26 +55,34 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            // Auto-save on exit if there are unsaved changes and a file path
-                            if app.has_unsaved_changes && app.file_path.is_some() {
-                                if let Err(e) = app.save() {
-                                    eprintln!("Auto-save failed: {}", e);
-                                }
+                            // Check if we're showing the unsaved dialog
+                            if app.show_unsaved_dialog {
+                                // In dialog: Ctrl+Q means quit without saving
+                                break;
+                            } else if app.has_unsaved_changes {
+                                // Show unsaved changes dialog
+                                app.show_unsaved_dialog = true;
+                            } else {
+                                // No unsaved changes, exit immediately
+                                break;
                             }
-                            break;
                         }
                         KeyCode::Char('c')
                             if key
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            // Auto-save on exit if there are unsaved changes and a file path
-                            if app.has_unsaved_changes && app.file_path.is_some() {
-                                if let Err(e) = app.save() {
-                                    eprintln!("Auto-save failed: {}", e);
-                                }
+                            // Check if we're showing the unsaved dialog
+                            if app.show_unsaved_dialog {
+                                // In dialog: Ctrl+C means quit without saving
+                                break;
+                            } else if app.has_unsaved_changes {
+                                // Show unsaved changes dialog
+                                app.show_unsaved_dialog = true;
+                            } else {
+                                // No unsaved changes, exit immediately
+                                break;
                             }
-                            break;
                         }
                         KeyCode::Char('w')
                             if key
@@ -90,23 +98,74 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            if let Err(e) = app.save() {
-                                // For now, just ignore save errors in the UI
-                                // In a full implementation, you might show an error message
-                                eprintln!("Save failed: {}", e);
+                            if app.show_save_as_dialog {
+                                // In save as dialog: Ctrl+S means confirm save
+                                match app.save_as_from_dialog() {
+                                    Ok(should_quit) => {
+                                        if should_quit {
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Save failed: {}", e);
+                                    }
+                                }
+                            } else if app.show_unsaved_dialog {
+                                // In unsaved dialog: Ctrl+S means save and quit
+                                if app.file_path.is_some() {
+                                    if let Err(e) = app.save() {
+                                        eprintln!("Save failed: {}", e);
+                                    } else {
+                                        // Save succeeded, exit
+                                        break;
+                                    }
+                                } else {
+                                    // No filename, show save as dialog
+                                    app.show_unsaved_dialog = false;
+                                    app.show_save_as_dialog(true);
+                                }
+                            } else {
+                                // Normal save operation
+                                if app.file_path.is_some() {
+                                    if let Err(e) = app.save() {
+                                        eprintln!("Save failed: {}", e);
+                                    }
+                                } else {
+                                    // No filename, show save as dialog
+                                    app.show_save_as_dialog(false);
+                                }
                             }
                         }
                         KeyCode::Esc => {
-                            app.mode = Mode::Normal;
+                            if app.show_save_as_dialog {
+                                // Dismiss the save as dialog
+                                app.show_save_as_dialog = false;
+                                app.save_as_and_quit = false;
+                            } else if app.show_unsaved_dialog {
+                                // Dismiss the unsaved changes dialog
+                                app.show_unsaved_dialog = false;
+                            } else {
+                                app.mode = Mode::Normal;
+                            }
                         }
-                        _ => match app.mode {
-                            Mode::Insert => {
-                                handle_insert_mode(&mut app, key.code);
+                        _ => {
+                            if app.show_save_as_dialog {
+                                // Handle text input for save as dialog
+                                if handle_save_as_input(&mut app, key.code) {
+                                    break;
+                                }
+                            } else if !app.show_unsaved_dialog {
+                                // Only handle normal input if we're not showing any dialog
+                                match app.mode {
+                                    Mode::Insert => {
+                                        handle_insert_mode(&mut app, key.code);
+                                    }
+                                    Mode::Normal => {
+                                        handle_normal_mode(&mut app, key.code);
+                                    }
+                                }
                             }
-                            Mode::Normal => {
-                                handle_normal_mode(&mut app, key.code);
-                            }
-                        },
+                        }
                     }
                 }
             }
@@ -175,26 +234,34 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            // Auto-save on exit if there are unsaved changes and a file path
-                            if app.has_unsaved_changes && app.file_path.is_some() {
-                                if let Err(e) = app.save() {
-                                    eprintln!("Auto-save failed: {}", e);
-                                }
+                            // Check if we're showing the unsaved dialog
+                            if app.show_unsaved_dialog {
+                                // In dialog: Ctrl+Q means quit without saving
+                                break;
+                            } else if app.has_unsaved_changes {
+                                // Show unsaved changes dialog
+                                app.show_unsaved_dialog = true;
+                            } else {
+                                // No unsaved changes, exit immediately
+                                break;
                             }
-                            break;
                         }
                         KeyCode::Char('c')
                             if key
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            // Auto-save on exit if there are unsaved changes and a file path
-                            if app.has_unsaved_changes && app.file_path.is_some() {
-                                if let Err(e) = app.save() {
-                                    eprintln!("Auto-save failed: {}", e);
-                                }
+                            // Check if we're showing the unsaved dialog
+                            if app.show_unsaved_dialog {
+                                // In dialog: Ctrl+C means quit without saving
+                                break;
+                            } else if app.has_unsaved_changes {
+                                // Show unsaved changes dialog
+                                app.show_unsaved_dialog = true;
+                            } else {
+                                // No unsaved changes, exit immediately
+                                break;
                             }
-                            break;
                         }
                         KeyCode::Char('w')
                             if key
@@ -210,23 +277,74 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                 .modifiers
                                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
                         {
-                            if let Err(e) = app.save() {
-                                // For now, just ignore save errors in the UI
-                                // In a full implementation, you might show an error message
-                                eprintln!("Save failed: {}", e);
+                            if app.show_save_as_dialog {
+                                // In save as dialog: Ctrl+S means confirm save
+                                match app.save_as_from_dialog() {
+                                    Ok(should_quit) => {
+                                        if should_quit {
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Save failed: {}", e);
+                                    }
+                                }
+                            } else if app.show_unsaved_dialog {
+                                // In unsaved dialog: Ctrl+S means save and quit
+                                if app.file_path.is_some() {
+                                    if let Err(e) = app.save() {
+                                        eprintln!("Save failed: {}", e);
+                                    } else {
+                                        // Save succeeded, exit
+                                        break;
+                                    }
+                                } else {
+                                    // No filename, show save as dialog
+                                    app.show_unsaved_dialog = false;
+                                    app.show_save_as_dialog(true);
+                                }
+                            } else {
+                                // Normal save operation
+                                if app.file_path.is_some() {
+                                    if let Err(e) = app.save() {
+                                        eprintln!("Save failed: {}", e);
+                                    }
+                                } else {
+                                    // No filename, show save as dialog
+                                    app.show_save_as_dialog(false);
+                                }
                             }
                         }
                         KeyCode::Esc => {
-                            app.mode = Mode::Normal;
+                            if app.show_save_as_dialog {
+                                // Dismiss the save as dialog
+                                app.show_save_as_dialog = false;
+                                app.save_as_and_quit = false;
+                            } else if app.show_unsaved_dialog {
+                                // Dismiss the unsaved changes dialog
+                                app.show_unsaved_dialog = false;
+                            } else {
+                                app.mode = Mode::Normal;
+                            }
                         }
-                        _ => match app.mode {
-                            Mode::Insert => {
-                                handle_insert_mode(&mut app, key.code);
+                        _ => {
+                            if app.show_save_as_dialog {
+                                // Handle text input for save as dialog
+                                if handle_save_as_input(&mut app, key.code) {
+                                    break;
+                                }
+                            } else if !app.show_unsaved_dialog {
+                                // Only handle normal input if we're not showing any dialog
+                                match app.mode {
+                                    Mode::Insert => {
+                                        handle_insert_mode(&mut app, key.code);
+                                    }
+                                    Mode::Normal => {
+                                        handle_normal_mode(&mut app, key.code);
+                                    }
+                                }
                             }
-                            Mode::Normal => {
-                                handle_normal_mode(&mut app, key.code);
-                            }
-                        },
+                        }
                     }
                 }
             }
@@ -389,5 +507,30 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
             app.move_cursor_right();
         }
         _ => {}
+    }
+}
+/// Handle key events for save as dialog input
+/// Returns true if the application should exit
+fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Char(c) => {
+            app.save_as_input.push(c);
+            false
+        }
+        KeyCode::Backspace => {
+            app.save_as_input.pop();
+            false
+        }
+        KeyCode::Enter => {
+            // Save with the entered filename
+            match app.save_as_from_dialog() {
+                Ok(should_quit) => should_quit,
+                Err(e) => {
+                    eprintln!("Save failed: {}", e);
+                    false
+                }
+            }
+        }
+        _ => false
     }
 }
