@@ -92,7 +92,11 @@ impl App {
                     self.text_lines[self.cursor_line].push_str(&current_line);
                 }
                 
+                // Re-evaluate all lines after deletion to ensure line references resolve correctly
                 self.update_result(self.cursor_line);
+                for i in (self.cursor_line + 1)..self.text_lines.len() {
+                    self.update_result(i);
+                }
             }
         }
     }
@@ -167,8 +171,17 @@ impl App {
             
             self.cursor_line += 1;
             self.cursor_col = 0;
-            self.update_result(self.cursor_line - 1);
-            self.update_result(self.cursor_line);
+            
+            // Make sure to evaluate all lines in the correct order
+            // First evaluate the lines that were directly affected by the split
+            self.update_result(self.cursor_line - 1); // Line 0
+            self.update_result(self.cursor_line);     // Line 1
+            
+            // Then re-evaluate any lines that had their references updated
+            // This ensures line references can resolve correctly
+            for i in (self.cursor_line + 1)..self.text_lines.len() {
+                self.update_result(i);
+            }
         }
     }
 
@@ -412,10 +425,79 @@ mod app_tests {
         assert!(app.text_lines[2].contains("line2"), 
                "Expected line reference to be updated to 'line2', got: '{}'", app.text_lines[2]);
         
-        // Verify that the expression still evaluates correctly
+        // The key test: verify that the expression evaluates correctly automatically
         // line2 should now refer to "5" on line 2, so "line2 + 1" should be 6
-        app.update_result(2);
         assert_eq!(app.results[2], Some("6".to_string()), 
-                  "Expected 'line2 + 1' to evaluate to 6, got: {:?}", app.results[2]);
+                  "Expected 'line2 + 1' to evaluate to 6 automatically, got: {:?}", app.results[2]);
+    }
+    
+    #[test]
+    fn test_deletion_with_line_references() {
+        let mut app = App::default();
+        
+        // Set up: after line splitting we have ["", "5", "line2 + 1"]
+        app.text_lines = vec!["".to_string(), "5".to_string(), "line2 + 1".to_string()];
+        app.results = vec![None, None, None];
+        app.update_result(0);
+        app.update_result(1); 
+        app.update_result(2);
+        
+        // Verify initial state works
+        assert_eq!(app.results[1], Some("5".to_string()));
+        assert_eq!(app.results[2], Some("6".to_string()));
+        
+        // Now delete the empty first line by positioning cursor at beginning of line 2 and hitting backspace
+        app.cursor_line = 1;
+        app.cursor_col = 0;
+        app.delete_char(); // This should merge lines and update references
+        
+        // Expected result: ["5", "line1 + 1"] (reference should go back to line1)
+        assert_eq!(app.text_lines.len(), 2);
+        assert_eq!(app.text_lines[0], "5");
+        assert!(app.text_lines[1].contains("line1"), 
+               "Expected 'line2' to be updated back to 'line1', got: '{}'", app.text_lines[1]);
+        
+        // The critical test: expression should still evaluate correctly
+        assert_eq!(app.results[1], Some("6".to_string()), 
+                  "Expected 'line1 + 1' to evaluate to 6 after deletion, got: {:?}", app.results[1]);
+    }
+    
+    #[test]
+    fn test_full_user_workflow_add_then_remove_lines() {
+        let mut app = App::default();
+        
+        // Start with the user's original notebook
+        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.results = vec![None, None];
+        app.update_result(0);
+        app.update_result(1);
+        
+        // Verify initial state: 5, line1 + 1 = 6
+        assert_eq!(app.results[0], Some("5".to_string()));
+        assert_eq!(app.results[1], Some("6".to_string()));
+        
+        // Step 1: Hit enter at beginning of "5" (add lines)
+        app.cursor_line = 0;
+        app.cursor_col = 0;
+        app.new_line();
+        
+        // Should have: ["", "5", "line2 + 1"] with line2 + 1 = 6
+        assert_eq!(app.text_lines.len(), 3);
+        assert_eq!(app.text_lines[0], "");
+        assert_eq!(app.text_lines[1], "5");
+        assert!(app.text_lines[2].contains("line2"));
+        assert_eq!(app.results[2], Some("6".to_string()));
+        
+        // Step 2: Remove the empty line (delete lines)
+        app.cursor_line = 1;
+        app.cursor_col = 0;
+        app.delete_char();
+        
+        // Should be back to: ["5", "line1 + 1"] with line1 + 1 = 6
+        assert_eq!(app.text_lines.len(), 2);
+        assert_eq!(app.text_lines[0], "5");
+        assert!(app.text_lines[1].contains("line1"));
+        assert_eq!(app.results[1], Some("6".to_string()), 
+                  "Full workflow failed: expected line1 + 1 = 6 after add/remove cycle");
     }
 }
