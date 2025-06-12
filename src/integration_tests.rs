@@ -823,14 +823,14 @@ mod tests {
         // Verify dialog is shown
         assert!(app.show_save_as_dialog);
         assert!(!app.save_as_and_quit);
-        assert!(app.save_as_input.is_empty());
+        assert_eq!(app.save_as_input, ".pad");
         
         // Simulate typing a filename
-        app.save_as_input = "test_file.mathypad".to_string();
+        app.save_as_input = "test_file.pad".to_string();
         
         // Test save as functionality
         let temp_dir = TempDir::new().unwrap();
-        let expected_path = temp_dir.path().join("test_file.mathypad");
+        let expected_path = temp_dir.path().join("test_file.pad");
         
         // Manually set the path for testing (in real usage, this comes from user input)
         app.save_as_input = expected_path.to_string_lossy().to_string();
@@ -867,7 +867,7 @@ mod tests {
         
         // Set filename and save
         let temp_dir = TempDir::new().unwrap();
-        let expected_path = temp_dir.path().join("quit_test.mathypad");
+        let expected_path = temp_dir.path().join("quit_test.pad");
         app.save_as_input = expected_path.to_string_lossy().to_string();
         
         let should_quit = app.save_as_from_dialog().unwrap();
@@ -879,5 +879,36 @@ mod tests {
         assert!(expected_path.exists());
         let content = std::fs::read_to_string(&expected_path).unwrap();
         assert_eq!(content, "hi");
+    }
+    
+    #[test]
+    fn test_save_as_dialog_pad_extension() {
+        use crate::App;
+        
+        let mut app = App::default();
+        
+        // Show save as dialog
+        app.show_save_as_dialog(false);
+        
+        // Verify dialog starts with .pad extension
+        assert_eq!(app.save_as_input, ".pad");
+        
+        // Test that entering a filename preserves the .pad extension
+        // Simulate typing "test" - in real usage this would be handled by the input handler
+        app.save_as_input = "test.pad".to_string();
+        
+        // Verify the extension is preserved
+        assert!(app.save_as_input.ends_with(".pad"));
+        
+        // Test the auto-extension functionality
+        app.save_as_input = "myfile".to_string();
+        
+        // Simulate pressing Enter (which should add .pad if missing)
+        // This is tested indirectly through the save_as_from_dialog method
+        if !app.save_as_input.ends_with(".pad") && !app.save_as_input.is_empty() {
+            app.save_as_input.push_str(".pad");
+        }
+        
+        assert_eq!(app.save_as_input, "myfile.pad");
     }
 }

@@ -514,14 +514,49 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
 fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
     match key {
         KeyCode::Char(c) => {
-            app.save_as_input.push(c);
+            // If input is just ".pad", replace it with the character + ".pad"
+            if app.save_as_input == ".pad" {
+                app.save_as_input = format!("{}.pad", c);
+            } else {
+                // Insert character before the ".pad" extension
+                if app.save_as_input.ends_with(".pad") {
+                    let base = &app.save_as_input[..app.save_as_input.len() - 4];
+                    app.save_as_input = format!("{}{}.pad", base, c);
+                } else {
+                    // Fallback: just append the character
+                    app.save_as_input.push(c);
+                }
+            }
             false
         }
         KeyCode::Backspace => {
-            app.save_as_input.pop();
+            if app.save_as_input.ends_with(".pad") && app.save_as_input.len() > 4 {
+                // Remove character before the ".pad" extension
+                let base = &app.save_as_input[..app.save_as_input.len() - 4];
+                if base.is_empty() {
+                    app.save_as_input = ".pad".to_string();
+                } else {
+                    let new_base = &base[..base.len() - 1];
+                    app.save_as_input = if new_base.is_empty() {
+                        ".pad".to_string()
+                    } else {
+                        format!("{}.pad", new_base)
+                    };
+                }
+            } else if app.save_as_input == ".pad" {
+                // Don't allow deleting the extension when it's just ".pad"
+            } else {
+                // Fallback: normal backspace
+                app.save_as_input.pop();
+            }
             false
         }
         KeyCode::Enter => {
+            // Ensure filename has .pad extension before saving
+            if !app.save_as_input.ends_with(".pad") && !app.save_as_input.is_empty() {
+                app.save_as_input.push_str(".pad");
+            }
+            
             // Save with the entered filename
             match app.save_as_from_dialog() {
                 Ok(should_quit) => should_quit,

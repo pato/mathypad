@@ -529,7 +529,7 @@ impl App {
     pub fn show_save_as_dialog(&mut self, quit_after_save: bool) {
         self.show_save_as_dialog = true;
         self.save_as_and_quit = quit_after_save;
-        self.save_as_input.clear();
+        self.save_as_input = ".pad".to_string();
     }
 
     /// Try to save with the current save-as filename

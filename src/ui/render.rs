@@ -53,7 +53,7 @@ pub fn ui(f: &mut Frame, app: &App) {
 
     render_text_area(f, app, chunks[0]);
     render_results_panel(f, app, chunks[1]);
-    
+
     // Render dialogs on top if needed
     if app.show_unsaved_dialog {
         render_unsaved_dialog(f, app, f.area());
@@ -421,39 +421,43 @@ pub fn parse_colors_with_cursor<'a>(
 /// Render the unsaved changes confirmation dialog
 pub fn render_unsaved_dialog(f: &mut Frame, app: &App, area: Rect) {
     use ratatui::widgets::Clear;
-    
+
     // Calculate dialog size and position (centered)
     let dialog_width = 60;
     let dialog_height = 8;
     let x = (area.width.saturating_sub(dialog_width)) / 2;
     let y = (area.height.saturating_sub(dialog_height)) / 2;
-    
+
     let dialog_area = Rect {
         x: area.x + x,
         y: area.y + y,
         width: dialog_width,
         height: dialog_height,
     };
-    
+
     // Clear the background for the dialog
     f.render_widget(Clear, dialog_area);
-    
+
     // Create the dialog block
     let block = Block::default()
         .title(" Unsaved Changes ")
         .borders(Borders::ALL)
         .style(Style::default().bg(Color::DarkGray).fg(Color::White));
-    
+
     // Create the dialog content
-    let filename = app.file_path
+    let filename = app
+        .file_path
         .as_ref()
         .and_then(|p| p.file_name())
         .and_then(|n| n.to_str())
         .unwrap_or("Untitled");
-    
+
     let lines = vec![
         Line::from(vec![
-            Span::styled("You have unsaved changes in ", Style::default().fg(Color::White)),
+            Span::styled(
+                "You have unsaved changes in ",
+                Style::default().fg(Color::White),
+            ),
             Span::styled(filename, Style::default().fg(Color::Yellow)),
             Span::styled(".", Style::default().fg(Color::White)),
         ]),
@@ -474,57 +478,57 @@ pub fn render_unsaved_dialog(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("    - Cancel", Style::default().fg(Color::White)),
         ]),
     ];
-    
+
     let paragraph = Paragraph::new(lines)
         .block(block)
         .wrap(Wrap { trim: false });
-    
+
     f.render_widget(paragraph, dialog_area);
 }
 
 /// Render the save as dialog
 pub fn render_save_as_dialog(f: &mut Frame, app: &App, area: Rect) {
     use ratatui::widgets::Clear;
-    
+
     // Calculate dialog size and position (centered)
     let dialog_width = 60;
     let dialog_height = 6;
     let x = (area.width.saturating_sub(dialog_width)) / 2;
     let y = (area.height.saturating_sub(dialog_height)) / 2;
-    
+
     let dialog_area = Rect {
         x: area.x + x,
         y: area.y + y,
         width: dialog_width,
         height: dialog_height,
     };
-    
+
     // Clear the background for the dialog
     f.render_widget(Clear, dialog_area);
-    
+
     // Create the dialog block
     let block = Block::default()
         .title(" Save As ")
         .borders(Borders::ALL)
         .style(Style::default().bg(Color::DarkGray).fg(Color::White));
-    
+
     // Create the dialog content with text input
-    let input_display = if app.save_as_input.is_empty() {
-        "[Enter filename]".to_string()
+    let input_display = if app.save_as_input == ".pad" {
+        "[filename].pad".to_string()
     } else {
         app.save_as_input.clone()
     };
-    
+
     let lines = vec![
         Line::from(vec![
             Span::styled("Filename: ", Style::default().fg(Color::White)),
             Span::styled(
                 input_display,
-                if app.save_as_input.is_empty() {
+                if app.save_as_input == ".pad" {
                     Style::default().fg(Color::DarkGray)
                 } else {
                     Style::default().fg(Color::Yellow).bg(Color::Blue)
-                }
+                },
             ),
         ]),
         Line::from(""),
@@ -535,10 +539,10 @@ pub fn render_save_as_dialog(f: &mut Frame, app: &App, area: Rect) {
             Span::styled(" - Cancel", Style::default().fg(Color::White)),
         ]),
     ];
-    
+
     let paragraph = Paragraph::new(lines)
         .block(block)
         .wrap(Wrap { trim: false });
-    
+
     f.render_widget(paragraph, dialog_area);
 }
