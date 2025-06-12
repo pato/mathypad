@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .index(1)
                 .required(false),
         )
-        .after_help("Examples:\n  mathypad                      # Start empty interactive mode\n  mathypad calculations.txt     # Open file in interactive mode\n  mathypad -- \"100 GB to GiB\"   # One-shot calculation")
+        .after_help("Examples:\n  mathypad                      # Start empty interactive mode\n  mathypad calculations.pad     # Open file in interactive mode\n  mathypad -- \"100 GB to GiB\"   # One-shot calculation")
         .get_matches();
 
     // Check if we have a file to open
