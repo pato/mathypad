@@ -96,7 +96,7 @@ pub fn update_line_references_in_text(text: &str, threshold: usize, offset: i32)
                 result.replace_range(start_pos..end_pos, "INVALID_REF");
             } else if line_num > threshold {
                 // Reference after deleted line - decrement by 1
-                let new_ref = format!("line{}", line_num + 1 - 1); // -1 for the offset, +1 for 1-based = line_num
+                let new_ref = format!("line{}", line_num); // line_num already represents the new 1-based line number after shift
                 result.replace_range(start_pos..end_pos, &new_ref);
             }
             // References before deleted line stay unchanged
@@ -557,6 +557,10 @@ mod parser_tests {
         // Test complex scenarios
         assert_eq!(update_line_references_in_text("line1 + line3 + line5", 2, -1), 
                    "line1 + INVALID_REF + line4");
+
+        // Test the user's reported scenario: deleting empty first line
+        assert_eq!(update_line_references_in_text("line2 + 1", 0, -1), 
+                   "line1 + 1");
     }
 
     #[test]

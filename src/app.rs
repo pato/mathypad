@@ -51,14 +51,25 @@ impl App {
                 let current_line = self.text_lines.remove(self.cursor_line);
                 self.results.remove(self.cursor_line);
                 
-                // Update line references for the deletion
-                // All line references > deleted line need to be decremented by 1
-                let deleted_line = self.cursor_line; // 0-based index of the line being deleted
-                self.update_line_references_for_deletion(deleted_line);
+                // Check if the previous line is empty - if so, we conceptually want to delete
+                // the previous line rather than the current line
+                let prev_line_empty = self.text_lines[self.cursor_line - 1].is_empty();
                 
-                self.cursor_line -= 1;
-                self.cursor_col = self.text_lines[self.cursor_line].len();
-                self.text_lines[self.cursor_line].push_str(&current_line);
+                if prev_line_empty && !current_line.is_empty() {
+                    // Previous line is empty, current line has content
+                    // Delete the previous line (conceptually what the user wants)
+                    self.text_lines[self.cursor_line - 1] = current_line;
+                    self.update_line_references_for_deletion(self.cursor_line - 1);
+                    self.cursor_line -= 1;
+                    self.cursor_col = 0;
+                } else {
+                    // Normal case: merge current line into previous line
+                    self.update_line_references_for_deletion(self.cursor_line);
+                    self.cursor_line -= 1;
+                    self.cursor_col = self.text_lines[self.cursor_line].len();
+                    self.text_lines[self.cursor_line].push_str(&current_line);
+                }
+                
                 self.update_result(self.cursor_line);
             }
         }
