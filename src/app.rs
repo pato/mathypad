@@ -1,6 +1,6 @@
 //! Application state and core logic
 
-use crate::{Mode, expression::evaluate_with_variables};
+use crate::{Mode, expression::{evaluate_with_variables, update_line_references_in_text}};
 use std::collections::HashMap;
 
 /// Main application state for the mathematical notepad
@@ -50,6 +50,12 @@ impl App {
                 // Cursor is at beginning of line - merge with previous line
                 let current_line = self.text_lines.remove(self.cursor_line);
                 self.results.remove(self.cursor_line);
+                
+                // Update line references for the deletion
+                // All line references > deleted line need to be decremented by 1
+                let deleted_line = self.cursor_line; // 0-based index of the line being deleted
+                self.update_line_references_for_deletion(deleted_line);
+                
                 self.cursor_line -= 1;
                 self.cursor_col = self.text_lines[self.cursor_line].len();
                 self.text_lines[self.cursor_line].push_str(&current_line);
@@ -108,6 +114,12 @@ impl App {
             self.text_lines
                 .insert(self.cursor_line + 1, right.to_string());
             self.results.insert(self.cursor_line + 1, None);
+            
+            // Update line references in all lines after the insertion point
+            // All line references >= insertion point need to be incremented by 1
+            let insertion_point = self.cursor_line + 1; // 0-based index of newly inserted line
+            self.update_line_references_for_insertion(insertion_point);
+            
             self.cursor_line += 1;
             self.cursor_col = 0;
             self.update_result(self.cursor_line - 1);
@@ -204,6 +216,33 @@ impl App {
                         self.results[line_idx] = result;
                     }
                 }
+            }
+        }
+    }
+    
+    /// Update line references in all lines when a new line is inserted
+    /// All references >= insertion_point need to be incremented by 1
+    fn update_line_references_for_insertion(&mut self, insertion_point: usize) {
+        for i in 0..self.text_lines.len() {
+            let updated_text = update_line_references_in_text(&self.text_lines[i], insertion_point, 1);
+            if updated_text != self.text_lines[i] {
+                self.text_lines[i] = updated_text;
+                // Re-evaluate this line since its content changed
+                self.update_result(i);
+            }
+        }
+    }
+    
+    /// Update line references in all lines when a line is deleted
+    /// All references > deleted_line need to be decremented by 1
+    /// References to the deleted line become invalid
+    fn update_line_references_for_deletion(&mut self, deleted_line: usize) {
+        for i in 0..self.text_lines.len() {
+            let updated_text = update_line_references_in_text(&self.text_lines[i], deleted_line, -1);
+            if updated_text != self.text_lines[i] {
+                self.text_lines[i] = updated_text;
+                // Re-evaluate this line since its content changed
+                self.update_result(i);
             }
         }
     }

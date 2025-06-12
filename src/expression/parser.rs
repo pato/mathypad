@@ -17,6 +17,95 @@ pub fn parse_line_reference(text: &str) -> Option<usize> {
     None
 }
 
+/// Extract all line references from a text string
+/// Returns a vector of (start_pos, end_pos, line_number) tuples for each "lineN" found
+pub fn extract_line_references(text: &str) -> Vec<(usize, usize, usize)> {
+    let mut references = Vec::new();
+    let text_lower = text.to_lowercase();
+    let mut search_start = 0;
+
+    while let Some(line_pos) = text_lower[search_start..].find("line") {
+        let absolute_pos = search_start + line_pos;
+        
+        // Check if "line" is at a word boundary (not preceded by alphanumeric)
+        let is_word_start = absolute_pos == 0 || 
+            !text_lower.chars().nth(absolute_pos - 1).unwrap_or(' ').is_ascii_alphanumeric();
+        
+        if is_word_start {
+            let remaining = &text_lower[absolute_pos + 4..]; // Skip "line"
+            
+            // Find the number part in the lowercase version
+            let mut num_end = 0;
+            for ch in remaining.chars() {
+                if ch.is_ascii_digit() {
+                    num_end += 1;
+                } else {
+                    break;
+                }
+            }
+            
+            if num_end > 0 {
+                // Check if "lineN" is at a word boundary (not followed by alphanumeric)
+                let is_word_end = absolute_pos + 4 + num_end >= text_lower.len() ||
+                    !text_lower.chars().nth(absolute_pos + 4 + num_end).unwrap_or(' ').is_ascii_alphanumeric();
+                
+                if is_word_end {
+                    // Parse the number from the original text (not lowercase) to preserve digits
+                    let original_remaining = &text[absolute_pos + 4..];
+                    if let Ok(line_num) = original_remaining[..num_end].parse::<usize>() {
+                        if line_num > 0 {
+                            let start_pos = absolute_pos;
+                            let end_pos = absolute_pos + 4 + num_end; // "line" + digits
+                            references.push((start_pos, end_pos, line_num - 1)); // Convert to 0-based
+                        }
+                    }
+                }
+            }
+        }
+        
+        search_start = absolute_pos + 4; // Move past "line"
+    }
+    
+    references
+}
+
+/// Update line references in text by applying an offset to references >= threshold
+/// If offset is positive: increment references >= threshold
+/// If offset is negative: decrement references > threshold, mark deleted line refs as invalid
+pub fn update_line_references_in_text(text: &str, threshold: usize, offset: i32) -> String {
+    let references = extract_line_references(text);
+    
+    if references.is_empty() {
+        return text.to_string();
+    }
+    
+    let mut result = text.to_string();
+    
+    // Process references in reverse order to maintain correct string positions
+    for (start_pos, end_pos, line_num) in references.into_iter().rev() {
+        if offset > 0 {
+            // Line insertion: increment references >= insertion point
+            if line_num >= threshold {
+                let new_ref = format!("line{}", line_num + 1 + 1); // +1 for the offset, +1 for 1-based
+                result.replace_range(start_pos..end_pos, &new_ref);
+            }
+        } else {
+            // Line deletion: handle references to deleted line and after
+            if line_num == threshold {
+                // Reference to the deleted line - mark as invalid
+                result.replace_range(start_pos..end_pos, "INVALID_REF");
+            } else if line_num > threshold {
+                // Reference after deleted line - decrement by 1
+                let new_ref = format!("line{}", line_num + 1 - 1); // -1 for the offset, +1 for 1-based = line_num
+                result.replace_range(start_pos..end_pos, &new_ref);
+            }
+            // References before deleted line stay unchanged
+        }
+    }
+    
+    result
+}
+
 /// Tokenize any text into tokens - always succeeds, may include non-mathematical tokens
 pub fn tokenize_with_units(expr: &str) -> Option<Vec<Token>> {
     // Use the chumsky parser - now accepts any input
@@ -389,5 +478,103 @@ mod parser_tests {
         // Test whitespace around keywords
         assert!(is_valid_math_expression("1 GiB  to  MiB"));
         assert!(is_valid_math_expression("1 GiB to MiB"));
+    }
+
+    #[test]
+    fn test_extract_line_references() {
+        // Test basic line reference extraction
+        assert_eq!(extract_line_references("line1 + 5"), vec![(0, 5, 0)]);
+        assert_eq!(extract_line_references("10 + line2"), vec![(5, 10, 1)]);
+        assert_eq!(extract_line_references("line1 + line2 * line3"), 
+                   vec![(0, 5, 0), (8, 13, 1), (16, 21, 2)]);
+
+        // Test case insensitivity
+        assert_eq!(extract_line_references("Line1 + Line2"), vec![(0, 5, 0), (8, 13, 1)]);
+        assert_eq!(extract_line_references("LINE1 + line2"), vec![(0, 5, 0), (8, 13, 1)]);
+
+        // Test with complex expressions
+        assert_eq!(extract_line_references("(line1 + line2) * 2 to GiB"), 
+                   vec![(1, 6, 0), (9, 14, 1)]);
+
+        // Test multi-digit line numbers
+        assert_eq!(extract_line_references("line10 + line123"), vec![(0, 6, 9), (9, 16, 122)]);
+
+        // Test no line references
+        assert_eq!(extract_line_references("5 + 3 * 2"), vec![]);
+        assert_eq!(extract_line_references("hello world"), vec![]);
+
+        // Test edge cases
+        assert_eq!(extract_line_references("line0"), vec![]); // line0 is invalid
+        assert_eq!(extract_line_references("line"), vec![]); // no number
+        assert_eq!(extract_line_references("myline1"), vec![]); // not starting with "line"
+
+        // Test with text around
+        assert_eq!(extract_line_references("result: line1 + 2"), vec![(8, 13, 0)]);
+    }
+
+    #[test]
+    fn test_update_line_references_insertion() {
+        // Test insertion at the beginning (all references should be incremented)
+        assert_eq!(update_line_references_in_text("line1 + line2", 0, 1), "line2 + line3");
+        assert_eq!(update_line_references_in_text("line3 + 5", 0, 1), "line4 + 5");
+
+        // Test insertion in the middle (only references >= insertion point are updated)
+        assert_eq!(update_line_references_in_text("line1 + line3", 2, 1), "line1 + line4");
+        assert_eq!(update_line_references_in_text("line1 + line2 + line3", 2, 1), "line1 + line2 + line4");
+
+        // Test insertion at the end (no references should be updated)
+        assert_eq!(update_line_references_in_text("line1 + line2", 5, 1), "line1 + line2");
+
+        // Test no line references
+        assert_eq!(update_line_references_in_text("5 + 3", 1, 1), "5 + 3");
+
+        // Test complex expressions
+        assert_eq!(update_line_references_in_text("(line2 + line4) * 2 to GiB", 3, 1), 
+                   "(line2 + line5) * 2 to GiB");
+    }
+
+    #[test]
+    fn test_update_line_references_deletion() {
+        // Test deletion at the beginning 
+        assert_eq!(update_line_references_in_text("line1 + line2 + line3", 0, -1), 
+                   "INVALID_REF + line1 + line2");
+
+        // Test deletion in the middle
+        assert_eq!(update_line_references_in_text("line1 + line2 + line3", 1, -1), 
+                   "line1 + INVALID_REF + line2");
+
+        // Test deletion at the end
+        assert_eq!(update_line_references_in_text("line1 + line2 + line3", 2, -1), 
+                   "line1 + line2 + INVALID_REF");
+
+        // Test references before deleted line stay unchanged
+        assert_eq!(update_line_references_in_text("line1 + line5", 3, -1), 
+                   "line1 + line4");
+
+        // Test no line references
+        assert_eq!(update_line_references_in_text("5 + 3", 1, -1), "5 + 3");
+
+        // Test complex scenarios
+        assert_eq!(update_line_references_in_text("line1 + line3 + line5", 2, -1), 
+                   "line1 + INVALID_REF + line4");
+    }
+
+    #[test]
+    fn test_update_line_references_edge_cases() {
+        // Test multiple references to the same line
+        assert_eq!(update_line_references_in_text("line2 + line2 * line2", 1, -1), 
+                   "INVALID_REF + INVALID_REF * INVALID_REF");
+
+        // Test large line numbers
+        assert_eq!(update_line_references_in_text("line100 + line200", 150, 1), 
+                   "line100 + line201");
+
+        // Test case preservation in complex text
+        assert_eq!(update_line_references_in_text("Result: Line1 + LINE2", 1, -1), 
+                   "Result: Line1 + INVALID_REF");
+
+        // Test with mixed content
+        assert_eq!(update_line_references_in_text("Memory usage: line3 * 1024 bytes", 2, 1), 
+                   "Memory usage: line4 * 1024 bytes");
     }
 }
