@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7] - 2025-06-12
+
+### Changes
+
+- Update readme
+- Update the website
+- Add github corner
+- Fix variables not re-evaluating dependent lines
+- Add support for percents
+- Color the % and of
+- Fix cursor in vim mode
+- Add support for auto adapting line numbers
+- Fix edge case with updating line references
+- Still trying to fix edge cases in line reference updates
+- Fix the automatic line reference updates
+- Add project structure to CLAUDE.md
+- Add support for loading files
+- Fix empty line when loading files
+- Add animations
+- Make animations feel more smooth
+- Add "-?" for help
+
 ## [0.1.6] - 2025-06-11
 
 ### Changes
