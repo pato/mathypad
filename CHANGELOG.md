@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2025-06-12
+
+### Changes
+
+- Write a release script
+- Add git push and cargo release to release script
+- First pass at saving
+- Confirmation dialog before quitting if not saved
+- Pre-append the .pad extension when in save dialog
+
 ## [0.1.7] - 2025-06-12
 
 ### Changes
