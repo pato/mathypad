@@ -29,6 +29,28 @@ impl Default for App {
 }
 
 impl App {
+    #[cfg(test)]
+    pub fn test_scenario_line_splitting(&mut self) -> (String, String) {
+        // Set up the scenario: "5" on line 1, "line1 + 1" on line 2
+        self.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        self.results = vec![None, None];
+        self.cursor_line = 0;
+        self.cursor_col = 0; // Position cursor OVER the "5" (at beginning)
+        
+        // Record the original state
+        let before = format!("Line 1: '{}', Line 2: '{}'", self.text_lines[0], self.text_lines[1]);
+        
+        // Hit enter when cursor is over the 5 (actually after it)
+        self.new_line();
+        
+        // Record the new state
+        let after = format!("Line 1: '{}', Line 2: '{}', Line 3: '{}'", 
+                          self.text_lines.get(0).unwrap_or(&"".to_string()),
+                          self.text_lines.get(1).unwrap_or(&"".to_string()),
+                          self.text_lines.get(2).unwrap_or(&"".to_string()));
+        
+        (before, after)
+    }
     /// Insert a character at the current cursor position
     pub fn insert_char(&mut self, c: char) {
         if self.cursor_line < self.text_lines.len() {
@@ -126,10 +148,22 @@ impl App {
                 .insert(self.cursor_line + 1, right.to_string());
             self.results.insert(self.cursor_line + 1, None);
             
-            // Update line references in all lines after the insertion point
-            // All line references >= insertion point need to be incremented by 1
+            // Handle line reference updates for insertion
             let insertion_point = self.cursor_line + 1; // 0-based index of newly inserted line
-            self.update_line_references_for_insertion(insertion_point);
+            
+            // Handle line reference updates for line splitting
+            // When splitting, we need to consider where content ends up
+            let left_empty = left.trim().is_empty();
+            let right_empty = right.trim().is_empty();
+            
+            if left_empty && !right_empty {
+                // Content moved from cursor_line to insertion_point
+                // Use combined update that handles both content move and position shifts
+                self.update_line_references_for_line_split_with_content_move(self.cursor_line, insertion_point);
+            } else {
+                // Standard insertion: just shift references
+                self.update_line_references_for_standard_insertion(insertion_point);
+            }
             
             self.cursor_line += 1;
             self.cursor_col = 0;
@@ -231,19 +265,6 @@ impl App {
         }
     }
     
-    /// Update line references in all lines when a new line is inserted
-    /// All references >= insertion_point need to be incremented by 1
-    fn update_line_references_for_insertion(&mut self, insertion_point: usize) {
-        for i in 0..self.text_lines.len() {
-            let updated_text = update_line_references_in_text(&self.text_lines[i], insertion_point, 1);
-            if updated_text != self.text_lines[i] {
-                self.text_lines[i] = updated_text;
-                // Re-evaluate this line since its content changed
-                self.update_result(i);
-            }
-        }
-    }
-    
     /// Update line references in all lines when a line is deleted
     /// All references > deleted_line need to be decremented by 1
     /// References to the deleted line become invalid
@@ -256,5 +277,145 @@ impl App {
                 self.update_result(i);
             }
         }
+    }
+    
+    /// Update line references in all lines when a new line is inserted
+    /// All references >= insertion_point need to be incremented by 1
+    fn update_line_references_for_standard_insertion(&mut self, insertion_point: usize) {
+        for i in 0..self.text_lines.len() {
+            let updated_text = update_line_references_in_text(&self.text_lines[i], insertion_point, 1);
+            if updated_text != self.text_lines[i] {
+                self.text_lines[i] = updated_text;
+                // Re-evaluate this line since its content changed
+                self.update_result(i);
+            }
+        }
+    }
+    
+    /// Combined update for line splitting with content movement
+    /// Handles both content following and position-based shifts in one pass
+    fn update_line_references_for_line_split_with_content_move(&mut self, content_from: usize, insertion_point: usize) {
+        use crate::expression::{extract_line_references};
+        
+        for i in 0..self.text_lines.len() {
+            let references = extract_line_references(&self.text_lines[i]);
+            let mut updated_text = self.text_lines[i].clone();
+            
+            // Process references in reverse order to maintain correct string positions
+            for (start_pos, end_pos, line_num) in references.into_iter().rev() {
+                let new_line_num = if line_num == content_from {
+                    // Content moved from content_from to insertion_point
+                    insertion_point
+                } else if line_num >= insertion_point {
+                    // Standard position shift for lines >= insertion_point
+                    line_num + 1
+                } else {
+                    // Lines before insertion_point stay unchanged
+                    line_num
+                };
+                
+                if new_line_num != line_num {
+                    let new_ref = format!("line{}", new_line_num + 1); // +1 for 1-based display
+                    updated_text.replace_range(start_pos..end_pos, &new_ref);
+                }
+            }
+            
+            if updated_text != self.text_lines[i] {
+                self.text_lines[i] = updated_text;
+                // Re-evaluate this line since its content changed
+                self.update_result(i);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod app_tests {
+    use super::*;
+
+    #[test]
+    fn test_line_splitting_with_line_references() {
+        let mut app = App::default();
+        let (before, after) = app.test_scenario_line_splitting();
+        
+        println!("Before: {}", before);
+        println!("After: {}", after);
+        
+        // Expected behavior analysis:
+        // Original: Line 1: "5", Line 2: "line1 + 1"  
+        // After hitting enter at position 1 in "5":
+        // Line 1: "5", Line 2: "", Line 3: "line1 + 1" (shifted down from line 2)
+        //
+        // The question is: should "line1" in "line1 + 1" stay as "line1" or become "line2"?
+        // User's expectation: it should become "line2" because the line that was originally
+        // at position 2 is now at position 3, so references to lines >= 2 should be incremented.
+        
+        // Debug the actual state
+        println!("App state after split:");
+        for (i, line) in app.text_lines.iter().enumerate() {
+            println!("  Line {}: '{}'", i + 1, line);
+        }
+        
+        // The real issue: we're inserting at position 1, so lines at position 1 and after
+        // should get their references incremented. "line1 + 1" was originally at position 1,
+        // is now at position 2, and "line1" in it should become "line2" because ALL lines
+        // shift down after insertion point.
+        assert!(app.text_lines[2].contains("line2"), 
+               "Expected 'line1' to be updated to 'line2' but got: '{}'", app.text_lines[2]);
+    }
+    
+    #[test]
+    fn test_line_splitting_at_beginning() {
+        let mut app = App::default();
+        // Set up: "5" on line 1, "line1 + 1" on line 2
+        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.results = vec![None, None];
+        app.cursor_line = 0;
+        app.cursor_col = 0; // Position cursor at beginning of "5"
+        
+        app.new_line();
+        
+        // When hitting enter at beginning:
+        // Line 1: "" (empty), Line 2: "5" (content moved down), Line 3: "line2 + 1"
+        assert_eq!(app.text_lines[0], "");
+        assert_eq!(app.text_lines[1], "5");
+        assert!(app.text_lines[2].contains("line2"), 
+               "Expected 'line1' to be updated to 'line2' but got: '{}'", app.text_lines[2]);
+    }
+    
+    #[test]
+    fn test_user_reported_scenario() {
+        let mut app = App::default();
+        
+        // Simulate exactly what the user described:
+        // "i have the following notebook: 5, line1 + 1"
+        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.results = vec![None, None];
+        app.update_result(0); // This should make line 1 result in "5"
+        app.update_result(1); // This should make line 2 result in "6" (5 + 1)
+        
+        // Verify initial results work correctly
+        assert_eq!(app.results[0], Some("5".to_string()));
+        assert_eq!(app.results[1], Some("6".to_string()));
+        
+        // Now simulate "hit enter when the cursor is over the 5"
+        app.cursor_line = 0;
+        app.cursor_col = 0; // Position cursor at the beginning of "5"
+        app.new_line();
+        
+        // Verify the results:
+        // Line 1: "" (empty)
+        // Line 2: "5" 
+        // Line 3: "line2 + 1" (updated reference)
+        assert_eq!(app.text_lines[0], "");
+        assert_eq!(app.text_lines[1], "5");
+        assert!(app.text_lines[2].contains("line2"), 
+               "Expected line reference to be updated to 'line2', got: '{}'", app.text_lines[2]);
+        
+        // Verify that the expression still evaluates correctly
+        // line2 should now refer to "5" on line 2, so "line2 + 1" should be 6
+        app.update_result(2);
+        assert_eq!(app.results[2], Some("6".to_string()), 
+                  "Expected 'line2 + 1' to evaluate to 6, got: {:?}", app.results[2]);
     }
 }
