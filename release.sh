@@ -122,18 +122,18 @@ if ! git push origin main --tags; then
     exit 1
 fi
 
+# Step 9.5: Clean up temporary files before cargo publish
+echo "Cleaning up temporary files..."
+rm -f temp_changelog.md tag_message.tmp
+
 # Step 10: Publish to crates.io
 echo "[9/9] Publishing to crates.io..."
 if ! cargo publish; then
     echo "ERROR: cargo publish failed"
     echo "The commit and tag have been pushed, but crates.io publish failed."
     echo "You may need to run 'cargo publish' manually."
-    rm -f temp_changelog.md tag_message.tmp
     exit 1
 fi
-
-# Cleanup
-rm -f temp_changelog.md tag_message.tmp
 
 echo
 echo "========================================"
