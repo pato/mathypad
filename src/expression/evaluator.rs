@@ -360,18 +360,17 @@ pub fn evaluate_tokens_with_units_and_context(
         }
 
         // Handle percentage of value expressions like "10% of 50"
-        if let (
-            Token::NumberWithUnit(percentage, Unit::Percent),
-            Token::Of,
-            value_token,
-        ) = (&tokens[0], &tokens[1], &tokens[2])
+        if let (Token::NumberWithUnit(percentage, Unit::Percent), Token::Of, value_token) =
+            (&tokens[0], &tokens[1], &tokens[2])
         {
             // Resolve the value token (could be number, unit, variable, or line reference)
             let base_value = match value_token {
                 Token::Number(n) => UnitValue::new(*n, None),
                 Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
                 Token::LineReference(line_index) => {
-                    if let Some(line_result) = resolve_line_reference(*line_index, previous_results, current_line) {
+                    if let Some(line_result) =
+                        resolve_line_reference(*line_index, previous_results, current_line)
+                    {
                         line_result
                     } else {
                         return None;
@@ -506,18 +505,17 @@ fn evaluate_tokens_with_units_and_context_and_variables(
         }
 
         // Handle percentage of value expressions like "10% of 50"
-        if let (
-            Token::NumberWithUnit(percentage, Unit::Percent),
-            Token::Of,
-            value_token,
-        ) = (&tokens[0], &tokens[1], &tokens[2])
+        if let (Token::NumberWithUnit(percentage, Unit::Percent), Token::Of, value_token) =
+            (&tokens[0], &tokens[1], &tokens[2])
         {
             // Resolve the value token (could be number, unit, variable, or line reference)
             let base_value = match value_token {
                 Token::Number(n) => UnitValue::new(*n, None),
                 Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
                 Token::LineReference(line_index) => {
-                    if let Some(line_result) = resolve_line_reference(*line_index, previous_results, current_line) {
+                    if let Some(line_result) =
+                        resolve_line_reference(*line_index, previous_results, current_line)
+                    {
                         line_result
                     } else {
                         return None;

@@ -10,7 +10,8 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{
     error::Error,
-    io,
+    fs, io,
+    path::PathBuf,
     time::{Duration, Instant},
 };
 
@@ -90,6 +91,112 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+/// Run the interactive TUI mode with an optional file to load
+pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), Box<dyn Error>> {
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut app = if let Some(path) = file_path {
+        load_app_from_file(path)?
+    } else {
+        App::default()
+    };
+
+    let mut last_tick = Instant::now();
+    let tick_rate = Duration::from_millis(TICK_RATE_MS);
+
+    loop {
+        terminal.draw(|f| ui(f, &app))?;
+
+        let timeout = tick_rate
+            .checked_sub(last_tick.elapsed())
+            .unwrap_or_else(|| Duration::from_secs(0));
+
+        if crossterm::event::poll(timeout)? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            break;
+                        }
+                        KeyCode::Char('c')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            break;
+                        }
+                        KeyCode::Char('w')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            if app.mode == Mode::Insert {
+                                app.delete_word();
+                            }
+                        }
+                        KeyCode::Esc => {
+                            app.mode = Mode::Normal;
+                        }
+                        _ => match app.mode {
+                            Mode::Insert => {
+                                handle_insert_mode(&mut app, key.code);
+                            }
+                            Mode::Normal => {
+                                handle_normal_mode(&mut app, key.code);
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+        if last_tick.elapsed() >= tick_rate {
+            last_tick = Instant::now();
+        }
+    }
+
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    Ok(())
+}
+
+/// Load an App from a file
+fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
+    let contents = fs::read_to_string(&path)?;
+    let mut app = App::default();
+
+    // Split the contents into lines and load them into the app
+    for line in contents.lines() {
+        app.text_lines.push(line.to_string());
+        app.results.push(None);
+    }
+
+    // If the file is empty, ensure we have at least one empty line
+    if app.text_lines.is_empty() {
+        app.text_lines.push(String::new());
+        app.results.push(None);
+    }
+
+    // Recalculate all lines
+    app.recalculate_all();
+
+    Ok(app)
 }
 
 /// Handle key events in insert mode

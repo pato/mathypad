@@ -1267,12 +1267,12 @@ fn test_percentage_of_operations_detailed() {
         evaluate_test_expression("20% of 500 MB"),
         Some("100 MB".to_string())
     );
-    
+
     assert_eq!(
         evaluate_test_expression("75% of 4 hours"),
         Some("3 h".to_string())
     );
-    
+
     assert_eq!(
         evaluate_test_expression("12.5% of 1 TiB"),
         Some("0.125 TiB".to_string())

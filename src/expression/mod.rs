@@ -18,7 +18,7 @@ pub use evaluator::{
     parse_and_evaluate_with_context, parse_result_string, resolve_line_reference,
 };
 pub use parser::{
-    extract_line_references, is_valid_math_expression, is_valid_mathematical_expression, 
+    extract_line_references, is_valid_math_expression, is_valid_mathematical_expression,
     parse_line_reference, tokenize_with_units, update_line_references_in_text,
 };
 pub use tokens::Token;

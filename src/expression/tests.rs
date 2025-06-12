@@ -541,10 +541,7 @@ fn test_percentage_conversions() {
     );
 
     // Test percentage parsing (just check it works)
-    assert_eq!(
-        evaluate_test_expression("50%"),
-        Some("50 %".to_string())
-    );
+    assert_eq!(evaluate_test_expression("50%"), Some("50 %".to_string()));
 
     // Test division result to percentage
     assert_eq!(
@@ -564,10 +561,7 @@ fn test_percentage_conversions() {
 #[test]
 fn test_percentage_of_operations() {
     // Test basic percentage of operations
-    assert_eq!(
-        evaluate_test_expression("10% of 50"),
-        Some("5".to_string())
-    );
+    assert_eq!(evaluate_test_expression("10% of 50"), Some("5".to_string()));
     assert_eq!(
         evaluate_test_expression("25% of 100"),
         Some("25".to_string())
@@ -635,10 +629,7 @@ fn test_percentage_with_variables() {
 #[test]
 fn test_percentage_edge_cases() {
     // Test 0% and 100%
-    assert_eq!(
-        evaluate_test_expression("0% of 100"),
-        Some("0".to_string())
-    );
+    assert_eq!(evaluate_test_expression("0% of 100"), Some("0".to_string()));
     assert_eq!(
         evaluate_test_expression("100% of 50"),
         Some("50".to_string())

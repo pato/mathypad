@@ -521,4 +521,76 @@ mod tests {
             Some("60 req/min".to_string())
         );
     }
+
+    #[test]
+    fn test_file_loading() {
+        use crate::App;
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Test loading a file with expressions
+        let file_content = "5 + 3\n100 GiB to MiB\nx = 42\nx * 2";
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), file_content).unwrap();
+
+        // Load the file into an App
+        let mut app = App::default();
+        let contents = fs::read_to_string(temp_file.path()).unwrap();
+
+        for line in contents.lines() {
+            app.text_lines.push(line.to_string());
+            app.results.push(None);
+        }
+
+        // Remove the default empty line if we added content
+        if app.text_lines.len() > 1 && app.text_lines[0].is_empty() {
+            app.text_lines.remove(0);
+            app.results.remove(0);
+        }
+
+        app.recalculate_all();
+
+        // Verify the loaded content and calculations
+        assert_eq!(app.text_lines.len(), 4);
+        assert_eq!(app.text_lines[0], "5 + 3");
+        assert_eq!(app.text_lines[1], "100 GiB to MiB");
+        assert_eq!(app.text_lines[2], "x = 42");
+        assert_eq!(app.text_lines[3], "x * 2");
+
+        // Verify calculations
+        assert_eq!(app.results[0], Some("8".to_string()));
+        assert_eq!(app.results[1], Some("102,400 MiB".to_string()));
+        assert_eq!(app.results[2], Some("42".to_string()));
+        assert_eq!(app.results[3], Some("84".to_string()));
+    }
+
+    #[test]
+    fn test_empty_file_loading() {
+        use crate::App;
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Test loading an empty file
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), "").unwrap();
+
+        let mut app = App::default();
+        let contents = fs::read_to_string(temp_file.path()).unwrap();
+
+        for line in contents.lines() {
+            app.text_lines.push(line.to_string());
+            app.results.push(None);
+        }
+
+        // Ensure we have at least one empty line
+        if app.text_lines.is_empty() {
+            app.text_lines.push(String::new());
+            app.results.push(None);
+        }
+
+        // Verify we have exactly one empty line
+        assert_eq!(app.text_lines.len(), 1);
+        assert_eq!(app.text_lines[0], "");
+        assert_eq!(app.results[0], None);
+    }
 }

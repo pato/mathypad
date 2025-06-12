@@ -23,7 +23,7 @@ pub use app::App;
 pub use cli::run_one_shot_mode;
 pub use expression::evaluate_expression_with_context;
 pub use mode::Mode;
-pub use ui::run_interactive_mode;
+pub use ui::{run_interactive_mode, run_interactive_mode_with_file};
 pub use units::{Unit, UnitType, UnitValue};
 
 // Constants used throughout the application

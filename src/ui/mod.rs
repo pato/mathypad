@@ -5,5 +5,5 @@
 mod events;
 mod render;
 
-pub use events::run_interactive_mode;
+pub use events::{run_interactive_mode, run_interactive_mode_with_file};
 pub use render::{parse_colors, render_results_panel, render_text_area, ui};

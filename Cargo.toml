@@ -15,6 +15,9 @@ crossterm = "0.29"
 clap = { version = "4.5", features = ["derive", "cargo"] }
 chumsky = "0.10.1"
 
+[dev-dependencies]
+tempfile = "3.8"
+
 [profile.release]
 codegen-units = 1
 opt-level = "z"  # Optimize for size.
