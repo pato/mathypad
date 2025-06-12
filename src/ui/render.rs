@@ -469,7 +469,7 @@ pub fn render_unsaved_dialog(f: &mut Frame, app: &App, area: Rect) {
         ]),
         Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("Ctrl+Q", Style::default().fg(Color::Red)),
+            Span::styled("Ctrl+C", Style::default().fg(Color::Red)),
             Span::styled(" - Quit without saving", Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
