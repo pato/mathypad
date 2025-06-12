@@ -12,6 +12,38 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
+/// Animate a color by interpolating its intensity based on opacity
+fn animate_color(base_color: Color, opacity: f32) -> Color {
+    match base_color {
+        Color::Green => {
+            // Fade from dark green to bright green
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(0, intensity, 0)
+        }
+        Color::Red => {
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(intensity, 0, 0)
+        }
+        Color::Blue => {
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(0, 0, intensity)
+        }
+        Color::Yellow => {
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(intensity, intensity, 0)
+        }
+        Color::Cyan => {
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(0, intensity, intensity)
+        }
+        Color::Magenta => {
+            let intensity = (opacity * 255.0) as u8;
+            Color::Rgb(intensity, 0, intensity)
+        }
+        _ => base_color, // For other colors, just return as-is
+    }
+}
+
 /// Main UI layout and rendering
 pub fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
@@ -91,10 +123,17 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
         )];
 
         if let Some(value) = result {
-            spans.push(Span::styled(
-                value.clone(),
-                Style::default().fg(Color::Green),
-            ));
+            // Get animation state for this line
+            let line_index = start_line + i;
+            let color = if let Some(animation) = app.get_result_animation(line_index) {
+                // Apply fade-in animation by adjusting color intensity
+                let opacity = animation.opacity();
+                animate_color(Color::Green, opacity)
+            } else {
+                Color::Green
+            };
+
+            spans.push(Span::styled(value.clone(), Style::default().fg(color)));
         }
 
         lines.push(Line::from(spans));

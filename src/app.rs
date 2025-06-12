@@ -5,6 +5,53 @@ use crate::{
     expression::{evaluate_with_variables, update_line_references_in_text},
 };
 use std::collections::HashMap;
+use std::time::Instant;
+
+/// Animation state for a result line
+#[derive(Clone, Debug)]
+pub struct ResultAnimation {
+    pub start_time: Instant,
+    pub duration_ms: u64,
+    pub animation_type: AnimationType,
+}
+
+#[derive(Clone, Debug)]
+pub enum AnimationType {
+    FadeIn,
+}
+
+impl ResultAnimation {
+    pub fn new_fade_in() -> Self {
+        Self {
+            start_time: Instant::now(),
+            duration_ms: 250, // 250ms fade-in
+            animation_type: AnimationType::FadeIn,
+        }
+    }
+
+    /// Get the animation progress (0.0 to 1.0)
+    pub fn progress(&self) -> f32 {
+        let elapsed = self.start_time.elapsed().as_millis() as f32;
+        let progress = elapsed / self.duration_ms as f32;
+        progress.min(1.0)
+    }
+
+    /// Check if animation is complete
+    pub fn is_complete(&self) -> bool {
+        self.progress() >= 1.0
+    }
+
+    /// Get the opacity for fade-in animation (0.0 to 1.0)
+    pub fn opacity(&self) -> f32 {
+        match self.animation_type {
+            AnimationType::FadeIn => {
+                let progress = self.progress();
+                // Smooth ease-out animation
+                1.0 - (1.0 - progress).powi(3)
+            }
+        }
+    }
+}
 
 /// Main application state for the mathematical notepad
 pub struct App {
@@ -15,6 +62,7 @@ pub struct App {
     pub results: Vec<Option<String>>,
     pub variables: HashMap<String, String>, // variable_name -> value_string
     pub mode: Mode,
+    pub result_animations: Vec<Option<ResultAnimation>>, // Animation state for each result
 }
 
 impl Default for App {
@@ -26,7 +74,8 @@ impl Default for App {
             scroll_offset: 0,
             results: vec![None],
             variables: HashMap::new(),
-            mode: Mode::Insert, // Start in insert mode
+            mode: Mode::Insert,            // Start in insert mode
+            result_animations: vec![None], // Start with no animations
         }
     }
 }
@@ -80,6 +129,11 @@ impl App {
                 // Cursor is at beginning of line - merge with previous line
                 let current_line = self.text_lines.remove(self.cursor_line);
                 self.results.remove(self.cursor_line);
+
+                // Remove corresponding animation if it exists
+                if self.cursor_line < self.result_animations.len() {
+                    self.result_animations.remove(self.cursor_line);
+                }
 
                 // Check if the previous line is empty - if so, we conceptually want to delete
                 // the previous line rather than the current line
@@ -160,6 +214,16 @@ impl App {
                 .insert(self.cursor_line + 1, right.to_string());
             self.results.insert(self.cursor_line + 1, None);
 
+            // Insert corresponding empty animation slot
+            if self.cursor_line + 1 < self.result_animations.len() {
+                self.result_animations.insert(self.cursor_line + 1, None);
+            } else {
+                // Ensure animations vector is large enough
+                while self.result_animations.len() <= self.cursor_line + 1 {
+                    self.result_animations.push(None);
+                }
+            }
+
             // Handle line reference updates for insertion
             let insertion_point = self.cursor_line + 1; // 0-based index of newly inserted line
 
@@ -233,6 +297,9 @@ impl App {
             let (result, variable_assignment) =
                 evaluate_with_variables(line, &self.variables, &self.results, line_index);
 
+            // Check if result has changed to trigger animation
+            let result_changed = self.results[line_index] != result;
+
             // If this is a variable assignment, store it and re-evaluate dependent lines
             if let Some((var_name, var_value)) = variable_assignment {
                 // Check if this variable assignment actually changed the value
@@ -242,13 +309,21 @@ impl App {
 
                 // If the variable changed, re-evaluate all lines that might use this variable
                 if variable_changed {
-                    self.results[line_index] = result;
+                    self.results[line_index] = result.clone();
+                    if result_changed && result.is_some() {
+                        self.start_result_animation(line_index);
+                    }
                     self.re_evaluate_dependent_lines(&var_name, line_index);
                     return;
                 }
             }
 
-            self.results[line_index] = result;
+            self.results[line_index] = result.clone();
+
+            // Start fade-in animation if result changed and is not None
+            if result_changed && result.is_some() {
+                self.start_result_animation(line_index);
+            }
         } else {
             // This should never happen in normal operation, but let's be defensive
             eprintln!(
@@ -369,6 +444,35 @@ impl App {
         for i in 0..self.text_lines.len() {
             self.update_result(i);
         }
+    }
+
+    /// Start a fade-in animation for a result
+    fn start_result_animation(&mut self, line_index: usize) {
+        // Ensure the animations vector is large enough
+        while self.result_animations.len() <= line_index {
+            self.result_animations.push(None);
+        }
+
+        // Only start animation if there's actually a result
+        if line_index < self.results.len() && self.results[line_index].is_some() {
+            self.result_animations[line_index] = Some(ResultAnimation::new_fade_in());
+        }
+    }
+
+    /// Update all animations and remove completed ones
+    pub fn update_animations(&mut self) {
+        for animation in &mut self.result_animations {
+            if let Some(anim) = animation {
+                if anim.is_complete() {
+                    *animation = None;
+                }
+            }
+        }
+    }
+
+    /// Get the animation for a specific line
+    pub fn get_result_animation(&self, line_index: usize) -> Option<&ResultAnimation> {
+        self.result_animations.get(line_index)?.as_ref()
     }
 }
 

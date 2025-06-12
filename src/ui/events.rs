@@ -78,6 +78,8 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
         }
 
         if last_tick.elapsed() >= tick_rate {
+            // Update animations on each tick
+            app.update_animations();
             last_tick = Instant::now();
         }
     }
@@ -161,6 +163,8 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         }
 
         if last_tick.elapsed() >= tick_rate {
+            // Update animations on each tick
+            app.update_animations();
             last_tick = Instant::now();
         }
     }
@@ -185,18 +189,21 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
     if !contents.trim().is_empty() {
         app.text_lines.clear();
         app.results.clear();
+        app.result_animations.clear();
     }
 
     // Split the contents into lines and load them into the app
     for line in contents.lines() {
         app.text_lines.push(line.to_string());
         app.results.push(None);
+        app.result_animations.push(None);
     }
 
     // If the file is empty, ensure we have at least one empty line
     if app.text_lines.is_empty() {
         app.text_lines.push(String::new());
         app.results.push(None);
+        app.result_animations.push(None);
     }
 
     // Recalculate all lines
