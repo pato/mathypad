@@ -519,3 +519,146 @@ fn test_user_multiline_scenario() {
     assert_eq!(result3, Some("2.222 GiB/s".to_string()));
     assert_eq!(assignment3, None); // No assignment, just evaluation
 }
+
+#[test]
+fn test_percentage_conversions() {
+    // Test converting decimal to percentage
+    assert_eq!(
+        evaluate_test_expression("0.1 to %"),
+        Some("10 %".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("0.25 to %"),
+        Some("25 %".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("1 to %"),
+        Some("100 %".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("1.5 to %"),
+        Some("150 %".to_string())
+    );
+
+    // Test percentage parsing (just check it works)
+    assert_eq!(
+        evaluate_test_expression("50%"),
+        Some("50 %".to_string())
+    );
+
+    // Test division result to percentage
+    assert_eq!(
+        evaluate_test_expression("1/10 to %"),
+        Some("10 %".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("3/4 to %"),
+        Some("75 %".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("1/3 to %"),
+        Some("33.333 %".to_string())
+    );
+}
+
+#[test]
+fn test_percentage_of_operations() {
+    // Test basic percentage of operations
+    assert_eq!(
+        evaluate_test_expression("10% of 50"),
+        Some("5".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("25% of 100"),
+        Some("25".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("50% of 200"),
+        Some("100".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("150% of 40"),
+        Some("60".to_string())
+    );
+
+    // Test percentage of values with units
+    assert_eq!(
+        evaluate_test_expression("20% of 100 GiB"),
+        Some("20 GiB".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("75% of 8 hours"),
+        Some("6 h".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("12.5% of 80 MB"),
+        Some("10 MB".to_string())
+    );
+
+    // Test fractional percentages
+    assert_eq!(
+        evaluate_test_expression("0.5% of 1000"),
+        Some("5".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("33.33% of 300"),
+        Some("99.99".to_string())
+    );
+}
+
+#[test]
+fn test_percentage_with_variables() {
+    use std::collections::HashMap;
+
+    // Test percentage operations with variables
+    let mut variables = HashMap::new();
+    let mut previous_results = vec![];
+
+    // Line 1: total = 100
+    let (result1, assignment1) =
+        evaluate_with_variables("total = 100", &variables, &previous_results, 0);
+    assert_eq!(result1, Some("100".to_string()));
+    assert_eq!(assignment1, Some(("total".to_string(), "100".to_string())));
+
+    if let Some((var_name, var_value)) = assignment1 {
+        variables.insert(var_name, var_value);
+    }
+    previous_results.push(result1);
+
+    // Line 2: 15% of total
+    let (result2, assignment2) =
+        evaluate_with_variables("15% of total", &variables, &previous_results, 1);
+    assert_eq!(result2, Some("15".to_string()));
+    assert_eq!(assignment2, None);
+}
+
+#[test]
+fn test_percentage_edge_cases() {
+    // Test 0% and 100%
+    assert_eq!(
+        evaluate_test_expression("0% of 100"),
+        Some("0".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("100% of 50"),
+        Some("50".to_string())
+    );
+
+    // Test very small percentages
+    assert_eq!(
+        evaluate_test_expression("0.01% of 10000"),
+        Some("1".to_string())
+    );
+
+    // Test very large percentages
+    assert_eq!(
+        evaluate_test_expression("1000% of 5"),
+        Some("50".to_string())
+    );
+
+    // Test percentage parsing variations
+    assert_eq!(
+        evaluate_test_expression("25 % of 80"),
+        Some("20".to_string())
+    );
+}

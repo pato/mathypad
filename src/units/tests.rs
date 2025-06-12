@@ -1229,3 +1229,58 @@ fn test_real_world_scenarios() {
     let unit_val = result.unwrap();
     assert!((unit_val.value - 5120.0).abs() < 0.001);
 }
+
+#[test]
+fn test_percentage_unit_parsing() {
+    use super::parser::parse_unit;
+    use super::types::Unit;
+
+    // Test percentage unit parsing
+    assert_eq!(parse_unit("%"), Some(Unit::Percent));
+    assert_eq!(parse_unit("percent"), Some(Unit::Percent));
+    assert_eq!(parse_unit("percentage"), Some(Unit::Percent));
+}
+
+#[test]
+fn test_percentage_unit_conversions() {
+    // Test decimal to percentage conversions
+    let result = evaluate_with_unit_info("0.25 to %");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 25.0).abs() < 0.001); // 0.25 = 25%
+
+    let result = evaluate_with_unit_info("1.5 to %");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 150.0).abs() < 0.001); // 1.5 = 150%
+
+    let result = evaluate_with_unit_info("0.1 to %");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 10.0).abs() < 0.001); // 0.1 = 10%
+}
+
+#[test]
+fn test_percentage_of_operations_detailed() {
+    // Test basic percentage of operations with units
+    assert_eq!(
+        evaluate_test_expression("20% of 500 MB"),
+        Some("100 MB".to_string())
+    );
+    
+    assert_eq!(
+        evaluate_test_expression("75% of 4 hours"),
+        Some("3 h".to_string())
+    );
+    
+    assert_eq!(
+        evaluate_test_expression("12.5% of 1 TiB"),
+        Some("0.125 TiB".to_string())
+    );
+
+    // Test percentage calculations with request rates
+    assert_eq!(
+        evaluate_test_expression("30% of 1000 QPS"),
+        Some("300 QPS".to_string())
+    );
+}

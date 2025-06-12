@@ -15,6 +15,7 @@ pub enum Token {
     RightParen,
     To,                   // for conversions like "to KiB"
     In,                   // for conversions like "in KiB"
+    Of,                   // for percentage operations like "10% of 50"
     LineReference(usize), // for referencing other lines like "line1", "line2"
     Variable(String),     // for variable references like "servers", "ram"
     Assign,               // for assignment operator "="

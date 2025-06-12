@@ -147,6 +147,8 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "qpm" | "queries/min" | "queries/minute" => Some(Unit::QueriesPerMinute),
         "qph" | "queries/h" | "queries/hour" => Some(Unit::QueriesPerHour),
 
+        "%" | "percent" | "percentage" => Some(Unit::Percent),
+
         _ => None,
     }
 }

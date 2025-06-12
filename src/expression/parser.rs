@@ -74,8 +74,8 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
                 consecutive_operators = 0;
                 consecutive_values = 0;
             }
-            Token::To | Token::In => {
-                // These are OK for conversions
+            Token::To | Token::In | Token::Of => {
+                // These are OK for conversions and percentage operations
                 consecutive_operators = 0;
                 consecutive_values = 0;
             }

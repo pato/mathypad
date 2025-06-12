@@ -33,7 +33,16 @@ impl UnitValue {
                     None // Can't convert between different unit types
                 }
             }
-            None => None, // No unit to convert from
+            None => {
+                // Handle conversion from dimensionless value to percentage
+                use super::types::UnitType;
+                if target_unit.unit_type() == UnitType::Percentage {
+                    let converted_value = target_unit.clone().from_base_value(self.value);
+                    Some(UnitValue::new(converted_value, Some(target_unit.clone())))
+                } else {
+                    None // No unit to convert from
+                }
+            }
         }
     }
 

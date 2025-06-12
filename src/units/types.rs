@@ -98,6 +98,9 @@ pub enum Unit {
     QueriesPerSecond,
     QueriesPerMinute,
     QueriesPerHour,
+
+    // Percentage unit (base: decimal value 0.0-1.0)
+    Percent,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,6 +112,7 @@ pub enum UnitType {
     BitRate,
     DataRate,
     RequestRate,
+    Percentage,
 }
 
 impl Unit {
@@ -199,6 +203,9 @@ impl Unit {
             Unit::QueriesPerSecond => value, // QPS = requests per second
             Unit::QueriesPerMinute => value / 60.0,
             Unit::QueriesPerHour => value / 3600.0,
+
+            // Percentage unit (convert to decimal 0.0-1.0)
+            Unit::Percent => value / 100.0,
         }
     }
 
@@ -290,6 +297,9 @@ impl Unit {
             Unit::QueriesPerSecond => base_value,
             Unit::QueriesPerMinute => base_value * 60.0,
             Unit::QueriesPerHour => base_value * 3600.0,
+
+            // Percentage unit (from decimal 0.0-1.0)
+            Unit::Percent => base_value * 100.0,
         }
     }
 
@@ -362,6 +372,7 @@ impl Unit {
             | Unit::QueriesPerSecond
             | Unit::QueriesPerMinute
             | Unit::QueriesPerHour => UnitType::RequestRate,
+            Unit::Percent => UnitType::Percentage,
         }
     }
 
@@ -435,6 +446,7 @@ impl Unit {
             Unit::QueriesPerSecond => "QPS",
             Unit::QueriesPerMinute => "QPM",
             Unit::QueriesPerHour => "QPH",
+            Unit::Percent => "%",
         }
     }
 

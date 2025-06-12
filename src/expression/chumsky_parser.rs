@@ -86,6 +86,9 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     // Parser for identifiers (words, but not compound with slashes - those are handled separately)
     let identifier = text::ascii::ident().map(|s: &str| s.to_string());
 
+    // Parser for the percent symbol
+    let percent_symbol = just('%').map(|_| "%".to_string());
+
     // Parser for compound identifiers (like "GiB/s") - only for valid units
     let compound_identifier = text::ascii::ident()
         .then(
@@ -125,6 +128,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     let keyword = choice((
         text::keyword("to").to(Token::To),
         text::keyword("in").to(Token::In),
+        text::keyword("of").to(Token::Of),
     ));
 
     // Parser for operators (including assignment)
@@ -138,8 +142,8 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('=').to(Token::Assign),
     ));
 
-    // Combined unit parser (tries compound units first, then simple identifiers)
-    let unit_identifier = choice((compound_identifier, identifier));
+    // Combined unit parser (tries compound units first, then simple identifiers, then percent)
+    let unit_identifier = choice((compound_identifier, identifier, percent_symbol));
 
     // Parser for numbers with optional units
     let number_with_unit = number
@@ -149,7 +153,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
                 .then(unit_identifier.clone())
                 .try_map(|(_, unit_str): ((), String), span| {
                     // Don't treat keywords as units in this context
-                    if unit_str == "to" || unit_str == "in" {
+                    if unit_str == "to" || unit_str == "in" || unit_str == "of" {
                         Err(Rich::custom(span, "Keywords are not units"))
                     } else if let Some(unit) = parse_unit(&unit_str) {
                         Ok(unit)
@@ -206,7 +210,6 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('#'),
         just('@'),
         just('$'),
-        just('%'),
         just('^'),
         just('~'),
         just('['),

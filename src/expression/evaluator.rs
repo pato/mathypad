@@ -125,6 +125,14 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         {
             return true;
         }
+
+        // Pattern: Percentage of value (e.g., "10% of 50")
+        if matches!(tokens[0], Token::NumberWithUnit(_, Unit::Percent))
+            && matches!(tokens[1], Token::Of)
+            && is_value_or_var(&tokens[2])
+        {
+            return true;
+        }
     }
 
     // Pattern 3: Binary operations (value op value)
@@ -350,6 +358,35 @@ pub fn evaluate_tokens_with_units_and_context(
             let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
             return unit_value.to_unit(to_unit);
         }
+
+        // Handle percentage of value expressions like "10% of 50"
+        if let (
+            Token::NumberWithUnit(percentage, Unit::Percent),
+            Token::Of,
+            value_token,
+        ) = (&tokens[0], &tokens[1], &tokens[2])
+        {
+            // Resolve the value token (could be number, unit, variable, or line reference)
+            let base_value = match value_token {
+                Token::Number(n) => UnitValue::new(*n, None),
+                Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
+                Token::LineReference(line_index) => {
+                    if let Some(line_result) = resolve_line_reference(*line_index, previous_results, current_line) {
+                        line_result
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None, // Variables would need additional handling
+            };
+
+            // Calculate percentage: convert percentage to decimal first, then multiply
+            let percentage_decimal = Unit::Percent.to_base_value(*percentage);
+            return Some(UnitValue::new(
+                percentage_decimal * base_value.value,
+                base_value.unit,
+            ));
+        }
     }
 
     // Check if we have an "in" or "to" conversion request at the end
@@ -466,6 +503,42 @@ fn evaluate_tokens_with_units_and_context_and_variables(
         {
             let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
             return unit_value.to_unit(to_unit);
+        }
+
+        // Handle percentage of value expressions like "10% of 50"
+        if let (
+            Token::NumberWithUnit(percentage, Unit::Percent),
+            Token::Of,
+            value_token,
+        ) = (&tokens[0], &tokens[1], &tokens[2])
+        {
+            // Resolve the value token (could be number, unit, variable, or line reference)
+            let base_value = match value_token {
+                Token::Number(n) => UnitValue::new(*n, None),
+                Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
+                Token::LineReference(line_index) => {
+                    if let Some(line_result) = resolve_line_reference(*line_index, previous_results, current_line) {
+                        line_result
+                    } else {
+                        return None;
+                    }
+                }
+                Token::Variable(var_name) => {
+                    if let Some(var_result) = resolve_variable(var_name, variables) {
+                        var_result
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
+            };
+
+            // Calculate percentage: convert percentage to decimal first, then multiply
+            let percentage_decimal = Unit::Percent.to_base_value(*percentage);
+            return Some(UnitValue::new(
+                percentage_decimal * base_value.value,
+                base_value.unit,
+            ));
         }
     }
 
