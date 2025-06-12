@@ -152,9 +152,19 @@ impl App {
             let (result, variable_assignment) =
                 evaluate_with_variables(line, &self.variables, &self.results, line_index);
 
-            // If this is a variable assignment, store it
+            // If this is a variable assignment, store it and re-evaluate dependent lines
             if let Some((var_name, var_value)) = variable_assignment {
-                self.variables.insert(var_name, var_value);
+                // Check if this variable assignment actually changed the value
+                let variable_changed = self.variables.get(&var_name) != Some(&var_value);
+                
+                self.variables.insert(var_name.clone(), var_value);
+                
+                // If the variable changed, re-evaluate all lines that might use this variable
+                if variable_changed {
+                    self.results[line_index] = result;
+                    self.re_evaluate_dependent_lines(&var_name, line_index);
+                    return;
+                }
             }
 
             self.results[line_index] = result;
@@ -164,6 +174,37 @@ impl App {
                 "Warning: Attempted to update result for invalid line index {}",
                 line_index
             );
+        }
+    }
+
+    /// Re-evaluate all lines that might depend on the given variable
+    fn re_evaluate_dependent_lines(&mut self, changed_variable: &str, assignment_line: usize) {
+        // Re-evaluate all lines after the assignment line that might use this variable
+        for line_idx in (assignment_line + 1)..self.text_lines.len() {
+            if line_idx < self.results.len() {
+                let line = &self.text_lines[line_idx];
+                
+                // Check if this line contains the variable name
+                // This is a simple heuristic - we could make it more sophisticated
+                if line.contains(changed_variable) {
+                    let (result, nested_assignment) =
+                        evaluate_with_variables(line, &self.variables, &self.results, line_idx);
+                    
+                    // Handle nested variable assignments (variables that depend on other variables)
+                    if let Some((nested_var_name, nested_var_value)) = nested_assignment {
+                        let nested_changed = self.variables.get(&nested_var_name) != Some(&nested_var_value);
+                        self.variables.insert(nested_var_name.clone(), nested_var_value);
+                        
+                        // If this nested assignment changed, recursively update its dependents
+                        if nested_changed {
+                            self.results[line_idx] = result;
+                            self.re_evaluate_dependent_lines(&nested_var_name, line_idx);
+                        }
+                    } else {
+                        self.results[line_idx] = result;
+                    }
+                }
+            }
         }
     }
 }
