@@ -756,7 +756,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Time * Rate = Data (convert time to seconds first)
                 (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
                     if time_unit.unit_type() == UnitType::Time
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && (matches!(rate_unit.unit_type(), UnitType::DataRate(_))) =>
                 {
                     // Determine which value is time and which is rate
                     let (time_value, time_u, rate_value, rate_u) =
@@ -766,8 +766,13 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                             (b.value, time_unit, a.value, rate_unit)
                         };
 
-                    // Convert time to seconds
-                    let time_in_seconds = time_u.to_base_value(time_value);
+                    let time_divider = match rate_unit.unit_type() {
+                        UnitType::DataRate(seconds) => seconds,
+                        _ => 1.0,
+                    };
+
+                    // Convert times to seconds
+                    let time_in_seconds = time_u.to_base_value(time_value) / time_divider;
 
                     // Rate * time = data
                     let data_unit = match rate_u.to_data_unit() {
@@ -789,8 +794,13 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                             (b.value, time_unit, a.value, rate_unit)
                         };
 
-                    // Convert time to seconds
-                    let time_in_seconds = time_u.to_base_value(time_value);
+                    let time_divider = match rate_unit.unit_type() {
+                        UnitType::DataRate(seconds) => seconds,
+                        _ => 1.0,
+                    };
+
+                    // Convert times to seconds
+                    let time_in_seconds = time_u.to_base_value(time_value) / time_divider;
 
                     // BitRate * time = bits
                     let bit_unit = match rate_u.to_data_unit() {
@@ -830,7 +840,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     UnitValue::new(a.value * b.value, Some(data_unit.clone()))
                 }
                 (Some(rate_unit), Some(Unit::Second)) | (Some(Unit::Second), Some(rate_unit))
-                    if rate_unit.unit_type() == UnitType::DataRate =>
+                    if matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
                     let data_unit = match rate_unit.to_data_unit() {
                         Ok(unit) => unit,
@@ -877,7 +887,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Data / DataRate = Time
                 (Some(data_unit), Some(rate_unit))
                     if data_unit.unit_type() == UnitType::Data
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
                     // Convert data to bytes and rate to bytes per second
                     let data_in_bytes = data_unit.to_base_value(a.value);
@@ -907,7 +917,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Bit / DataRate = Time (need to convert between bits and bytes)
                 (Some(data_unit), Some(rate_unit))
                     if data_unit.unit_type() == UnitType::Bit
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
                     // Convert data to bits and rate to bytes per second
                     let data_in_bits = data_unit.to_base_value(a.value);

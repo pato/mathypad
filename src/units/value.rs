@@ -53,8 +53,8 @@ impl UnitValue {
             (current.unit_type(), target.unit_type()),
             (UnitType::Bit, UnitType::Data)
                 | (UnitType::Data, UnitType::Bit)
-                | (UnitType::BitRate, UnitType::DataRate)
-                | (UnitType::DataRate, UnitType::BitRate)
+                | (UnitType::BitRate, UnitType::DataRate(_))
+                | (UnitType::DataRate(_), UnitType::BitRate)
         )
     }
 
@@ -78,14 +78,14 @@ impl UnitValue {
                 Some(UnitValue::new(converted_value, Some(target.clone())))
             }
             // Bit rate to Byte rate conversion
-            (UnitType::BitRate, UnitType::DataRate) => {
+            (UnitType::BitRate, UnitType::DataRate(_seconds)) => {
                 let bits_per_sec = current.to_base_value(self.value); // Convert to base bits/sec
                 let bytes_per_sec = bits_per_sec / 8.0; // 8 bits/sec = 1 byte/sec
                 let converted_value = target.clone().from_base_value(bytes_per_sec);
                 Some(UnitValue::new(converted_value, Some(target.clone())))
             }
             // Byte rate to Bit rate conversion
-            (UnitType::DataRate, UnitType::BitRate) => {
+            (UnitType::DataRate(_seconds), UnitType::BitRate) => {
                 let bytes_per_sec = current.to_base_value(self.value); // Convert to base bytes/sec
                 let bits_per_sec = bytes_per_sec * 8.0; // 1 byte/sec = 8 bits/sec
                 let converted_value = target.clone().from_base_value(bits_per_sec);

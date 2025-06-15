@@ -1,6 +1,7 @@
 //! Unit parsing functionality
 
 use super::types::Unit;
+use crate::UnitType;
 
 /// Parse a unit string into a Unit enum variant
 pub fn parse_unit(text: &str) -> Option<Unit> {
@@ -149,6 +150,21 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
 
-        _ => None,
+        _ => {
+            let mut rate_type = None;
+            if let Some(slash_pos) = text.find('/') {
+                if slash_pos < text.len() - 1 {
+                    let left_unit = parse_unit(&text[0..slash_pos]);
+                    let right_unit = parse_unit(&text[slash_pos + 1..]);
+                    if let (Some(left_unit), Some(right_unit)) = (left_unit, right_unit) {
+                        if right_unit.unit_type() == UnitType::Time {
+                            rate_type =
+                                Some(Unit::RateUnit(Box::new(left_unit), Box::new(right_unit)))
+                        }
+                    }
+                }
+            }
+            rate_type
+        }
     }
 }

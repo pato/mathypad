@@ -3,6 +3,23 @@
 use super::*;
 use crate::test_helpers::*;
 
+fn floats_equal(a: f64, b: f64) {
+    let delta = (a - b).abs();
+    if delta > 0.001 {
+        panic!("expected {}, got {}, delta = {}", a, b, delta)
+    }
+}
+
+#[test]
+fn test_generic_rate() {
+    let rate = Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second));
+    floats_equal(rate.to_base_value(1.0), 1.0);
+    let rate = Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Minute));
+    floats_equal(rate.to_base_value(3.0), 0.05);
+    let rate = Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Day));
+    floats_equal(rate.to_base_value(86400.0), 1.0);
+}
+
 #[test]
 fn test_unit_conversions() {
     // Data unit conversions (base 2)
@@ -811,10 +828,10 @@ fn test_large_data_unit_type_classification() {
     assert_eq!(Unit::EiB.unit_type(), UnitType::Data);
 
     // Test that large rate units are properly classified
-    assert_eq!(Unit::PBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::EBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::PiBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::EiBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::PBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::EBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::PiBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::EiBPerSecond.unit_type(), UnitType::DataRate(1.0));
 }
 
 #[test]
@@ -1159,13 +1176,13 @@ fn test_bit_byte_unit_type_classification() {
     assert_eq!(Unit::GiB.unit_type(), UnitType::Data);
 
     // Test that byte rate units are still classified as DataRate type
-    assert_eq!(Unit::BytesPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::KBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::MBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::GBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::KiBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::MiBPerSecond.unit_type(), UnitType::DataRate);
-    assert_eq!(Unit::GiBPerSecond.unit_type(), UnitType::DataRate);
+    assert_eq!(Unit::BytesPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::KBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::MBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::GBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::KiBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::MiBPerSecond.unit_type(), UnitType::DataRate(1.0));
+    assert_eq!(Unit::GiBPerSecond.unit_type(), UnitType::DataRate(1.0));
 }
 
 #[test]
