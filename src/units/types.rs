@@ -95,6 +95,9 @@ pub enum Unit {
     QueriesPerSecond,
     QueriesPerMinute,
     QueriesPerHour,
+
+    //  Generic rates
+    RateUnit(Box<Unit>, Box<Unit>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,7 +107,7 @@ pub enum UnitType {
     Data,
     Request,
     BitRate,
-    DataRate,
+    DataRate(f64),
     RequestRate,
 }
 
@@ -193,6 +196,8 @@ impl Unit {
             Unit::QueriesPerSecond => value, // QPS = requests per second
             Unit::QueriesPerMinute => value / 60.0,
             Unit::QueriesPerHour => value / 3600.0,
+
+            Unit::RateUnit(_v1, v2) => value / v2.to_base_value(1.0),
         }
     }
 
@@ -281,6 +286,9 @@ impl Unit {
             Unit::QueriesPerSecond => base_value,
             Unit::QueriesPerMinute => base_value * 60.0,
             Unit::QueriesPerHour => base_value * 3600.0,
+
+            // Rate unit
+            Unit::RateUnit(_, _) => base_value,
         }
     }
 
@@ -340,13 +348,24 @@ impl Unit {
             | Unit::GiBPerSecond
             | Unit::TiBPerSecond
             | Unit::PiBPerSecond
-            | Unit::EiBPerSecond => UnitType::DataRate,
+            | Unit::EiBPerSecond => UnitType::DataRate(1.0),
             Unit::RequestsPerSecond
             | Unit::RequestsPerMinute
             | Unit::RequestsPerHour
             | Unit::QueriesPerSecond
             | Unit::QueriesPerMinute
             | Unit::QueriesPerHour => UnitType::RequestRate,
+            Unit::RateUnit(b1, b2) => {
+                if b2.unit_type() != UnitType::Time {
+                    panic!("We handle only rates")
+                }
+                match b1.unit_type() {
+                    UnitType::Bit => UnitType::BitRate,
+                    UnitType::Data => UnitType::DataRate(b2.to_base_value(1.0)),
+                    UnitType::Request => UnitType::RequestRate,
+                    _ => panic!("Rate unknown"),
+                }
+            }
         }
     }
 
@@ -417,6 +436,10 @@ impl Unit {
             Unit::QueriesPerSecond => "QPS",
             Unit::QueriesPerMinute => "QPM",
             Unit::QueriesPerHour => "QPH",
+            Unit::RateUnit(_b1, _b2) => {
+                //  TODO, we need to allocate here...
+                "todo"
+            }
         }
     }
 
@@ -484,6 +507,7 @@ impl Unit {
             Unit::TiBPerSecond => Ok(Unit::TiB),
             Unit::PiBPerSecond => Ok(Unit::PiB),
             Unit::EiBPerSecond => Ok(Unit::EiB),
+            Unit::RateUnit(b1, _) => Ok(*b1.clone()),
             _ => Err(UnitConversionError),
         }
     }

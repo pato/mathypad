@@ -88,25 +88,19 @@ fn test_complex_expressions() {
         evaluate_test_expression("Transfer: 5 GiB/s * 10 minutes"),
         Some("3,000 GiB".to_string())
     );
+
+    // Complex unit expressions with generic rate...
+    assert_eq!(
+        evaluate_test_expression("Transfer: 1 GiB/minute * 8 minutes"),
+        Some("8 GiB".to_string())
+    );
 }
 
 #[test]
 fn test_edge_cases() {
     // Division by zero
-    println!("Testing 5 / 0: {:?}", evaluate_test_expression("5 / 0"));
     assert_eq!(evaluate_test_expression("5 / 0"), None);
 
-    // Invalid expressions
-    let expressions = find_math_expression("5 +");
-    println!("Found expressions for '5 +': {:?}", expressions);
-    for expr in &expressions {
-        println!(
-            "Expression '{}' is valid: {}",
-            expr,
-            is_valid_math_expression(expr)
-        );
-    }
-    println!("Testing 5 +: {:?}", evaluate_test_expression("5 +"));
     assert_eq!(evaluate_test_expression("5 +"), None);
     assert_eq!(evaluate_test_expression("* 5"), None);
     assert_eq!(evaluate_test_expression("((5)"), None);
