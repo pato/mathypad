@@ -69,7 +69,7 @@ pub struct App {
     pub show_unsaved_dialog: bool,                       // Show the unsaved changes dialog
     pub show_save_as_dialog: bool,                       // Show the save as dialog
     pub save_as_input: String,                           // Current input for save as filename
-    pub save_as_and_quit: bool,                          // Whether to quit after saving in save as dialog
+    pub save_as_and_quit: bool, // Whether to quit after saving in save as dialog
 }
 
 impl Default for App {
@@ -538,7 +538,7 @@ impl App {
             let path = PathBuf::from(self.save_as_input.trim());
             self.save_as(path)?;
             self.show_save_as_dialog = false;
-            
+
             let should_quit = self.save_as_and_quit;
             self.save_as_and_quit = false;
             Ok(should_quit)

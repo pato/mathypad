@@ -696,219 +696,219 @@ mod tests {
         app.delete_word();
         assert!(app.has_unsaved_changes);
     }
-    
+
     #[test]
     fn test_loading_non_existent_file() {
         use crate::App;
         use tempfile::TempDir;
-        
+
         // Create a temporary directory
         let temp_dir = TempDir::new().unwrap();
         let non_existent_file = temp_dir.path().join("does_not_exist.mathypad");
-        
+
         // Verify the file doesn't exist
         assert!(!non_existent_file.exists());
-        
+
         // Test the behavior by creating an app and setting a non-existent file path
         let mut app = App::default();
-        
+
         // Set a non-existent file path
         app.set_file_path(Some(non_existent_file.clone()));
-        
+
         // Add some content
         app.insert_char('t');
         app.insert_char('e');
         app.insert_char('s');
         app.insert_char('t');
-        
+
         // Save should create the file
         app.save().unwrap();
-        
+
         // Verify the file was created
         assert!(non_existent_file.exists());
-        
+
         // Verify the content
         let content = std::fs::read_to_string(&non_existent_file).unwrap();
         assert_eq!(content, "test");
     }
-    
+
     #[test]
     fn test_non_existent_file_creation() {
         use crate::App;
         use tempfile::TempDir;
-        
+
         // Create a temporary directory
         let temp_dir = TempDir::new().unwrap();
         let non_existent_file = temp_dir.path().join("new_file.mathypad");
-        
+
         // Verify the file doesn't exist
         assert!(!non_existent_file.exists());
-        
+
         // Test that we can create a new file by setting a path and saving
         let mut app = App::default();
         app.set_file_path(Some(non_existent_file.clone()));
         app.insert_char('h');
         app.insert_char('i');
-        
+
         // File still shouldn't exist until we save
         assert!(!non_existent_file.exists());
-        
+
         // Save should create it
         app.save().unwrap();
         assert!(non_existent_file.exists());
-        
+
         let content = std::fs::read_to_string(&non_existent_file).unwrap();
         assert_eq!(content, "hi");
     }
-    
+
     #[test]
     fn test_unsaved_changes_dialog() {
         use crate::App;
-        
+
         let mut app = App::default();
-        
+
         // Initially, no dialog should be shown
         assert!(!app.show_unsaved_dialog);
-        
+
         // Add some content to create unsaved changes
         app.insert_char('t');
         app.insert_char('e');
         app.insert_char('s');
         app.insert_char('t');
-        
+
         // Verify we have unsaved changes
         assert!(app.has_unsaved_changes);
-        
+
         // Simulate trying to exit - this should show the dialog instead of exiting
         // (In the actual implementation, this would be handled by the event loop)
         // For testing, we manually trigger the dialog logic
         if app.has_unsaved_changes {
             app.show_unsaved_dialog = true;
         }
-        
+
         // Verify the dialog is now shown
         assert!(app.show_unsaved_dialog);
-        
+
         // Test dismissing the dialog with Escape (simulate Escape key)
         app.show_unsaved_dialog = false;
         assert!(!app.show_unsaved_dialog);
-        
+
         // Test the save and quit flow
         app.show_unsaved_dialog = true;
         // In the real implementation, Ctrl+S would save and exit
         // For testing, we just verify the dialog state can be managed
         assert!(app.show_unsaved_dialog);
     }
-    
+
     #[test]
     fn test_save_as_dialog() {
         use crate::App;
         use tempfile::TempDir;
-        
+
         let mut app = App::default();
-        
+
         // Initially, no save as dialog should be shown
         assert!(!app.show_save_as_dialog);
         assert!(app.save_as_input.is_empty());
-        
+
         // Add some content
         app.insert_char('t');
         app.insert_char('e');
         app.insert_char('s');
         app.insert_char('t');
-        
+
         // Show save as dialog (simulate Ctrl+S with no filename)
         app.show_save_as_dialog(false);
-        
+
         // Verify dialog is shown
         assert!(app.show_save_as_dialog);
         assert!(!app.save_as_and_quit);
         assert_eq!(app.save_as_input, ".pad");
-        
+
         // Simulate typing a filename
         app.save_as_input = "test_file.pad".to_string();
-        
+
         // Test save as functionality
         let temp_dir = TempDir::new().unwrap();
         let expected_path = temp_dir.path().join("test_file.pad");
-        
+
         // Manually set the path for testing (in real usage, this comes from user input)
         app.save_as_input = expected_path.to_string_lossy().to_string();
-        
+
         // Simulate Enter key (save)
         let should_quit = app.save_as_from_dialog().unwrap();
         assert!(!should_quit); // Should not quit since save_as_and_quit was false
         assert!(!app.show_save_as_dialog); // Dialog should be dismissed
-        
+
         // Verify file was created and app state updated
         assert!(expected_path.exists());
         assert_eq!(app.file_path, Some(expected_path.clone()));
         assert!(!app.has_unsaved_changes);
-        
+
         // Verify file content
         let content = std::fs::read_to_string(&expected_path).unwrap();
         assert_eq!(content, "test");
     }
-    
+
     #[test]
     fn test_save_as_dialog_with_quit() {
         use crate::App;
         use tempfile::TempDir;
-        
+
         let mut app = App::default();
-        
+
         // Add content and show save as dialog with quit flag
         app.insert_char('h');
         app.insert_char('i');
         app.show_save_as_dialog(true); // Quit after save
-        
+
         assert!(app.show_save_as_dialog);
         assert!(app.save_as_and_quit);
-        
+
         // Set filename and save
         let temp_dir = TempDir::new().unwrap();
         let expected_path = temp_dir.path().join("quit_test.pad");
         app.save_as_input = expected_path.to_string_lossy().to_string();
-        
+
         let should_quit = app.save_as_from_dialog().unwrap();
         assert!(should_quit); // Should quit since save_as_and_quit was true
         assert!(!app.show_save_as_dialog); // Dialog should be dismissed
         assert!(!app.save_as_and_quit); // Flag should be reset
-        
+
         // Verify file was created
         assert!(expected_path.exists());
         let content = std::fs::read_to_string(&expected_path).unwrap();
         assert_eq!(content, "hi");
     }
-    
+
     #[test]
     fn test_save_as_dialog_pad_extension() {
         use crate::App;
-        
+
         let mut app = App::default();
-        
+
         // Show save as dialog
         app.show_save_as_dialog(false);
-        
+
         // Verify dialog starts with .pad extension
         assert_eq!(app.save_as_input, ".pad");
-        
+
         // Test that entering a filename preserves the .pad extension
         // Simulate typing "test" - in real usage this would be handled by the input handler
         app.save_as_input = "test.pad".to_string();
-        
+
         // Verify the extension is preserved
         assert!(app.save_as_input.ends_with(".pad"));
-        
+
         // Test the auto-extension functionality
         app.save_as_input = "myfile".to_string();
-        
+
         // Simulate pressing Enter (which should add .pad if missing)
         // This is tested indirectly through the save_as_from_dialog method
         if !app.save_as_input.ends_with(".pad") && !app.save_as_input.is_empty() {
             app.save_as_input.push_str(".pad");
         }
-        
+
         assert_eq!(app.save_as_input, "myfile.pad");
     }
 }

@@ -243,6 +243,34 @@ cd mathypad
 cargo build --release
 ```
 
+### Shell Completions
+
+Mathypad provides shell completions that enable tab-completion for `.pad` files.
+
+Enable completions using the built-in `--completions` flag:
+
+**Bash:**
+```bash
+# Add to ~/.bashrc
+echo 'eval "$(mathypad --completions bash)"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Zsh:**
+```bash
+# Add to ~/.zshrc
+echo 'eval "$(mathypad --completions zsh)"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Fish:**
+```bash
+# Add to ~/.config/fish/config.fish
+echo 'mathypad --completions fish | source' >> ~/.config/fish/config.fish
+```
+
+With completions installed, typing `mathypad ` and pressing Tab will auto-complete `.pad` files in the current directory.
+
 ## Use Cases
 
 - **DevOps**: Storage capacity planning, bandwidth calculations, infrastructure cost modeling

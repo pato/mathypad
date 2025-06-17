@@ -379,7 +379,7 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
         }
         Err(e) => return Err(Box::new(e)),
     };
-    
+
     let mut app = App::default();
 
     // Clear the default empty line if we have file content
@@ -408,7 +408,7 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
 
     // Set the file path and mark as saved (for existing files) or unsaved (for new files)
     app.set_file_path(Some(path.clone()));
-    
+
     // If the file didn't exist, mark it as having unsaved changes so it gets created on save
     if !path.exists() {
         app.has_unsaved_changes = true;
@@ -556,7 +556,7 @@ fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
             if !app.save_as_input.ends_with(".pad") && !app.save_as_input.is_empty() {
                 app.save_as_input.push_str(".pad");
             }
-            
+
             // Save with the entered filename
             match app.save_as_from_dialog() {
                 Ok(should_quit) => should_quit,
@@ -566,6 +566,6 @@ fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
                 }
             }
         }
-        _ => false
+        _ => false,
     }
 }
