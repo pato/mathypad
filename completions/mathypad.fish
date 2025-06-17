@@ -6,3 +6,4 @@ complete -c mathypad -l completions -d 'Generate shell completion files' -x -a '
 
 # Complete .pad files for the first argument
 complete -c mathypad -n '__fish_is_first_arg' -f -a '(__fish_complete_suffix .pad)'
+

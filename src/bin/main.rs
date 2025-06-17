@@ -6,21 +6,44 @@ use std::error::Error;
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Get command line arguments
-    let args: Vec<String> = std::env::args().collect();
-
-    // Check for "--" separator first (one-shot mode)
-    if let Some(dash_pos) = args.iter().position(|arg| arg == "--") {
-        let expression_parts: Vec<String> = args.iter().skip(dash_pos + 1).cloned().collect();
-        if !expression_parts.is_empty() {
-            let expression = expression_parts.join(" ");
-            run_one_shot_mode(&expression)?;
-            return Ok(());
-        }
+    // Check for one-shot mode first (before clap parsing to preserve existing behavior)
+    if let Some(expression) = extract_one_shot_expression() {
+        return run_one_shot_mode(&expression);
     }
 
-    // Use clap for file argument and help/version
-    let matches = Command::new("mathypad")
+    let matches = build_cli().get_matches();
+
+    // Handle completions flag
+    if let Some(shell) = matches.get_one::<String>("completions") {
+        print_completion_script(shell);
+        return Ok(());
+    }
+
+    // Extract file path and run interactive mode
+    let file_path = matches.get_one::<String>("file").map(PathBuf::from);
+    run_interactive_mode_with_file(file_path)
+}
+
+/// Extract one-shot expression if "--" separator is present
+fn extract_one_shot_expression() -> Option<String> {
+    let mut args = std::env::args();
+
+    // Find the "--" separator position
+    let dash_pos = args.position(|arg| arg == "--")?;
+
+    // Skip the program name and arguments before "--"
+    let remaining_args: Vec<String> = std::env::args().skip(dash_pos + 1).collect();
+
+    if remaining_args.is_empty() {
+        None
+    } else {
+        Some(remaining_args.join(" "))
+    }
+}
+
+/// Build the CLI command structure
+fn build_cli() -> Command {
+    Command::new("mathypad")
         .version(crate_version!())
         .about("A mathematical notepad with unit conversion support")
         .arg(
@@ -34,41 +57,33 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .long("completions")
                 .help("Generate shell completion files")
                 .value_name("SHELL")
-                .value_parser(["bash", "zsh", "fish"])
-                .required(false),
+                .value_parser(["bash", "zsh", "fish"]),
         )
         .arg(
             Arg::new("file")
                 .help("File to open")
                 .value_name("FILE")
                 .index(1)
-                .required(false)
                 .value_hint(ValueHint::FilePath),
         )
-        .after_help("Examples:\n  mathypad                      # Start empty interactive mode\n  mathypad calculations.pad     # Open file in interactive mode\n  mathypad -- \"100 GB to GiB\"   # One-shot calculation\n  eval \"$(mathypad --completions bash)\"  # Enable bash completions")
-        .get_matches();
-
-    // Check for completions flag
-    if let Some(shell) = matches.get_one::<String>("completions") {
-        generate_completion_script(shell)?;
-        return Ok(());
-    }
-
-    // Check if we have a file to open
-    let file_path = matches.get_one::<String>("file").map(PathBuf::from);
-
-    // Run the interactive TUI mode with optional file
-    run_interactive_mode_with_file(file_path)
+        .after_help(
+            "Examples:\n\
+             \x20 mathypad                      # Start empty interactive mode\n\
+             \x20 mathypad calculations.pad     # Open file in interactive mode\n\
+             \x20 mathypad -- \"100 GB to GiB\"   # One-shot calculation\n\
+             \x20 eval \"$(mathypad --completions bash)\"  # Enable bash completions",
+        )
 }
 
-fn generate_completion_script(shell: &str) -> Result<(), Box<dyn Error>> {
+/// Print the completion script for the specified shell
+/// Note: shell parameter is guaranteed to be valid by clap's value_parser
+fn print_completion_script(shell: &str) {
     let completion_script = match shell {
         "bash" => include_str!("../../completions/mathypad.bash"),
         "zsh" => include_str!("../../completions/mathypad.zsh"),
         "fish" => include_str!("../../completions/mathypad.fish"),
-        _ => return Err(format!("Unsupported shell: {}", shell).into()),
+        _ => unreachable!("clap should prevent invalid shell values"),
     };
 
-    println!("{}", completion_script);
-    Ok(())
+    print!("{}", completion_script);
 }

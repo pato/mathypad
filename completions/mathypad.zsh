@@ -23,3 +23,4 @@ _mathypad_pad_files() {
 
 # Register the completion
 compdef _mathypad mathypad
+
