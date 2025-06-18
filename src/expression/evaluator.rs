@@ -6,6 +6,48 @@ use crate::FLOAT_EPSILON;
 use crate::units::{Unit, UnitType, UnitValue, parse_unit};
 use std::collections::HashMap;
 
+/// Preprocess tokens to convert Number + Unit pairs to NumberWithUnit tokens
+/// This maintains compatibility with existing evaluation logic while supporting the new tokenization
+pub fn preprocess_tokens_for_evaluation(tokens: &[Token]) -> Vec<Token> {
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < tokens.len() {
+        match (&tokens[i], tokens.get(i + 1)) {
+            // Convert Number + Unit pairs to NumberWithUnit
+            (Token::Number(value), Some(Token::Unit(unit))) => {
+                result.push(Token::NumberWithUnit(*value, unit.clone()));
+                i += 2; // Skip both tokens
+            }
+            // Handle Unit tokens that come after conversion keywords (to/in)
+            (Token::Unit(unit), _) => {
+                // Check if this Unit follows a "to" or "in" keyword
+                let after_conversion_keyword = result
+                    .last()
+                    .map(|t| matches!(t, Token::To | Token::In))
+                    .unwrap_or(false);
+
+                if after_conversion_keyword {
+                    // For conversion contexts, preserve the unit as NumberWithUnit(1.0, unit)
+                    // This allows the conversion logic to extract the target unit
+                    result.push(Token::NumberWithUnit(1.0, unit.clone()));
+                } else {
+                    // For other contexts (like standalone units), also treat as NumberWithUnit(1.0, unit)
+                    result.push(Token::NumberWithUnit(1.0, unit.clone()));
+                }
+                i += 1;
+            }
+            // Handle other tokens normally
+            _ => {
+                result.push(tokens[i].clone());
+                i += 1;
+            }
+        }
+    }
+
+    result
+}
+
 /// Main evaluation function that handles context for line references
 pub fn evaluate_expression_with_context(
     text: &str,
@@ -14,10 +56,15 @@ pub fn evaluate_expression_with_context(
 ) -> Option<String> {
     // New approach: tokenize everything then find mathematical patterns
     if let Some(tokens) = super::parser::tokenize_with_units(text) {
+        // Apply preprocessing to convert Number + Unit pairs to NumberWithUnit
+        let preprocessed_tokens = preprocess_tokens_for_evaluation(&tokens);
+
         // Try to find and evaluate mathematical patterns in the token stream
-        if let Some(result) =
-            evaluate_tokens_stream_with_context(&tokens, previous_results, current_line)
-        {
+        if let Some(result) = evaluate_tokens_stream_with_context(
+            &preprocessed_tokens,
+            previous_results,
+            current_line,
+        ) {
             return Some(result.format());
         }
     }
@@ -42,10 +89,15 @@ pub fn evaluate_tokens_stream_with_context(
             // Try longest first
             let subseq = &tokens[start..end];
             if is_valid_mathematical_sequence(subseq) {
+                // Preprocess tokens to convert Number + Unit pairs to NumberWithUnit tokens
+                let preprocessed_tokens = preprocess_tokens_for_evaluation(subseq);
+
                 // Try to evaluate this subsequence
-                if let Some(result) =
-                    evaluate_tokens_with_units_and_context(subseq, previous_results, current_line)
-                {
+                if let Some(result) = evaluate_tokens_with_units_and_context(
+                    &preprocessed_tokens,
+                    previous_results,
+                    current_line,
+                ) {
                     return Some(result);
                 }
                 // If this subsequence failed to evaluate and it spans the entire input with operators,
@@ -82,6 +134,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
             t,
             Token::Number(_)
                 | Token::NumberWithUnit(_, _)
+                | Token::Unit(_)
                 | Token::LineReference(_)
                 | Token::Variable(_)
         )
@@ -100,6 +153,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
             tokens[0],
             Token::Number(_)
                 | Token::NumberWithUnit(_, _)
+                | Token::Unit(_)
                 | Token::LineReference(_)
                 | Token::Variable(_)
         );
@@ -112,12 +166,17 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
                 t,
                 Token::Number(_)
                     | Token::NumberWithUnit(_, _)
+                    | Token::Unit(_)
                     | Token::LineReference(_)
                     | Token::Variable(_)
             )
         };
-        let is_unit_or_var =
-            |t: &Token| matches!(t, Token::NumberWithUnit(_, _) | Token::Variable(_));
+        let is_unit_or_var = |t: &Token| {
+            matches!(
+                t,
+                Token::NumberWithUnit(_, _) | Token::Unit(_) | Token::Variable(_)
+            )
+        };
 
         if is_value_or_var(&tokens[0])
             && matches!(tokens[1], Token::To | Token::In)
@@ -135,6 +194,29 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         }
     }
 
+    // Pattern 2.5: Percentage operations (value unit of value) - 4 tokens
+    if tokens.len() == 4 {
+        let is_value_or_var = |t: &Token| {
+            matches!(
+                t,
+                Token::Number(_)
+                    | Token::NumberWithUnit(_, _)
+                    | Token::Unit(_)
+                    | Token::LineReference(_)
+                    | Token::Variable(_)
+            )
+        };
+
+        // Check for "Number Unit Of Value" pattern (e.g., "10 % of 50")
+        if is_value_or_var(&tokens[0])
+            && matches!(tokens[1], Token::Unit(_))
+            && matches!(tokens[2], Token::Of)
+            && is_value_or_var(&tokens[3])
+        {
+            return true;
+        }
+    }
+
     // Pattern 3: Binary operations (value op value)
     if tokens.len() == 3 {
         let is_value = |t: &Token| {
@@ -142,6 +224,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
                 t,
                 Token::Number(_)
                     | Token::NumberWithUnit(_, _)
+                    | Token::Unit(_)
                     | Token::LineReference(_)
                     | Token::Variable(_)
             )
@@ -182,16 +265,22 @@ pub fn evaluate_with_variables(
 
     // New approach: tokenize everything then find patterns
     if let Some(tokens) = super::parser::tokenize_with_units(text) {
+        // Apply preprocessing to convert Number + Unit pairs to NumberWithUnit
+        let preprocessed_tokens = preprocess_tokens_for_evaluation(&tokens);
+
         // First check for variable assignments
-        if let Some(assignment) =
-            find_variable_assignment_in_tokens(&tokens, variables, previous_results, current_line)
-        {
+        if let Some(assignment) = find_variable_assignment_in_tokens(
+            &preprocessed_tokens,
+            variables,
+            previous_results,
+            current_line,
+        ) {
             return (Some(assignment.1.clone()), Some(assignment));
         }
 
         // Then look for mathematical expressions
         if let Some(result) = evaluate_tokens_stream_with_variables(
-            &tokens,
+            &preprocessed_tokens,
             variables,
             previous_results,
             current_line,
@@ -216,9 +305,12 @@ fn find_variable_assignment_in_tokens(
             // Extract the right-hand side (everything after =)
             let rhs_tokens = &tokens[2..];
 
+            // Preprocess tokens to convert Number + Unit pairs to NumberWithUnit tokens
+            let preprocessed_tokens = preprocess_tokens_for_evaluation(rhs_tokens);
+
             // Evaluate the right-hand side
             if let Some(value) = evaluate_tokens_with_units_and_context_and_variables(
-                rhs_tokens,
+                &preprocessed_tokens,
                 variables,
                 previous_results,
                 current_line,
@@ -254,9 +346,12 @@ fn evaluate_tokens_stream_with_variables(
             // Try longest first
             let subseq = &tokens[start..end];
             if is_valid_mathematical_sequence(subseq) && all_variables_defined(subseq, variables) {
+                // Preprocess tokens to convert Number + Unit pairs to NumberWithUnit tokens
+                let preprocessed_tokens = preprocess_tokens_for_evaluation(subseq);
+
                 // Try to evaluate this subsequence
                 if let Some(result) = evaluate_tokens_with_units_and_context_and_variables(
-                    subseq,
+                    &preprocessed_tokens,
                     variables,
                     previous_results,
                     current_line,
@@ -303,6 +398,7 @@ fn is_math_token(token: &Token) -> bool {
         token,
         Token::Number(_)
             | Token::NumberWithUnit(_, _)
+            | Token::Unit(_)
             | Token::LineReference(_)
             | Token::Plus
             | Token::Minus
@@ -998,4 +1094,110 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
 
     stack.push(result);
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preprocess_tokens_for_evaluation() {
+        use crate::units::Unit;
+
+        // Test Number + Unit pairs are converted to NumberWithUnit
+        let tokens = vec![
+            Token::Number(5.0),
+            Token::Unit(Unit::GiB),
+            Token::Plus,
+            Token::Number(10.0),
+            Token::Unit(Unit::MiB),
+        ];
+        let processed = preprocess_tokens_for_evaluation(&tokens);
+        assert_eq!(processed.len(), 3);
+        assert!(matches!(
+            processed[0],
+            Token::NumberWithUnit(5.0, Unit::GiB)
+        ));
+        assert!(matches!(processed[1], Token::Plus));
+        assert!(matches!(
+            processed[2],
+            Token::NumberWithUnit(10.0, Unit::MiB)
+        ));
+
+        // Test standalone Unit tokens become NumberWithUnit(1.0, unit)
+        let tokens = vec![Token::Number(1.0), Token::To, Token::Unit(Unit::KiB)];
+        let processed = preprocess_tokens_for_evaluation(&tokens);
+        assert_eq!(processed.len(), 3);
+        assert!(matches!(processed[0], Token::Number(1.0)));
+        assert!(matches!(processed[1], Token::To));
+        assert!(matches!(
+            processed[2],
+            Token::NumberWithUnit(1.0, Unit::KiB)
+        ));
+
+        // Test mixed tokens pass through correctly
+        let tokens = vec![
+            Token::Number(42.0),
+            Token::Plus,
+            Token::Variable("x".to_string()),
+            Token::Multiply,
+            Token::Number(2.0),
+            Token::Unit(Unit::GiB),
+        ];
+        let processed = preprocess_tokens_for_evaluation(&tokens);
+        assert_eq!(processed.len(), 5);
+        assert!(matches!(processed[0], Token::Number(42.0)));
+        assert!(matches!(processed[1], Token::Plus));
+        assert!(matches!(processed[2], Token::Variable(_)));
+        assert!(matches!(processed[3], Token::Multiply));
+        assert!(matches!(
+            processed[4],
+            Token::NumberWithUnit(2.0, Unit::GiB)
+        ));
+    }
+
+    #[test]
+    fn test_evaluation_with_separate_tokens() {
+        // Test that evaluation works properly with the new separate Number + Unit tokens
+
+        // Test simple arithmetic with units using the new tokenization
+        let result = evaluate_expression_with_context("5 GiB + 512 MiB", &[], 0);
+        assert!(result.is_some());
+        let result_str = result.unwrap();
+        // Should be 5,632 MiB (5*1024 + 512 = 5632)
+        assert!(result_str.contains("5,632") && result_str.contains("MiB"));
+
+        // Test conversion using new tokenization
+        // First, let's see what tokens are being generated
+        let tokens = tokenize_with_units("1 GiB to MiB").unwrap();
+        println!("DEBUG: Tokens for '1 GiB to MiB': {:?}", tokens);
+        let preprocessed = preprocess_tokens_for_evaluation(&tokens);
+        println!("DEBUG: Preprocessed tokens: {:?}", preprocessed);
+
+        let result = evaluate_expression_with_context("1 GiB to MiB", &[], 0);
+        println!("DEBUG: Result for '1 GiB to MiB': {:?}", result);
+        // Let's also test a working example from the old tests
+        let result_old = evaluate_expression_with_context("1024 MiB", &[], 0);
+        println!("DEBUG: Result for '1024 MiB': {:?}", result_old);
+
+        assert!(result.is_some());
+        let result_str = result.unwrap();
+        // The actual result might not have comma formatting, let's check both
+        assert!(
+            (result_str.contains("1024") || result_str.contains("1,024"))
+                && result_str.contains("MiB")
+        );
+
+        // Test standalone numbers still work
+        let result = evaluate_expression_with_context("10 + 20", &[], 0);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "30");
+
+        // Test complex expressions
+        let result = evaluate_expression_with_context("(2 GiB + 1024 MiB) * 2", &[], 0);
+        assert!(result.is_some());
+        let result_str = result.unwrap();
+        // Should be 6,144 MiB (mathematically equivalent to 6 GiB)
+        assert!(result_str.contains("6,144") && result_str.contains("MiB"));
+    }
 }

@@ -114,7 +114,7 @@ impl App {
         // Record the new state
         let after = format!(
             "Line 1: '{}', Line 2: '{}', Line 3: '{}'",
-            self.text_lines.get(0).unwrap_or(&"".to_string()),
+            self.text_lines.first().unwrap_or(&"".to_string()),
             self.text_lines.get(1).unwrap_or(&"".to_string()),
             self.text_lines.get(2).unwrap_or(&"".to_string())
         );

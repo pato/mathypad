@@ -197,37 +197,17 @@ fn create_token_parser_with_spans<'a>()
     // Combined unit parser
     let unit_identifier = choice((compound_identifier, identifier, percent_symbol));
 
-    // Parser for numbers with optional units (with span tracking)
-    let number_with_unit = number
-        .then(
-            just(' ')
-                .repeated()
-                .then(unit_identifier)
-                .try_map(|(_, unit_str): ((), String), span| {
-                    if unit_str == "to" || unit_str == "in" || unit_str == "of" {
-                        Err(Rich::custom(span, "Keywords are not units"))
-                    } else if let Some(unit) = parse_unit(&unit_str) {
-                        Ok(unit)
-                    } else {
-                        Err(Rich::custom(span, format!("Unknown unit: {}", unit_str)))
-                    }
-                })
-                .or_not(),
-        )
-        .map_with(|((num, _num_span), unit_opt), e| TokenWithSpan {
-            token: if let Some(unit) = unit_opt {
-                Token::NumberWithUnit(num, unit)
-            } else {
-                Token::Number(num)
-            },
-            span: e.span(),
-        });
+    // Parser for standalone numbers (with span tracking)
+    let standalone_number = number.map_with(|(num, _num_span), e| TokenWithSpan {
+        token: Token::Number(num),
+        span: e.span(),
+    });
 
     // Parser for standalone units with spans
     let standalone_unit = unit_identifier.try_map_with(|word: String, e| {
         if let Some(unit) = parse_unit(&word) {
             Ok(TokenWithSpan {
-                token: Token::NumberWithUnit(1.0, unit),
+                token: Token::Unit(unit),
                 span: e.span(),
             })
         } else {
@@ -245,7 +225,7 @@ fn create_token_parser_with_spans<'a>()
     let token = choice((
         line_ref,
         keyword,
-        number_with_unit,
+        standalone_number,
         operator,
         standalone_unit,
         variable,
@@ -370,36 +350,13 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     // Combined unit parser (tries compound units first, then simple identifiers, then percent)
     let unit_identifier = choice((compound_identifier, identifier, percent_symbol));
 
-    // Parser for numbers with optional units
-    let number_with_unit = number
-        .then(
-            just(' ')
-                .repeated()
-                .then(unit_identifier)
-                .try_map(|(_, unit_str): ((), String), span| {
-                    // Don't treat keywords as units in this context
-                    if unit_str == "to" || unit_str == "in" || unit_str == "of" {
-                        Err(Rich::custom(span, "Keywords are not units"))
-                    } else if let Some(unit) = parse_unit(&unit_str) {
-                        Ok(unit)
-                    } else {
-                        Err(Rich::custom(span, format!("Unknown unit: {}", unit_str)))
-                    }
-                })
-                .or_not(),
-        )
-        .map(|(num, unit_opt)| {
-            if let Some(unit) = unit_opt {
-                Token::NumberWithUnit(num, unit)
-            } else {
-                Token::Number(num)
-            }
-        });
+    // Parser for standalone numbers
+    let standalone_number = number.map(Token::Number);
 
     // Parser for standalone units (for conversions like "to KiB")
     let standalone_unit = unit_identifier.try_map(|word: String, span| {
         if let Some(unit) = parse_unit(&word) {
-            Ok(Token::NumberWithUnit(1.0, unit))
+            Ok(Token::Unit(unit))
         } else {
             // Don't fail - let it be handled as a variable instead
             Err(Rich::custom(span, "Not a unit"))
@@ -411,12 +368,12 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
 
     // Main token parser - try each option in order (most specific first)
     let token = choice((
-        line_ref,         // Must come first to catch "line1" before "line" is treated as unit
-        keyword,          // "to" and "in" keywords
-        number_with_unit, // Numbers with optional units
-        operator,         // Mathematical operators
-        standalone_unit,  // Standalone units for conversions
-        variable,         // Variables (identifiers that aren't units/keywords/line refs)
+        line_ref,          // Must come first to catch "line1" before "line" is treated as unit
+        keyword,           // "to" and "in" keywords
+        standalone_number, // Numbers
+        operator,          // Mathematical operators
+        standalone_unit,   // Standalone units for conversions
+        variable,          // Variables (identifiers that aren't units/keywords/line refs)
     ));
 
     // Parser for punctuation/separators to skip
@@ -476,8 +433,9 @@ mod tests {
         let result = parse_expression_chumsky("5 GiB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(5.0, Unit::GiB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(5.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
     }
 
     #[test]
@@ -507,14 +465,16 @@ mod tests {
         let result = parse_expression_chumsky("line1 * 2 GiB + 500 MiB to KiB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 7);
+        assert_eq!(tokens.len(), 9); // line1, *, 2, GiB, +, 500, MiB, to, KiB
         assert!(matches!(tokens[0], Token::LineReference(0)));
         assert!(matches!(tokens[1], Token::Multiply));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(2.0, Unit::GiB)));
-        assert!(matches!(tokens[3], Token::Plus));
-        assert!(matches!(tokens[4], Token::NumberWithUnit(500.0, Unit::MiB)));
-        assert!(matches!(tokens[5], Token::To));
-        assert!(matches!(tokens[6], Token::NumberWithUnit(1.0, Unit::KiB)));
+        assert!(matches!(tokens[2], Token::Number(2.0)));
+        assert!(matches!(tokens[3], Token::Unit(Unit::GiB)));
+        assert!(matches!(tokens[4], Token::Plus));
+        assert!(matches!(tokens[5], Token::Number(500.0)));
+        assert!(matches!(tokens[6], Token::Unit(Unit::MiB)));
+        assert!(matches!(tokens[7], Token::To));
+        assert!(matches!(tokens[8], Token::Unit(Unit::KiB)));
     }
 
     #[test]
@@ -537,10 +497,11 @@ mod tests {
         let result = parse_expression_chumsky("1 GiB to KiB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, Unit::GiB)));
-        assert!(matches!(tokens[1], Token::To));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(1.0, Unit::KiB)));
+        assert_eq!(tokens.len(), 4); // 1, GiB, to, KiB
+        assert!(matches!(tokens[0], Token::Number(1.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
+        assert!(matches!(tokens[2], Token::To));
+        assert!(matches!(tokens[3], Token::Unit(Unit::KiB)));
     }
 
     #[test]
@@ -548,25 +509,27 @@ mod tests {
         let result = parse_expression_chumsky("24 MiB * 32 in KiB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(24.0, Unit::MiB)));
-        assert!(matches!(tokens[1], Token::Multiply));
-        assert!(matches!(tokens[2], Token::Number(32.0)));
-        assert!(matches!(tokens[3], Token::In));
-        assert!(matches!(tokens[4], Token::NumberWithUnit(1.0, Unit::KiB)));
+        assert_eq!(tokens.len(), 6); // 24, MiB, *, 32, in, KiB
+        assert!(matches!(tokens[0], Token::Number(24.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MiB)));
+        assert!(matches!(tokens[2], Token::Multiply));
+        assert!(matches!(tokens[3], Token::Number(32.0)));
+        assert!(matches!(tokens[4], Token::In));
+        assert!(matches!(tokens[5], Token::Unit(Unit::KiB)));
     }
 
     #[test]
     fn test_time_rate_multiplication() {
         let result = parse_expression_chumsky("1 hour * 10 GiB/s");
-        println!("Tokens for '1 hour * 10 GiB/s': {:?}", result);
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        // Should parse as: NumberWithUnit(1.0, Hour), Multiply, NumberWithUnit(10.0, GiBPerSecond)
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, _)));
-        assert!(matches!(tokens[1], Token::Multiply));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(10.0, _)));
+        // Should parse as: Number(1.0), Unit(Hour), Multiply, Number(10.0), Unit(GiBPerSecond)
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0], Token::Number(1.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::Hour)));
+        assert!(matches!(tokens[2], Token::Multiply));
+        assert!(matches!(tokens[3], Token::Number(10.0)));
+        assert!(matches!(tokens[4], Token::Unit(Unit::GiBPerSecond)));
     }
 
     #[test]
@@ -574,29 +537,23 @@ mod tests {
         let result = parse_expression_chumsky("1,000 GiB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(1000.0, Unit::GiB)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(1000.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
 
         let result = parse_expression_chumsky("1,234.56 MB");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(1234.56, Unit::MB)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(1234.56)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MB)));
 
         let result = parse_expression_chumsky("1,000,000 bytes");
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(1000000.0, Unit::Byte)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(1000000.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::Byte)));
     }
 
     #[test]
@@ -605,41 +562,40 @@ mod tests {
         let result = parse_expression_chumsky("5GiB");
         assert!(result.is_ok(), "Parsing '5GiB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(5.0, Unit::GiB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(5.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
 
         let result = parse_expression_chumsky("100MB");
         assert!(result.is_ok(), "Parsing '100MB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(100.0, Unit::MB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(100.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MB)));
 
         // Test decimal numbers without spaces
         let result = parse_expression_chumsky("2.5TiB");
         assert!(result.is_ok(), "Parsing '2.5TiB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(2.5, Unit::TiB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(2.5)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::TiB)));
 
         // Test comma numbers without spaces
         let result = parse_expression_chumsky("1,000GiB");
         assert!(result.is_ok(), "Parsing '1,000GiB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(1000.0, Unit::GiB)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(1000.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
 
         // Test compound units without spaces
         let result = parse_expression_chumsky("10GiB/s");
         assert!(result.is_ok(), "Parsing '10GiB/s' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(10.0, Unit::GiBPerSecond)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(10.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiBPerSecond)));
 
         // Test expressions with multiple units without spaces
         let result = parse_expression_chumsky("1,000GiB + 512MiB");
@@ -649,13 +605,12 @@ mod tests {
             result
         );
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(1000.0, Unit::GiB)
-        ));
-        assert!(matches!(tokens[1], Token::Plus));
-        assert!(matches!(tokens[2], Token::NumberWithUnit(512.0, Unit::MiB)));
+        assert_eq!(tokens.len(), 5); // Number, Unit, Plus, Number, Unit
+        assert!(matches!(tokens[0], Token::Number(1000.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
+        assert!(matches!(tokens[2], Token::Plus));
+        assert!(matches!(tokens[3], Token::Number(512.0)));
+        assert!(matches!(tokens[4], Token::Unit(Unit::MiB)));
     }
 
     #[test]
@@ -671,35 +626,33 @@ mod tests {
         let result = parse_expression_chumsky("0 GiB");
         assert!(result.is_ok(), "Parsing '0 GiB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(0.0, Unit::GiB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(0.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
 
         // Test decimal starting with zero
         let result = parse_expression_chumsky("0.5 MB");
         assert!(result.is_ok(), "Parsing '0.5 MB' failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(0.5, Unit::MB)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(0.5)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MB)));
 
         // Test very large number
         let result = parse_expression_chumsky("999,999,999.99 TB");
         assert!(result.is_ok(), "Parsing large number failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(999999999.99, Unit::TB)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(999999999.99)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::TB)));
 
         // Test very small decimal
         let result = parse_expression_chumsky("0.000001 seconds");
         assert!(result.is_ok(), "Parsing small decimal failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(0.000001, Unit::Second)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(0.000001)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::Second)));
     }
 
     #[test]
@@ -791,9 +744,13 @@ mod tests {
         let result = parse_expression_chumsky("1 GiB to MB in KiB");
         assert!(result.is_ok(), "Parsing keywords failed: {:?}", result);
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 5);
-        assert!(matches!(tokens[1], Token::To));
-        assert!(matches!(tokens[3], Token::In));
+        assert_eq!(tokens.len(), 6); // Number, Unit, To, Unit, In, Unit
+        assert!(matches!(tokens[0], Token::Number(1.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::GiB)));
+        assert!(matches!(tokens[2], Token::To));
+        assert!(matches!(tokens[3], Token::Unit(Unit::MB)));
+        assert!(matches!(tokens[4], Token::In));
+        assert!(matches!(tokens[5], Token::Unit(Unit::KiB)));
 
         // Test keywords with line references
         let result = parse_expression_chumsky("line1 to GiB");
@@ -841,11 +798,9 @@ mod tests {
             result
         );
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(100.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MBPerSecond)));
 
         // Test compound units without spaces (should still work)
         let result = parse_expression_chumsky("100 MB/s");
@@ -855,11 +810,9 @@ mod tests {
             result
         );
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
-        ));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(100.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::MBPerSecond)));
 
         // Test conversion with compound units with spaces
         let result = parse_expression_chumsky("25 QPS to req / min");
@@ -869,16 +822,11 @@ mod tests {
             result
         );
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(25.0, Unit::QueriesPerSecond)
-        ));
-        assert!(matches!(tokens[1], Token::To));
-        assert!(matches!(
-            tokens[2],
-            Token::NumberWithUnit(1.0, Unit::RequestsPerMinute)
-        ));
+        assert_eq!(tokens.len(), 4); // Number, Unit, To, Unit
+        assert!(matches!(tokens[0], Token::Number(25.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::QueriesPerSecond)));
+        assert!(matches!(tokens[2], Token::To));
+        assert!(matches!(tokens[3], Token::Unit(Unit::RequestsPerMinute)));
 
         // Test various request rate units with spaces
         let result = parse_expression_chumsky("50 req / s + 30 requests / min");
@@ -888,16 +836,12 @@ mod tests {
             result
         );
         let tokens = result.unwrap();
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(
-            tokens[0],
-            Token::NumberWithUnit(50.0, Unit::RequestsPerSecond)
-        ));
-        assert!(matches!(tokens[1], Token::Plus));
-        assert!(matches!(
-            tokens[2],
-            Token::NumberWithUnit(30.0, Unit::RequestsPerMinute)
-        ));
+        assert_eq!(tokens.len(), 5); // Number, Unit, Plus, Number, Unit
+        assert!(matches!(tokens[0], Token::Number(50.0)));
+        assert!(matches!(tokens[1], Token::Unit(Unit::RequestsPerSecond)));
+        assert!(matches!(tokens[2], Token::Plus));
+        assert!(matches!(tokens[3], Token::Number(30.0)));
+        assert!(matches!(tokens[4], Token::Unit(Unit::RequestsPerMinute)));
     }
 
     #[test]
@@ -952,28 +896,32 @@ mod tests {
     fn test_highlighting_function() {
         // Test the new span-aware highlighting function
         let tokens = parse_expression_for_highlighting("5 GiB + line1 * 2");
-        assert_eq!(tokens.len(), 5);
+        assert_eq!(tokens.len(), 6); // Number, Unit, Plus, LineReference, Multiply, Number
 
         // Check that we get the correct tokens with spans
-        assert!(matches!(tokens[0].token, Token::NumberWithUnit(5.0, _)));
+        assert!(matches!(tokens[0].token, Token::Number(5.0)));
         assert_eq!(tokens[0].start(), 0);
-        assert_eq!(tokens[0].end(), 5); // "5 GiB"
+        assert_eq!(tokens[0].end(), 1); // "5"
 
-        assert!(matches!(tokens[1].token, Token::Plus));
-        assert_eq!(tokens[1].start(), 6);
-        assert_eq!(tokens[1].end(), 7); // "+"
+        assert!(matches!(tokens[1].token, Token::Unit(Unit::GiB)));
+        assert_eq!(tokens[1].start(), 2);
+        assert_eq!(tokens[1].end(), 5); // "GiB"
 
-        assert!(matches!(tokens[2].token, Token::LineReference(0)));
-        assert_eq!(tokens[2].start(), 8);
-        assert_eq!(tokens[2].end(), 13); // "line1"
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert_eq!(tokens[2].start(), 6);
+        assert_eq!(tokens[2].end(), 7); // "+"
 
-        assert!(matches!(tokens[3].token, Token::Multiply));
-        assert_eq!(tokens[3].start(), 14);
-        assert_eq!(tokens[3].end(), 15); // "*"
+        assert!(matches!(tokens[3].token, Token::LineReference(0)));
+        assert_eq!(tokens[3].start(), 8);
+        assert_eq!(tokens[3].end(), 13); // "line1"
 
-        assert!(matches!(tokens[4].token, Token::Number(2.0)));
-        assert_eq!(tokens[4].start(), 16);
-        assert_eq!(tokens[4].end(), 17); // "2"
+        assert!(matches!(tokens[4].token, Token::Multiply));
+        assert_eq!(tokens[4].start(), 14);
+        assert_eq!(tokens[4].end(), 15); // "*"
+
+        assert!(matches!(tokens[5].token, Token::Number(2.0)));
+        assert_eq!(tokens[5].start(), 16);
+        assert_eq!(tokens[5].end(), 17); // "2"
     }
 
     #[test]
@@ -981,69 +929,331 @@ mod tests {
         // Test that invalid input returns empty instead of crashing
         let tokens = parse_expression_for_highlighting("invalid syntax ++ --");
         // Should return empty vector for invalid input, not crash
-        assert!(tokens.is_empty() || tokens.len() > 0); // Either empty or partial parsing
+        assert!(tokens.is_empty() || !tokens.is_empty()); // Either empty or partial parsing
     }
 
     #[test]
     fn test_unit_highlighting_preservation() {
         // Test that units are properly highlighted
         let tokens = parse_expression_for_highlighting("50 GiB to MiB");
-        println!("Tokens for '50 GiB to MiB': {:?}", tokens);
-        assert_eq!(tokens.len(), 3);
+        assert_eq!(tokens.len(), 4); // Number, Unit, To, Unit
 
-        // Check the first token (50 GiB) - number with unit should be parsed as one token
-        assert!(matches!(tokens[0].token, Token::NumberWithUnit(50.0, _)));
+        // Check the first token (50) - number
+        assert!(matches!(tokens[0].token, Token::Number(50.0)));
         assert_eq!(tokens[0].start(), 0);
-        assert_eq!(tokens[0].end(), 6); // "50 GiB"
+        assert_eq!(tokens[0].end(), 2); // "50"
 
-        // Check the second token (to)
-        assert!(matches!(tokens[1].token, Token::To));
-        assert_eq!(tokens[1].start(), 7);
-        assert_eq!(tokens[1].end(), 9); // "to"
+        // Check the second token (GiB) - unit
+        assert!(matches!(tokens[1].token, Token::Unit(Unit::GiB)));
+        assert_eq!(tokens[1].start(), 3);
+        assert_eq!(tokens[1].end(), 6); // "GiB"
 
-        // Check the third token (MiB) - standalone unit
-        assert!(matches!(tokens[2].token, Token::NumberWithUnit(1.0, _)));
-        assert_eq!(tokens[2].start(), 10);
-        assert_eq!(tokens[2].end(), 13); // "MiB"
+        // Check the third token (to)
+        assert!(matches!(tokens[2].token, Token::To));
+        assert_eq!(tokens[2].start(), 7);
+        assert_eq!(tokens[2].end(), 9); // "to"
+
+        // Check the fourth token (MiB) - standalone unit
+        assert!(matches!(tokens[3].token, Token::Unit(Unit::MiB)));
+        assert_eq!(tokens[3].start(), 10);
+        assert_eq!(tokens[3].end(), 13); // "MiB"
     }
 
     #[test]
     fn test_unit_color_highlighting_issue() {
         // This test specifically targets the UI color issue
-        // The problem is that both numbers and numbers-with-units are colored the same (LightBlue)
-        // But in the old implementation, units were colored Green
+        // With the new architecture, we get separate Number and Unit tokens
+        // which allows proper coloring: numbers (LightBlue), units (Green)
         let tokens = parse_expression_for_highlighting("50 GiB + 100 MB");
-        println!("Tokens for '50 GiB + 100 MB': {:?}", tokens);
 
-        // Now with the fix, NumberWithUnit tokens will be split in the UI:
-        // "50" (LightBlue) + " " (unstyled) + "GiB" (Green)
-        assert_eq!(tokens.len(), 3);
-        assert!(matches!(tokens[0].token, Token::NumberWithUnit(50.0, _)));
+        // Should be: Number(50), Unit(GiB), Plus, Number(100), Unit(MB)
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(50.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(Unit::GiB)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(100.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(Unit::MB)));
+    }
+
+    #[test]
+    fn test_separate_number_and_unit_tokens() {
+        // Test the new separate Number + Unit tokenization
+        let tokens = parse_expression_for_highlighting("50 GiB + 100 MB");
+        println!("NEW tokens for '50 GiB + 100 MB': {:?}", tokens);
+
+        // Should now be: Number(50), Unit(GiB), Plus, Number(100), Unit(MB)
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(50.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(100.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_comprehensive_separate_number_unit_tokenization() {
+        // Test basic number + unit pairs
+        let tokens = parse_expression_for_highlighting("5 GiB");
+        assert_eq!(tokens.len(), 2);
+        assert!(matches!(tokens[0].token, Token::Number(5.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+
+        // Test multiple number + unit pairs with operators
+        let tokens = parse_expression_for_highlighting("1 TiB + 512 GiB - 100 MiB");
+        println!("DEBUG tokens for '1 TiB + 512 GiB - 100 MiB': {:?}", tokens);
+        // Should be: Number(1), Unit(TiB), Plus, Number(512), Unit(GiB), Minus, Number(100), Unit(MiB) = 8 tokens
+        assert_eq!(tokens.len(), 8); // Number, Unit, Plus, Number, Unit, Minus, Number, Unit
+        assert!(matches!(tokens[0].token, Token::Number(1.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(512.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+        assert!(matches!(tokens[5].token, Token::Minus));
+        assert!(matches!(tokens[6].token, Token::Number(100.0)));
+        assert!(matches!(tokens[7].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_standalone_numbers_separate_tokens() {
+        // Test standalone number without unit
+        let tokens = parse_expression_for_highlighting("42");
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0].token, Token::Number(42.0)));
+
+        // Test number + unit with no spaces
+        let tokens = parse_expression_for_highlighting("5GiB");
+        assert_eq!(tokens.len(), 2);
+        assert!(matches!(tokens[0].token, Token::Number(5.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+
+        // Test arithmetic with standalone numbers
+        let tokens = parse_expression_for_highlighting("10 + 20 * 3");
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(10.0)));
         assert!(matches!(tokens[1].token, Token::Plus));
-        assert!(matches!(tokens[2].token, Token::NumberWithUnit(100.0, _)));
+        assert!(matches!(tokens[2].token, Token::Number(20.0)));
+        assert!(matches!(tokens[3].token, Token::Multiply));
+        assert!(matches!(tokens[4].token, Token::Number(3.0)));
+    }
+
+    #[test]
+    fn test_unit_conversions_separate_tokens() {
+        // Test "to" conversions
+        let tokens = parse_expression_for_highlighting("1 GiB to MiB");
+        assert_eq!(tokens.len(), 4); // Number, Unit, To, Unit
+        assert!(matches!(tokens[0].token, Token::Number(1.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::To));
+        assert!(matches!(tokens[3].token, Token::Unit(_)));
+
+        // Test "in" conversions
+        let tokens = parse_expression_for_highlighting("5 TiB in GiB");
+        assert_eq!(tokens.len(), 4);
+        assert!(matches!(tokens[0].token, Token::Number(5.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::In));
+        assert!(matches!(tokens[3].token, Token::Unit(_)));
+
+        // Test conversion with arithmetic
+        let tokens = parse_expression_for_highlighting("2 GiB + 500 MiB to KiB");
+        assert_eq!(tokens.len(), 7); // Number, Unit, Plus, Number, Unit, To, Unit
+        assert!(matches!(tokens[0].token, Token::Number(2.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(500.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+        assert!(matches!(tokens[5].token, Token::To));
+        assert!(matches!(tokens[6].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_complex_expressions_separate_tokens() {
+        // Test parentheses with number + unit pairs
+        let tokens = parse_expression_for_highlighting("(1 GiB + 512 MiB) * 2");
+        assert_eq!(tokens.len(), 9); // LeftParen, Number, Unit, Plus, Number, Unit, RightParen, Multiply, Number
+        assert!(matches!(tokens[0].token, Token::LeftParen));
+        assert!(matches!(tokens[1].token, Token::Number(1.0)));
+        assert!(matches!(tokens[2].token, Token::Unit(_)));
+        assert!(matches!(tokens[3].token, Token::Plus));
+        assert!(matches!(tokens[4].token, Token::Number(512.0)));
+        assert!(matches!(tokens[5].token, Token::Unit(_)));
+        assert!(matches!(tokens[6].token, Token::RightParen));
+        assert!(matches!(tokens[7].token, Token::Multiply));
+        assert!(matches!(tokens[8].token, Token::Number(2.0)));
+
+        // Test mixed units and standalone numbers
+        let tokens = parse_expression_for_highlighting("100 MB + 50 * 1024");
+        println!("DEBUG tokens for '100 MB + 50 * 1024': {:?}", tokens);
+        // Should be: Number(100), Unit(MB), Plus, Number(50), Multiply, Number(1024) = 6 tokens
+        assert_eq!(tokens.len(), 6); // Number, Unit, Plus, Number, Multiply, Number
+        assert!(matches!(tokens[0].token, Token::Number(100.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(50.0)));
+        assert!(matches!(tokens[4].token, Token::Multiply));
+        assert!(matches!(tokens[5].token, Token::Number(1024.0)));
+    }
+
+    #[test]
+    fn test_decimal_numbers_separate_tokens() {
+        // Test decimal numbers with units
+        let tokens = parse_expression_for_highlighting("1.5 GiB + 2.25 TiB");
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(1.5)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(2.25)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+
+        // Test large numbers with commas
+        let tokens = parse_expression_for_highlighting("1,024 MiB + 2,048.5 KiB");
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(1024.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(2048.5)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_edge_cases_separate_tokens() {
+        // Test negative numbers
+        let tokens = parse_expression_for_highlighting("-5 GiB + 10 MiB");
+        assert_eq!(tokens.len(), 6); // Minus, Number, Unit, Plus, Number, Unit
+        assert!(matches!(tokens[0].token, Token::Minus));
+        assert!(matches!(tokens[1].token, Token::Number(5.0)));
+        assert!(matches!(tokens[2].token, Token::Unit(_)));
+        assert!(matches!(tokens[3].token, Token::Plus));
+        assert!(matches!(tokens[4].token, Token::Number(10.0)));
+        assert!(matches!(tokens[5].token, Token::Unit(_)));
+
+        // Test standalone unit
+        let tokens = parse_expression_for_highlighting("GiB");
+        assert_eq!(tokens.len(), 1);
+        assert!(matches!(tokens[0].token, Token::Unit(_)));
+
+        // Test number followed immediately by unit (no space)
+        let tokens = parse_expression_for_highlighting("100MB + 50GB");
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(100.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_)));
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(50.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_span_tracking_separate_tokens() {
+        // Test that spans are correctly tracked for separate tokens
+        let tokens = parse_expression_for_highlighting("5 GiB");
+        assert_eq!(tokens.len(), 2);
+
+        // Number "5" should span positions 0-1
+        assert_eq!(tokens[0].span.start, 0);
+        assert_eq!(tokens[0].span.end, 1);
+
+        // Unit "GiB" should span positions 2-5
+        assert_eq!(tokens[1].span.start, 2);
+        assert_eq!(tokens[1].span.end, 5);
+
+        // Test more complex expression spans
+        let tokens = parse_expression_for_highlighting("100 MB + 50 GB");
+        assert_eq!(tokens.len(), 5);
+
+        // "100" spans 0-3
+        assert_eq!(tokens[0].span.start, 0);
+        assert_eq!(tokens[0].span.end, 3);
+
+        // "MB" spans 4-6
+        assert_eq!(tokens[1].span.start, 4);
+        assert_eq!(tokens[1].span.end, 6);
+
+        // "+" spans 7-8
+        assert_eq!(tokens[2].span.start, 7);
+        assert_eq!(tokens[2].span.end, 8);
+
+        // "50" spans 9-11
+        assert_eq!(tokens[3].span.start, 9);
+        assert_eq!(tokens[3].span.end, 11);
+
+        // "GB" spans 12-14
+        assert_eq!(tokens[4].span.start, 12);
+        assert_eq!(tokens[4].span.end, 14);
+    }
+
+    #[test]
+    fn test_variable_and_line_references_with_separate_units() {
+        // Test variables with units
+        let tokens = parse_expression_for_highlighting("server_ram + 16 GiB");
+        assert_eq!(tokens.len(), 4);
+        assert!(matches!(tokens[0].token, Token::Variable(_)));
+        assert!(matches!(tokens[1].token, Token::Plus));
+        assert!(matches!(tokens[2].token, Token::Number(16.0)));
+        assert!(matches!(tokens[3].token, Token::Unit(_)));
+
+        // Test line references with units
+        let tokens = parse_expression_for_highlighting("line1 + 8 TiB");
+        assert_eq!(tokens.len(), 4);
+        assert!(matches!(tokens[0].token, Token::LineReference(_)));
+        assert!(matches!(tokens[1].token, Token::Plus));
+        assert!(matches!(tokens[2].token, Token::Number(8.0)));
+        assert!(matches!(tokens[3].token, Token::Unit(_)));
+
+        // Test assignment with units
+        let tokens = parse_expression_for_highlighting("total = 2 GiB + 500 MiB");
+        assert_eq!(tokens.len(), 7);
+        assert!(matches!(tokens[0].token, Token::Variable(_)));
+        assert!(matches!(tokens[1].token, Token::Assign));
+        assert!(matches!(tokens[2].token, Token::Number(2.0)));
+        assert!(matches!(tokens[3].token, Token::Unit(_)));
+        assert!(matches!(tokens[4].token, Token::Plus));
+        assert!(matches!(tokens[5].token, Token::Number(500.0)));
+        assert!(matches!(tokens[6].token, Token::Unit(_)));
+    }
+
+    #[test]
+    fn test_compound_units_separate_tokens() {
+        // Test compound units (like "GiB/s") are still parsed as single units
+        let tokens = parse_expression_for_highlighting("10 GiB/s + 5 MB/s");
+        assert_eq!(tokens.len(), 5);
+        assert!(matches!(tokens[0].token, Token::Number(10.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_))); // GiB/s as single unit
+        assert!(matches!(tokens[2].token, Token::Plus));
+        assert!(matches!(tokens[3].token, Token::Number(5.0)));
+        assert!(matches!(tokens[4].token, Token::Unit(_))); // MB/s as single unit
+
+        // Test compound units with spaces around slash
+        let tokens = parse_expression_for_highlighting("100 req / min");
+        assert_eq!(tokens.len(), 2); // Should be parsed as single compound unit
+        assert!(matches!(tokens[0].token, Token::Number(100.0)));
+        assert!(matches!(tokens[1].token, Token::Unit(_))); // req/min as single unit
     }
 
     #[test]
     fn test_standalone_unit_highlighting() {
         // Test that standalone units (like "to MiB") are highlighted correctly
         let tokens = parse_expression_for_highlighting("100 GiB to MiB");
-        println!("Tokens for '100 GiB to MiB': {:?}", tokens);
-        assert_eq!(tokens.len(), 3);
+        assert_eq!(tokens.len(), 4); // Number, Unit, To, Unit
 
-        // First token: "100 GiB" as NumberWithUnit
-        assert!(matches!(tokens[0].token, Token::NumberWithUnit(100.0, _)));
+        // First token: "100" as Number
+        assert!(matches!(tokens[0].token, Token::Number(100.0)));
         assert_eq!(tokens[0].start(), 0);
-        assert_eq!(tokens[0].end(), 7); // "100 GiB"
+        assert_eq!(tokens[0].end(), 3); // "100"
 
-        // Second token: "to" keyword
-        assert!(matches!(tokens[1].token, Token::To));
-        assert_eq!(tokens[1].start(), 8);
-        assert_eq!(tokens[1].end(), 10); // "to"
+        // Second token: "GiB" as Unit
+        assert!(matches!(tokens[1].token, Token::Unit(Unit::GiB)));
+        assert_eq!(tokens[1].start(), 4);
+        assert_eq!(tokens[1].end(), 7); // "GiB"
 
-        // Third token: "MiB" as standalone unit (NumberWithUnit with value 1.0)
-        assert!(matches!(tokens[2].token, Token::NumberWithUnit(1.0, _)));
-        assert_eq!(tokens[2].start(), 11);
-        assert_eq!(tokens[2].end(), 14); // "MiB"
+        // Third token: "to" keyword
+        assert!(matches!(tokens[2].token, Token::To));
+        assert_eq!(tokens[2].start(), 8);
+        assert_eq!(tokens[2].end(), 10); // "to"
+
+        // Fourth token: "MiB" as standalone unit
+        assert!(matches!(tokens[3].token, Token::Unit(Unit::MiB)));
+        assert_eq!(tokens[3].start(), 11);
+        assert_eq!(tokens[3].end(), 14); // "MiB"
     }
 
     #[test]

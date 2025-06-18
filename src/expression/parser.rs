@@ -185,6 +185,19 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
                 consecutive_operators = 0;
                 consecutive_values = 0;
             }
+            Token::Unit(_) => {
+                // Units act like values/operands
+                has_number_or_value = true;
+                consecutive_values += 1;
+                consecutive_operators = 0;
+
+                // More than 1 consecutive value without operators is invalid (except for assignments and conversions)
+                if consecutive_values > 1 {
+                    // For now, allow consecutive values - this will be refined later
+                    // when we implement proper Number + Unit pair validation
+                    consecutive_values = 1;
+                }
+            }
         }
     }
 
@@ -349,8 +362,9 @@ mod parser_tests {
 
         // Test numbers with units
         let tokens = tokenize_with_units("5 GiB").unwrap();
-        assert_eq!(tokens.len(), 1);
-        assert!(matches!(tokens[0], Token::NumberWithUnit(5.0, _)));
+        assert_eq!(tokens.len(), 2); // Number, Unit
+        assert!(matches!(tokens[0], Token::Number(5.0)));
+        assert!(matches!(tokens[1], Token::Unit(_)));
 
         // Test simple arithmetic
         let tokens = tokenize_with_units("2 + 3").unwrap();

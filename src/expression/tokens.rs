@@ -6,7 +6,8 @@ use crate::units::Unit;
 #[derive(Debug, Clone)]
 pub enum Token {
     Number(f64),
-    NumberWithUnit(f64, Unit),
+    NumberWithUnit(f64, Unit), // Legacy - will be removed after refactoring
+    Unit(Unit),                // New - standalone unit token
     Plus,
     Minus,
     Multiply,

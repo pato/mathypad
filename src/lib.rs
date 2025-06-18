@@ -42,11 +42,13 @@ pub mod test_helpers {
 
     // Helper function to get unit conversion results for testing
     pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
-        // Use the new token-based approach
+        // Use the new token-based approach with preprocessing
+        use crate::expression::preprocess_tokens_for_evaluation;
         use crate::expression::{evaluate_tokens_stream_with_context, tokenize_with_units};
 
         if let Some(tokens) = tokenize_with_units(input) {
-            evaluate_tokens_stream_with_context(&tokens, &[], 0)
+            let preprocessed_tokens = preprocess_tokens_for_evaluation(&tokens);
+            evaluate_tokens_stream_with_context(&preprocessed_tokens, &[], 0)
         } else {
             None
         }
