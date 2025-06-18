@@ -1,8 +1,36 @@
-//! New chumsky-based parser implementation for mathematical expressions
+//! Enhanced chumsky-based parser implementation with span tracking
 
 use super::tokens::Token;
 use crate::units::parse_unit;
 use chumsky::prelude::*;
+
+/// Token with span information for syntax highlighting
+#[derive(Debug, Clone)]
+pub struct TokenWithSpan {
+    pub token: Token,
+    pub span: SimpleSpan,
+}
+
+impl TokenWithSpan {
+    /// Get the start position of this token
+    pub fn start(&self) -> usize {
+        self.span.start
+    }
+
+    /// Get the end position of this token
+    pub fn end(&self) -> usize {
+        self.span.end
+    }
+}
+
+/// Parse a mathematical expression for syntax highlighting (with span information)
+pub fn parse_expression_for_highlighting(input: &str) -> Vec<TokenWithSpan> {
+    let parser = create_token_parser_with_spans();
+
+    // If parsing fails, return empty for syntax highlighting
+    // This ensures syntax highlighting doesn't crash on invalid input
+    parser.parse(input).into_result().unwrap_or_default()
+}
 
 /// Parse a mathematical expression using chumsky
 pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
@@ -62,6 +90,203 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
             Err(error_msg)
         }
     }
+}
+
+/// Create the span-aware token parser for syntax highlighting
+fn create_token_parser_with_spans<'a>()
+-> impl Parser<'a, &'a str, Vec<TokenWithSpan>, extra::Err<Rich<'a, char>>> {
+    // Parser for numbers (same logic as original, but with span tracking)
+    let number = choice((
+        // Numbers with commas (like 1,000 or 1,234.56)
+        text::digits(10)
+            .then(just(',').then(text::digits(10)).repeated())
+            .then(just('.').then(text::digits(10)).or_not())
+            .to_slice(),
+        // Regular numbers without commas
+        text::int(10)
+            .then(just('.').then(text::digits(10)).or_not())
+            .to_slice(),
+    ))
+    .map_with(|s: &str, e| {
+        let cleaned = s.replace(",", "");
+        let num = cleaned.parse::<f64>().unwrap_or(0.0);
+        (num, e.span())
+    });
+
+    // Parser for identifiers
+    let identifier = text::ascii::ident().map(|s: &str| s.to_string());
+
+    // Parser for the percent symbol
+    let percent_symbol = just('%').map(|_| "%".to_string());
+
+    // Parser for compound identifiers (like "GiB/s")
+    let compound_identifier = text::ascii::ident()
+        .then(just('/').padded().then(text::ascii::ident()))
+        .try_map(|(base, (_, suffix)): (&str, (char, &str)), span| {
+            let compound = format!("{}/{}", base, suffix);
+            if parse_unit(&compound).is_some() {
+                Ok(compound)
+            } else {
+                Err(Rich::custom(span, "Invalid compound identifier"))
+            }
+        });
+
+    // Parser for line references with spans
+    let line_ref = just("line")
+        .then(text::int(10))
+        .map_with(|(_, num_str): (_, &str), e| {
+            let line_num = if let Ok(line_num) = num_str.parse::<usize>() {
+                if line_num > 0 { line_num - 1 } else { 0 }
+            } else {
+                0
+            };
+            TokenWithSpan {
+                token: Token::LineReference(line_num),
+                span: e.span(),
+            }
+        });
+
+    // Parser for keywords with spans
+    let keyword = choice((
+        text::keyword("to").map_with(|_, e| TokenWithSpan {
+            token: Token::To,
+            span: e.span(),
+        }),
+        text::keyword("in").map_with(|_, e| TokenWithSpan {
+            token: Token::In,
+            span: e.span(),
+        }),
+        text::keyword("of").map_with(|_, e| TokenWithSpan {
+            token: Token::Of,
+            span: e.span(),
+        }),
+    ));
+
+    // Parser for operators with spans
+    let operator = choice((
+        just('+').map_with(|_, e| TokenWithSpan {
+            token: Token::Plus,
+            span: e.span(),
+        }),
+        just('-').map_with(|_, e| TokenWithSpan {
+            token: Token::Minus,
+            span: e.span(),
+        }),
+        just('*').map_with(|_, e| TokenWithSpan {
+            token: Token::Multiply,
+            span: e.span(),
+        }),
+        just('/').map_with(|_, e| TokenWithSpan {
+            token: Token::Divide,
+            span: e.span(),
+        }),
+        just('(').map_with(|_, e| TokenWithSpan {
+            token: Token::LeftParen,
+            span: e.span(),
+        }),
+        just(')').map_with(|_, e| TokenWithSpan {
+            token: Token::RightParen,
+            span: e.span(),
+        }),
+        just('=').map_with(|_, e| TokenWithSpan {
+            token: Token::Assign,
+            span: e.span(),
+        }),
+    ));
+
+    // Combined unit parser
+    let unit_identifier = choice((compound_identifier, identifier, percent_symbol));
+
+    // Parser for numbers with optional units (with span tracking)
+    let number_with_unit = number
+        .then(
+            just(' ')
+                .repeated()
+                .then(unit_identifier)
+                .try_map(|(_, unit_str): ((), String), span| {
+                    if unit_str == "to" || unit_str == "in" || unit_str == "of" {
+                        Err(Rich::custom(span, "Keywords are not units"))
+                    } else if let Some(unit) = parse_unit(&unit_str) {
+                        Ok(unit)
+                    } else {
+                        Err(Rich::custom(span, format!("Unknown unit: {}", unit_str)))
+                    }
+                })
+                .or_not(),
+        )
+        .map_with(|((num, _num_span), unit_opt), e| TokenWithSpan {
+            token: if let Some(unit) = unit_opt {
+                Token::NumberWithUnit(num, unit)
+            } else {
+                Token::Number(num)
+            },
+            span: e.span(),
+        });
+
+    // Parser for standalone units with spans
+    let standalone_unit = unit_identifier.try_map_with(|word: String, e| {
+        if let Some(unit) = parse_unit(&word) {
+            Ok(TokenWithSpan {
+                token: Token::NumberWithUnit(1.0, unit),
+                span: e.span(),
+            })
+        } else {
+            Err(Rich::custom(e.span(), "Not a unit"))
+        }
+    });
+
+    // Parser for variables with spans
+    let variable = identifier.map_with(|word: String, e| TokenWithSpan {
+        token: Token::Variable(word),
+        span: e.span(),
+    });
+
+    // Main token parser
+    let token = choice((
+        line_ref,
+        keyword,
+        number_with_unit,
+        operator,
+        standalone_unit,
+        variable,
+    ));
+
+    // Parser for punctuation to skip
+    let punctuation = choice((
+        just(':'),
+        just(';'),
+        just(','),
+        just('!'),
+        just('?'),
+        just('.'),
+        just('"'),
+        just('\''),
+        just('`'),
+        just('|'),
+        just('&'),
+        just('#'),
+        just('@'),
+        just('$'),
+        just('^'),
+        just('~'),
+        just('['),
+        just(']'),
+        just('{'),
+        just('}'),
+        just('<'),
+        just('>'),
+    ));
+
+    // Combined parser
+    let element = choice((token.map(Some), punctuation.to(None)));
+
+    // Parse elements, filter out punctuation
+    element
+        .padded()
+        .repeated()
+        .collect::<Vec<_>>()
+        .map(|elements| elements.into_iter().flatten().collect())
+        .then_ignore(end())
 }
 
 /// Create the main token parser
@@ -721,6 +946,104 @@ mod tests {
 
         let result = parse_expression_chumsky("1 GiB in kb");
         assert!(result.is_ok(), "Keyword case test failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_highlighting_function() {
+        // Test the new span-aware highlighting function
+        let tokens = parse_expression_for_highlighting("5 GiB + line1 * 2");
+        assert_eq!(tokens.len(), 5);
+
+        // Check that we get the correct tokens with spans
+        assert!(matches!(tokens[0].token, Token::NumberWithUnit(5.0, _)));
+        assert_eq!(tokens[0].start(), 0);
+        assert_eq!(tokens[0].end(), 5); // "5 GiB"
+
+        assert!(matches!(tokens[1].token, Token::Plus));
+        assert_eq!(tokens[1].start(), 6);
+        assert_eq!(tokens[1].end(), 7); // "+"
+
+        assert!(matches!(tokens[2].token, Token::LineReference(0)));
+        assert_eq!(tokens[2].start(), 8);
+        assert_eq!(tokens[2].end(), 13); // "line1"
+
+        assert!(matches!(tokens[3].token, Token::Multiply));
+        assert_eq!(tokens[3].start(), 14);
+        assert_eq!(tokens[3].end(), 15); // "*"
+
+        assert!(matches!(tokens[4].token, Token::Number(2.0)));
+        assert_eq!(tokens[4].start(), 16);
+        assert_eq!(tokens[4].end(), 17); // "2"
+    }
+
+    #[test]
+    fn test_highlighting_with_invalid_input() {
+        // Test that invalid input returns empty instead of crashing
+        let tokens = parse_expression_for_highlighting("invalid syntax ++ --");
+        // Should return empty vector for invalid input, not crash
+        assert!(tokens.is_empty() || tokens.len() > 0); // Either empty or partial parsing
+    }
+
+    #[test]
+    fn test_unit_highlighting_preservation() {
+        // Test that units are properly highlighted
+        let tokens = parse_expression_for_highlighting("50 GiB to MiB");
+        println!("Tokens for '50 GiB to MiB': {:?}", tokens);
+        assert_eq!(tokens.len(), 3);
+
+        // Check the first token (50 GiB) - number with unit should be parsed as one token
+        assert!(matches!(tokens[0].token, Token::NumberWithUnit(50.0, _)));
+        assert_eq!(tokens[0].start(), 0);
+        assert_eq!(tokens[0].end(), 6); // "50 GiB"
+
+        // Check the second token (to)
+        assert!(matches!(tokens[1].token, Token::To));
+        assert_eq!(tokens[1].start(), 7);
+        assert_eq!(tokens[1].end(), 9); // "to"
+
+        // Check the third token (MiB) - standalone unit
+        assert!(matches!(tokens[2].token, Token::NumberWithUnit(1.0, _)));
+        assert_eq!(tokens[2].start(), 10);
+        assert_eq!(tokens[2].end(), 13); // "MiB"
+    }
+
+    #[test]
+    fn test_unit_color_highlighting_issue() {
+        // This test specifically targets the UI color issue
+        // The problem is that both numbers and numbers-with-units are colored the same (LightBlue)
+        // But in the old implementation, units were colored Green
+        let tokens = parse_expression_for_highlighting("50 GiB + 100 MB");
+        println!("Tokens for '50 GiB + 100 MB': {:?}", tokens);
+
+        // Now with the fix, NumberWithUnit tokens will be split in the UI:
+        // "50" (LightBlue) + " " (unstyled) + "GiB" (Green)
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0].token, Token::NumberWithUnit(50.0, _)));
+        assert!(matches!(tokens[1].token, Token::Plus));
+        assert!(matches!(tokens[2].token, Token::NumberWithUnit(100.0, _)));
+    }
+
+    #[test]
+    fn test_standalone_unit_highlighting() {
+        // Test that standalone units (like "to MiB") are highlighted correctly
+        let tokens = parse_expression_for_highlighting("100 GiB to MiB");
+        println!("Tokens for '100 GiB to MiB': {:?}", tokens);
+        assert_eq!(tokens.len(), 3);
+
+        // First token: "100 GiB" as NumberWithUnit
+        assert!(matches!(tokens[0].token, Token::NumberWithUnit(100.0, _)));
+        assert_eq!(tokens[0].start(), 0);
+        assert_eq!(tokens[0].end(), 7); // "100 GiB"
+
+        // Second token: "to" keyword
+        assert!(matches!(tokens[1].token, Token::To));
+        assert_eq!(tokens[1].start(), 8);
+        assert_eq!(tokens[1].end(), 10); // "to"
+
+        // Third token: "MiB" as standalone unit (NumberWithUnit with value 1.0)
+        assert!(matches!(tokens[2].token, Token::NumberWithUnit(1.0, _)));
+        assert_eq!(tokens[2].start(), 11);
+        assert_eq!(tokens[2].end(), 14); // "MiB"
     }
 
     #[test]

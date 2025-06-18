@@ -11,7 +11,9 @@ mod tokens;
 #[cfg(test)]
 mod tests;
 
-pub use chumsky_parser::parse_expression_chumsky;
+pub use chumsky_parser::{
+    TokenWithSpan, parse_expression_chumsky, parse_expression_for_highlighting,
+};
 pub use evaluator::{
     evaluate_expression_with_context, evaluate_tokens_stream_with_context,
     evaluate_tokens_with_units_and_context, evaluate_with_variables,
