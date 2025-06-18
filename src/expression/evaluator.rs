@@ -368,13 +368,7 @@ pub fn evaluate_tokens_with_units_and_context(
                 Token::Number(n) => UnitValue::new(*n, None),
                 Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
                 Token::LineReference(line_index) => {
-                    if let Some(line_result) =
-                        resolve_line_reference(*line_index, previous_results, current_line)
-                    {
-                        line_result
-                    } else {
-                        return None;
-                    }
+                    resolve_line_reference(*line_index, previous_results, current_line)?
                 }
                 _ => return None, // Variables would need additional handling
             };
@@ -513,21 +507,9 @@ fn evaluate_tokens_with_units_and_context_and_variables(
                 Token::Number(n) => UnitValue::new(*n, None),
                 Token::NumberWithUnit(n, unit) => UnitValue::new(*n, Some(unit.clone())),
                 Token::LineReference(line_index) => {
-                    if let Some(line_result) =
-                        resolve_line_reference(*line_index, previous_results, current_line)
-                    {
-                        line_result
-                    } else {
-                        return None;
-                    }
+                    resolve_line_reference(*line_index, previous_results, current_line)?
                 }
-                Token::Variable(var_name) => {
-                    if let Some(var_result) = resolve_variable(var_name, variables) {
-                        var_result
-                    } else {
-                        return None;
-                    }
-                }
+                Token::Variable(var_name) => resolve_variable(var_name, variables)?,
                 _ => return None,
             };
 

@@ -34,7 +34,7 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
         let has_active_animations = app
             .result_animations
             .iter()
-            .any(|anim| anim.as_ref().map_or(false, |a| !a.is_complete()));
+            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
 
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering
@@ -213,7 +213,7 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         let has_active_animations = app
             .result_animations
             .iter()
-            .any(|anim| anim.as_ref().map_or(false, |a| !a.is_complete()));
+            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
 
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering

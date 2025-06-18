@@ -49,13 +49,13 @@ impl UnitValue {
     /// Check if conversion between bits and bytes is possible
     fn can_convert_between_bits_bytes(&self, current: &Unit, target: &Unit) -> bool {
         use super::types::UnitType;
-        match (current.unit_type(), target.unit_type()) {
-            (UnitType::Bit, UnitType::Data) => true,
-            (UnitType::Data, UnitType::Bit) => true,
-            (UnitType::BitRate, UnitType::DataRate) => true,
-            (UnitType::DataRate, UnitType::BitRate) => true,
-            _ => false,
-        }
+        matches!(
+            (current.unit_type(), target.unit_type()),
+            (UnitType::Bit, UnitType::Data)
+                | (UnitType::Data, UnitType::Bit)
+                | (UnitType::BitRate, UnitType::DataRate)
+                | (UnitType::DataRate, UnitType::BitRate)
+        )
     }
 
     /// Convert between bits and bytes (8 bits = 1 byte)

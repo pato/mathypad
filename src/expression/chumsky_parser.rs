@@ -150,7 +150,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         .then(
             just(' ')
                 .repeated()
-                .then(unit_identifier.clone())
+                .then(unit_identifier)
                 .try_map(|(_, unit_str): ((), String), span| {
                     // Don't treat keywords as units in this context
                     if unit_str == "to" || unit_str == "in" || unit_str == "of" {
@@ -172,7 +172,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         });
 
     // Parser for standalone units (for conversions like "to KiB")
-    let standalone_unit = unit_identifier.clone().try_map(|word: String, span| {
+    let standalone_unit = unit_identifier.try_map(|word: String, span| {
         if let Some(unit) = parse_unit(&word) {
             Ok(Token::NumberWithUnit(1.0, unit))
         } else {
