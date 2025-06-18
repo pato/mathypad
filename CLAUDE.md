@@ -27,7 +27,9 @@ Since the main application is a TUI that requires interactive tty, you will not
 be able to run it directly. Instead you should rely on the various testing
 suites we have for simulating interactions, and multi-line notebooks. We prefer
 to havefast unit tests that cover all the various typse of operations, edge
-cases, conversions, and behaviors of mathypad.
+cases, conversions, and behaviors of mathypad. It is important that all tests
+cases pass, it is not acceptable to have even one failure. If you are really
+stuck trying to get tests to pass, you should ask for human input.
 
 ## Code Quality Standards
 - Compiler warnings should be treated as errors and fixed, not ignored
