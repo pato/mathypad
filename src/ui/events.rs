@@ -3,7 +3,10 @@
 use super::render::ui;
 use crate::{App, Mode, TICK_RATE_MS};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
+        MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -47,8 +50,8 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
         };
 
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
                     match key.code {
                         KeyCode::Char('q')
                             if key
@@ -168,6 +171,10 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                         }
                     }
                 }
+                Event::Mouse(mouse) => {
+                    handle_mouse_event(&mut app, mouse, terminal.size()?.width);
+                }
+                _ => {}
             }
         }
 
@@ -226,8 +233,8 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         };
 
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
                     match key.code {
                         KeyCode::Char('q')
                             if key
@@ -347,6 +354,10 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                         }
                     }
                 }
+                Event::Mouse(mouse) => {
+                    handle_mouse_event(&mut app, mouse, terminal.size()?.width);
+                }
+                _ => {}
             }
         }
 
@@ -509,6 +520,38 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
         _ => {}
     }
 }
+/// Handle mouse events for dragging the separator
+fn handle_mouse_event(app: &mut App, mouse: MouseEvent, terminal_width: u16) {
+    match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            if app.is_mouse_over_separator(mouse.column, terminal_width) {
+                app.start_dragging_separator();
+                app.set_separator_hover(true);
+            } else {
+                app.set_separator_hover(false);
+            }
+        }
+        MouseEventKind::Up(MouseButton::Left) => {
+            if app.is_dragging_separator {
+                app.stop_dragging_separator();
+                // Check if still hovering after release
+                app.set_separator_hover(app.is_mouse_over_separator(mouse.column, terminal_width));
+            }
+        }
+        MouseEventKind::Drag(MouseButton::Left) => {
+            if app.is_dragging_separator {
+                app.update_separator_position(mouse.column, terminal_width);
+            }
+        }
+        MouseEventKind::Moved => {
+            // Update hover state when mouse moves
+            let is_over_separator = app.is_mouse_over_separator(mouse.column, terminal_width);
+            app.set_separator_hover(is_over_separator);
+        }
+        _ => {}
+    }
+}
+
 /// Handle key events for save as dialog input
 /// Returns true if the application should exit
 fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {

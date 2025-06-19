@@ -70,6 +70,9 @@ pub struct App {
     pub show_save_as_dialog: bool,                       // Show the save as dialog
     pub save_as_input: String,                           // Current input for save as filename
     pub save_as_and_quit: bool, // Whether to quit after saving in save as dialog
+    pub separator_position: u16, // Position of the separator between text and results (percentage)
+    pub is_dragging_separator: bool, // Whether the user is currently dragging the separator
+    pub is_hovering_separator: bool, // Whether the mouse is hovering over the separator
 }
 
 impl Default for App {
@@ -89,6 +92,9 @@ impl Default for App {
             show_save_as_dialog: false,    // Start without showing save as dialog
             save_as_input: String::new(),  // Start with empty filename input
             save_as_and_quit: false,       // Start without quit flag
+            separator_position: 80,        // Default to 80% for text, 20% for results
+            is_dragging_separator: false,  // Start without dragging
+            is_hovering_separator: false,  // Start without hovering
         }
     }
 }
@@ -547,6 +553,36 @@ impl App {
             Ok(false)
         }
     }
+
+    /// Update separator position based on mouse column position
+    pub fn update_separator_position(&mut self, mouse_x: u16, terminal_width: u16) {
+        // Calculate percentage based on mouse position
+        let percentage = ((mouse_x as f32 / terminal_width as f32) * 100.0) as u16;
+        // Clamp between 20% and 80% to ensure both panels remain usable
+        self.separator_position = percentage.clamp(20, 80);
+    }
+
+    /// Check if mouse position is over the separator (within a few columns for easier dragging)
+    pub fn is_mouse_over_separator(&self, mouse_x: u16, terminal_width: u16) -> bool {
+        let separator_x = (self.separator_position as f32 / 100.0 * terminal_width as f32) as u16;
+        // Allow dragging within 2 columns of the separator
+        mouse_x.abs_diff(separator_x) <= 2
+    }
+
+    /// Start dragging the separator
+    pub fn start_dragging_separator(&mut self) {
+        self.is_dragging_separator = true;
+    }
+
+    /// Stop dragging the separator
+    pub fn stop_dragging_separator(&mut self) {
+        self.is_dragging_separator = false;
+    }
+
+    /// Set hover state for the separator
+    pub fn set_separator_hover(&mut self, hovering: bool) {
+        self.is_hovering_separator = hovering;
+    }
 }
 
 #[cfg(test)]
@@ -729,5 +765,75 @@ mod app_tests {
             Some("6".to_string()),
             "Full workflow failed: expected line1 + 1 = 6 after add/remove cycle"
         );
+    }
+
+    #[test]
+    fn test_separator_position_updates() {
+        let mut app = App::default();
+
+        // Test default position
+        assert_eq!(app.separator_position, 80);
+
+        // Test updating separator position
+        app.update_separator_position(400, 1000); // 40% position
+        assert_eq!(app.separator_position, 40);
+
+        // Test clamping to minimum
+        app.update_separator_position(100, 1000); // 10% position - should be clamped to 20%
+        assert_eq!(app.separator_position, 20);
+
+        // Test clamping to maximum
+        app.update_separator_position(900, 1000); // 90% position - should be clamped to 80%
+        assert_eq!(app.separator_position, 80);
+    }
+
+    #[test]
+    fn test_mouse_over_separator_detection() {
+        let app = App::default(); // 80% separator position
+        let terminal_width = 1000;
+        let separator_x = 800; // 80% of 1000
+
+        // Test exact position
+        assert!(app.is_mouse_over_separator(separator_x, terminal_width));
+
+        // Test within range (±2 columns)
+        assert!(app.is_mouse_over_separator(separator_x - 2, terminal_width));
+        assert!(app.is_mouse_over_separator(separator_x + 2, terminal_width));
+
+        // Test outside range
+        assert!(!app.is_mouse_over_separator(separator_x - 3, terminal_width));
+        assert!(!app.is_mouse_over_separator(separator_x + 3, terminal_width));
+    }
+
+    #[test]
+    fn test_separator_dragging_state() {
+        let mut app = App::default();
+
+        // Test initial state
+        assert!(!app.is_dragging_separator);
+
+        // Test starting drag
+        app.start_dragging_separator();
+        assert!(app.is_dragging_separator);
+
+        // Test stopping drag
+        app.stop_dragging_separator();
+        assert!(!app.is_dragging_separator);
+    }
+
+    #[test]
+    fn test_separator_hover_state() {
+        let mut app = App::default();
+
+        // Test initial state
+        assert!(!app.is_hovering_separator);
+
+        // Test starting hover
+        app.set_separator_hover(true);
+        assert!(app.is_hovering_separator);
+
+        // Test stopping hover
+        app.set_separator_hover(false);
+        assert!(!app.is_hovering_separator);
     }
 }

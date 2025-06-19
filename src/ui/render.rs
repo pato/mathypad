@@ -46,13 +46,24 @@ fn animate_color(base_color: Color, opacity: f32) -> Color {
 
 /// Main UI layout and rendering
 pub fn ui(f: &mut Frame, app: &App) {
+    let text_percentage = app.separator_position;
+    let results_percentage = 100 - app.separator_position;
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
+        .constraints([
+            Constraint::Percentage(text_percentage),
+            Constraint::Percentage(results_percentage),
+        ])
         .split(f.area());
 
     render_text_area(f, app, chunks[0]);
     render_results_panel(f, app, chunks[1]);
+
+    // Render separator visual feedback if hovering or dragging
+    if app.is_dragging_separator || app.is_hovering_separator {
+        render_separator_indicator(f, app, f.area());
+    }
 
     // Render dialogs on top if needed
     if app.show_unsaved_dialog {
@@ -484,6 +495,58 @@ pub fn render_unsaved_dialog(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: false });
 
     f.render_widget(paragraph, dialog_area);
+}
+
+/// Render a visual indicator for the separator when dragging
+pub fn render_separator_indicator(f: &mut Frame, app: &App, area: Rect) {
+    // Calculate the layout split to get the exact separator position
+    let text_percentage = app.separator_position;
+    let results_percentage = 100 - app.separator_position;
+
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(text_percentage),
+            Constraint::Percentage(results_percentage),
+        ])
+        .split(area);
+
+    // The separator should be at the boundary between the two panels
+    // We want to draw it exactly where the new layout boundary will be
+    let separator_x = chunks[0].x + chunks[0].width;
+
+    // Calculate the inner area (excluding borders) to determine where to draw the line
+    // Both panels have the same border structure, so we only need to calculate one
+    let panel_block = Block::default().borders(Borders::ALL);
+    let inner_area = panel_block.inner(chunks[0]);
+
+    // Use the inner area to determine the vertical bounds for the separator line
+    // Extend one character up and down to cover the border corners for a cleaner look
+    let separator_start_y = inner_area.y.saturating_sub(1);
+    let separator_end_y = (inner_area.y + inner_area.height + 1).min(area.y + area.height);
+
+    // Only draw if the separator position is within the valid area
+    if separator_x >= area.x && separator_x < area.x + area.width {
+        // Draw the separator line only within the content area (respecting borders)
+        for y_offset in 0..(separator_end_y - separator_start_y) {
+            let separator_area = Rect {
+                x: separator_x.saturating_sub(1), // Position it just before the boundary
+                y: separator_start_y + y_offset,
+                width: 1,
+                height: 1,
+            };
+
+            // Use different visual styles for hovering vs dragging
+            let (separator_char, color) = if app.is_dragging_separator {
+                ("▐", Color::Yellow) // Bright yellow when actively dragging
+            } else {
+                ("┃", Color::LightCyan) // Subtle cyan when just hovering
+            };
+
+            let separator_widget = Paragraph::new(separator_char).style(Style::default().fg(color));
+            f.render_widget(separator_widget, separator_area);
+        }
+    }
 }
 
 /// Render the save as dialog
