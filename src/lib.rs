@@ -21,7 +21,7 @@ mod integration_tests;
 // Re-export commonly used types for convenience
 pub use app::App;
 pub use cli::run_one_shot_mode;
-pub use expression::evaluate_expression_with_context;
+pub use expression::evaluate_expression_with_context_semantic;
 pub use mode::Mode;
 pub use ui::{run_interactive_mode, run_interactive_mode_with_file};
 pub use units::{Unit, UnitType, UnitValue};
@@ -37,18 +37,17 @@ pub mod test_helpers {
 
     // Helper function to evaluate expressions for testing
     pub fn evaluate_test_expression(input: &str) -> Option<String> {
-        evaluate_expression_with_context(input, &[], 0)
+        evaluate_expression_with_context_semantic(input, &[], 0)
     }
 
     // Helper function to get unit conversion results for testing
     pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
-        // Use the new token-based approach with preprocessing
-        use crate::expression::preprocess_tokens_for_evaluation;
-        use crate::expression::{evaluate_tokens_stream_with_context, tokenize_with_units};
+        // Use the new semantic approach
+        use crate::expression::{analyze_semantics, evaluate_semantic_tokens, tokenize_with_units};
 
         if let Some(tokens) = tokenize_with_units(input) {
-            let preprocessed_tokens = preprocess_tokens_for_evaluation(&tokens);
-            evaluate_tokens_stream_with_context(&preprocessed_tokens, &[], 0)
+            let semantic_tokens = analyze_semantics(&tokens);
+            evaluate_semantic_tokens(&semantic_tokens, &[], 0)
         } else {
             None
         }

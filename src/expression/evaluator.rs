@@ -502,6 +502,90 @@ pub fn evaluate_semantic_tokens(
     evaluate_complex_semantic_expression(semantic_tokens, previous_results, current_line)
 }
 
+/// Find variable assignment pattern in semantic token stream
+fn find_variable_assignment_in_semantic_tokens(
+    semantic_tokens: &[SemanticToken],
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<(String, String)> {
+    // Look for pattern: Variable Assign Expression
+    if semantic_tokens.len() >= 3 {
+        if let (SemanticToken::Variable(var_name), SemanticToken::Assign) = 
+            (&semantic_tokens[0], &semantic_tokens[1]) 
+        {
+            // Extract the right-hand side (everything after =)
+            let rhs_tokens = &semantic_tokens[2..];
+
+            // Evaluate the right-hand side using semantic evaluation
+            if let Some(value) = evaluate_complex_semantic_expression_with_variables(
+                rhs_tokens,
+                variables,
+                previous_results,
+                current_line,
+            ) {
+                return Some((var_name.clone(), value.format()));
+            }
+        }
+    }
+
+    None
+}
+
+/// Evaluate complex semantic expressions with variable support
+fn evaluate_complex_semantic_expression_with_variables(
+    semantic_tokens: &[SemanticToken],
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> Option<UnitValue> {
+    if semantic_tokens.is_empty() {
+        return None;
+    }
+
+    // Convert any line references or variables to values first
+    let mut resolved_tokens = Vec::new();
+    for token in semantic_tokens {
+        match token {
+            SemanticToken::LineReference(line_index) => {
+                if let Some(line_result) = resolve_line_reference(*line_index, previous_results, current_line) {
+                    resolved_tokens.push(SemanticToken::Value(line_result));
+                } else {
+                    return None; // Invalid or circular reference
+                }
+            }
+            SemanticToken::Variable(var_name) => {
+                if let Some(var_result) = resolve_variable(var_name, variables) {
+                    resolved_tokens.push(SemanticToken::Value(var_result));
+                } else {
+                    return None; // Undefined variable
+                }
+            }
+            _ => resolved_tokens.push(token.clone()),
+        }
+    }
+
+    // Check for conversion operations at the end (like "expression to unit")
+    let mut target_unit_for_conversion = None;
+    let mut evaluation_tokens = &resolved_tokens[..];
+    
+    // Look for ConvertTo or ConvertIn at the end
+    if let Some(SemanticToken::ConvertTo(unit)) | Some(SemanticToken::ConvertIn(unit)) = resolved_tokens.last() {
+        target_unit_for_conversion = Some(unit.clone());
+        evaluation_tokens = &resolved_tokens[..resolved_tokens.len()-1];
+    }
+
+    // Evaluate the main expression using operator precedence
+    let result = evaluate_semantic_expression_with_precedence(evaluation_tokens)?;
+
+    // Apply conversion if needed
+    if let Some(target_unit) = target_unit_for_conversion {
+        result.to_unit(&target_unit)
+    } else {
+        Some(result)
+    }
+}
+
 /// Evaluate complex semantic expressions using a shunting-yard-like algorithm
 fn evaluate_complex_semantic_expression(
     semantic_tokens: &[SemanticToken],
@@ -1247,7 +1331,44 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
     has_value && (tokens.len() == 1 || has_operator)
 }
 
-/// Enhanced evaluation function that handles both expressions and variable assignments
+/// Semantic-based evaluation function with variable support (new approach)
+pub fn evaluate_with_variables_semantic(
+    text: &str,
+    variables: &HashMap<String, String>,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> (Option<String>, Option<(String, String)>) {
+    // Return (result, optional_variable_assignment)
+
+    // New semantic approach: tokenize -> analyze semantics -> evaluate
+    if let Some(tokens) = super::parser::tokenize_with_units(text) {
+        let semantic_tokens = analyze_semantics(&tokens);
+
+        // First check for variable assignments
+        if let Some(assignment) = find_variable_assignment_in_semantic_tokens(
+            &semantic_tokens,
+            variables,
+            previous_results,
+            current_line,
+        ) {
+            return (Some(assignment.1.clone()), Some(assignment));
+        }
+
+        // Then look for mathematical expressions
+        if let Some(result) = evaluate_complex_semantic_expression_with_variables(
+            &semantic_tokens,
+            variables,
+            previous_results,
+            current_line,
+        ) {
+            return (Some(result.format()), None);
+        }
+    }
+
+    (None, None)
+}
+
+/// Enhanced evaluation function that handles both expressions and variable assignments (legacy approach)
 pub fn evaluate_with_variables(
     text: &str,
     variables: &HashMap<String, String>,
@@ -2355,6 +2476,47 @@ mod tests {
                 test_case
             );
         }
+    }
+
+    #[test]
+    fn test_semantic_variable_evaluation() {
+        use std::collections::HashMap;
+        
+        // Set up variables for testing
+        let mut variables = HashMap::new();
+        variables.insert("ram".to_string(), "16 GiB".to_string());
+        variables.insert("speed".to_string(), "100 Mbps".to_string());
+        
+        // Test variable assignment: "servers = 10"
+        let (result, assignment) = evaluate_with_variables_semantic(
+            "servers = 10", &variables, &[], 0
+        );
+        assert!(result.is_some());
+        assert!(assignment.is_some());
+        let (var_name, var_value) = assignment.unwrap();
+        assert_eq!(var_name, "servers");
+        assert_eq!(var_value, "10");
+        
+        // Test variable usage: "ram * 2"
+        let (result, assignment) = evaluate_with_variables_semantic(
+            "ram * 2", &variables, &[], 0
+        );
+        assert!(result.is_some());
+        assert!(assignment.is_none());
+        assert_eq!(result.unwrap(), "32 GiB");
+        
+        // Test complex variable expression: "ram + 8 GiB"
+        let (result, _) = evaluate_with_variables_semantic(
+            "ram + 8 GiB", &variables, &[], 0
+        );
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "24 GiB");
+        
+        // Test compatibility with legacy approach
+        let legacy_result = evaluate_with_variables("ram * 2", &variables, &[], 0);
+        let semantic_result = evaluate_with_variables_semantic("ram * 2", &variables, &[], 0);
+        assert_eq!(legacy_result.0, semantic_result.0);
+        assert_eq!(legacy_result.1, semantic_result.1);
     }
 
     #[test]

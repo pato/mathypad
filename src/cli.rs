@@ -1,6 +1,6 @@
 //! Command-line interface functions
 
-use crate::evaluate_expression_with_context;
+use crate::expression::evaluate_expression_with_context_semantic;
 use crate::expression::parse_line_reference;
 use crate::units::parse_unit;
 use std::error::Error;
@@ -11,7 +11,7 @@ pub fn run_one_shot_mode(expression: &str) -> Result<(), Box<dyn Error>> {
     print_formatted_expression(expression);
 
     // Evaluate the expression (no context for one-shot mode)
-    if let Some(result) = evaluate_expression_with_context(expression, &[], 0) {
+    if let Some(result) = evaluate_expression_with_context_semantic(expression, &[], 0) {
         println!(" = {}", result);
     } else {
         println!(" = (invalid expression)");

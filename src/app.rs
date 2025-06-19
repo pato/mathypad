@@ -2,7 +2,7 @@
 
 use crate::{
     Mode,
-    expression::{evaluate_with_variables, update_line_references_in_text},
+    expression::{evaluate_with_variables_semantic, update_line_references_in_text},
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -313,7 +313,7 @@ impl App {
         if line_index < self.text_lines.len() && line_index < self.results.len() {
             let line = &self.text_lines[line_index];
             let (result, variable_assignment) =
-                evaluate_with_variables(line, &self.variables, &self.results, line_index);
+                evaluate_with_variables_semantic(line, &self.variables, &self.results, line_index);
 
             // Check if result has changed to trigger animation
             let result_changed = self.results[line_index] != result;
@@ -362,7 +362,7 @@ impl App {
                 // This is a simple heuristic - we could make it more sophisticated
                 if line.contains(changed_variable) {
                     let (result, nested_assignment) =
-                        evaluate_with_variables(line, &self.variables, &self.results, line_idx);
+                        evaluate_with_variables_semantic(line, &self.variables, &self.results, line_idx);
 
                     // Handle nested variable assignments (variables that depend on other variables)
                     if let Some((nested_var_name, nested_var_value)) = nested_assignment {

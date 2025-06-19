@@ -17,7 +17,7 @@ pub use chumsky_parser::{
 pub use evaluator::{
     analyze_semantics, evaluate_expression_with_context, evaluate_expression_with_context_semantic,
     evaluate_semantic_tokens, evaluate_tokens_stream_with_context,
-    evaluate_tokens_with_units_and_context, evaluate_with_variables,
+    evaluate_tokens_with_units_and_context, evaluate_with_variables, evaluate_with_variables_semantic,
     parse_and_evaluate_with_context, parse_result_string, preprocess_tokens_for_evaluation,
     resolve_line_reference,
 };
