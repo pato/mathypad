@@ -20,8 +20,10 @@ impl UnitValue {
     pub fn to_unit(&self, target_unit: &Unit) -> Option<UnitValue> {
         match &self.unit {
             Some(current_unit) => {
-                // Check if units are the same type
-                if current_unit.unit_type() == target_unit.unit_type() {
+                // Check if units are the same type or compatible data rates
+                if current_unit.unit_type() == target_unit.unit_type()
+                    || self.can_convert_between_data_rates(current_unit, target_unit)
+                {
                     let base_value = current_unit.to_base_value(self.value);
                     let converted_value = target_unit.clone().from_base_value(base_value);
                     Some(UnitValue::new(converted_value, Some(target_unit.clone())))
@@ -44,6 +46,15 @@ impl UnitValue {
                 }
             }
         }
+    }
+
+    /// Check if conversion between data rates with different time units is possible
+    fn can_convert_between_data_rates(&self, current: &Unit, target: &Unit) -> bool {
+        use super::types::UnitType;
+        matches!(
+            (current.unit_type(), target.unit_type()),
+            (UnitType::DataRate(_), UnitType::DataRate(_))
+        )
     }
 
     /// Check if conversion between bits and bytes is possible

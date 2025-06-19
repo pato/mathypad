@@ -37,35 +37,49 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "PiB" => return Some(Unit::PiB),
         "EiB" => return Some(Unit::EiB),
 
-        // Bit rates (bits per second)
-        "bps" | "bit/s" | "bits/s" => return Some(Unit::BitsPerSecond),
-        "Kbps" | "Kb/s" => return Some(Unit::KbPerSecond),
-        "Mbps" | "Mb/s" => return Some(Unit::MbPerSecond),
-        "Gbps" | "Gb/s" => return Some(Unit::GbPerSecond),
-        "Tbps" | "Tb/s" => return Some(Unit::TbPerSecond),
-        "Pbps" | "Pb/s" => return Some(Unit::PbPerSecond),
-        "Ebps" | "Eb/s" => return Some(Unit::EbPerSecond),
-        "Kibps" | "Kib/s" => return Some(Unit::KibPerSecond),
-        "Mibps" | "Mib/s" => return Some(Unit::MibPerSecond),
-        "Gibps" | "Gib/s" => return Some(Unit::GibPerSecond),
-        "Tibps" | "Tib/s" => return Some(Unit::TibPerSecond),
-        "Pibps" | "Pib/s" => return Some(Unit::PibPerSecond),
-        "Eibps" | "Eib/s" => return Some(Unit::EibPerSecond),
+        // Traditional rate unit patterns - create generic rates
+        "bps" | "bit/s" | "bits/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second)));
+        }
+        "Kbps" | "Kb/s" => return Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second))),
+        "Mbps" | "Mb/s" => return Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second))),
+        "Gbps" | "Gb/s" => return Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second))),
+        "Tbps" | "Tb/s" => return Some(Unit::RateUnit(Box::new(Unit::Tb), Box::new(Unit::Second))),
+        "Pbps" | "Pb/s" => return Some(Unit::RateUnit(Box::new(Unit::Pb), Box::new(Unit::Second))),
+        "Ebps" | "Eb/s" => return Some(Unit::RateUnit(Box::new(Unit::Eb), Box::new(Unit::Second))),
+        "Kibps" | "Kib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second)));
+        }
+        "Mibps" | "Mib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second)));
+        }
+        "Gibps" | "Gib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second)));
+        }
+        "Tibps" | "Tib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Tib), Box::new(Unit::Second)));
+        }
+        "Pibps" | "Pib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Pib), Box::new(Unit::Second)));
+        }
+        "Eibps" | "Eib/s" => {
+            return Some(Unit::RateUnit(Box::new(Unit::Eib), Box::new(Unit::Second)));
+        }
 
         // Byte rates (uppercase 'B/s' for bytes per second)
-        "B/s" => return Some(Unit::BytesPerSecond),
-        "KB/s" => return Some(Unit::KBPerSecond),
-        "MB/s" => return Some(Unit::MBPerSecond),
-        "GB/s" => return Some(Unit::GBPerSecond),
-        "TB/s" => return Some(Unit::TBPerSecond),
-        "PB/s" => return Some(Unit::PBPerSecond),
-        "EB/s" => return Some(Unit::EBPerSecond),
-        "KiB/s" => return Some(Unit::KiBPerSecond),
-        "MiB/s" => return Some(Unit::MiBPerSecond),
-        "GiB/s" => return Some(Unit::GiBPerSecond),
-        "TiB/s" => return Some(Unit::TiBPerSecond),
-        "PiB/s" => return Some(Unit::PiBPerSecond),
-        "EiB/s" => return Some(Unit::EiBPerSecond),
+        "B/s" => return Some(Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second))),
+        "KB/s" => return Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second))),
+        "MB/s" => return Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second))),
+        "GB/s" => return Some(Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second))),
+        "TB/s" => return Some(Unit::RateUnit(Box::new(Unit::TB), Box::new(Unit::Second))),
+        "PB/s" => return Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))),
+        "EB/s" => return Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))),
+        "KiB/s" => return Some(Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second))),
+        "MiB/s" => return Some(Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second))),
+        "GiB/s" => return Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second))),
+        "TiB/s" => return Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Second))),
+        "PiB/s" => return Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))),
+        "EiB/s" => return Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))),
 
         _ => {} // Fall through to case-insensitive matching
     }
@@ -101,52 +115,64 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "pib" => Some(Unit::PiB), // Keep as Pebibytes - rarely used in networking
         "eib" => Some(Unit::EiB), // Keep as Exbibytes - rarely used in networking
 
-        // Case-insensitive rate parsing
+        // Case-insensitive rate parsing - create generic rates
         // For "bps" suffix: bits take precedence (network convention)
         // For "/s" suffix: bytes take precedence (file transfer convention)
-        "b/s" | "bytes/s" => Some(Unit::BytesPerSecond),
-        "kb/s" => Some(Unit::KBPerSecond),
-        "mb/s" => Some(Unit::MBPerSecond),
-        "gb/s" => Some(Unit::GBPerSecond),
-        "tb/s" => Some(Unit::TBPerSecond),
-        "pb/s" => Some(Unit::PBPerSecond),
-        "eb/s" => Some(Unit::EBPerSecond),
-        "kib/s" => Some(Unit::KiBPerSecond),
-        "mib/s" => Some(Unit::MiBPerSecond),
-        "gib/s" => Some(Unit::GiBPerSecond),
-        "tib/s" => Some(Unit::TiBPerSecond),
-        "pib/s" => Some(Unit::PiBPerSecond),
-        "eib/s" => Some(Unit::EiBPerSecond),
+        "b/s" | "bytes/s" => Some(Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second))),
+        "kb/s" => Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second))),
+        "mb/s" => Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second))),
+        "gb/s" => Some(Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second))),
+        "tb/s" => Some(Unit::RateUnit(Box::new(Unit::TB), Box::new(Unit::Second))),
+        "pb/s" => Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))),
+        "eb/s" => Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))),
+        "kib/s" => Some(Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second))),
+        "mib/s" => Some(Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second))),
+        "gib/s" => Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second))),
+        "tib/s" => Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Second))),
+        "pib/s" => Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))),
+        "eib/s" => Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))),
 
         // For "bps" suffix: default to bits (network convention)
         // Exception: very large units (PB/EB) default to bytes for backwards compatibility
-        "bps" => Some(Unit::BitsPerSecond),
-        "kbps" => Some(Unit::KbPerSecond),
-        "mbps" => Some(Unit::MbPerSecond),
-        "gbps" => Some(Unit::GbPerSecond),
-        "tbps" => Some(Unit::TbPerSecond),
-        "pbps" => Some(Unit::PBPerSecond), // Exception: PB default to bytes
-        "ebps" => Some(Unit::EBPerSecond), // Exception: EB default to bytes
-        "kibps" => Some(Unit::KibPerSecond),
-        "mibps" => Some(Unit::MibPerSecond),
-        "gibps" => Some(Unit::GibPerSecond),
-        "tibps" => Some(Unit::TibPerSecond),
-        "pibps" => Some(Unit::PiBPerSecond), // Exception: PiB default to bytes
-        "eibps" => Some(Unit::EiBPerSecond), // Exception: EiB default to bytes
+        "bps" => Some(Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second))),
+        "kbps" => Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second))),
+        "mbps" => Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second))),
+        "gbps" => Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second))),
+        "tbps" => Some(Unit::RateUnit(Box::new(Unit::Tb), Box::new(Unit::Second))),
+        "pbps" => Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))), // Exception: PB default to bytes
+        "ebps" => Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))), // Exception: EB default to bytes
+        "kibps" => Some(Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second))),
+        "mibps" => Some(Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second))),
+        "gibps" => Some(Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second))),
+        "tibps" => Some(Unit::RateUnit(Box::new(Unit::Tib), Box::new(Unit::Second))),
+        "pibps" => Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))), // Exception: PiB default to bytes
+        "eibps" => Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))), // Exception: EiB default to bytes
 
         "req" | "request" | "requests" => Some(Unit::Request),
         "query" | "queries" => Some(Unit::Query),
 
-        "req/s" | "requests/s" | "rps" => Some(Unit::RequestsPerSecond),
-        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => {
-            Some(Unit::RequestsPerMinute)
+        "req/s" | "requests/s" | "rps" => Some(Unit::RateUnit(
+            Box::new(Unit::Request),
+            Box::new(Unit::Second),
+        )),
+        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => Some(
+            Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Minute)),
+        ),
+        "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RateUnit(
+            Box::new(Unit::Request),
+            Box::new(Unit::Hour),
+        )),
+        "qps" | "queries/s" | "queries/sec" => Some(Unit::RateUnit(
+            Box::new(Unit::Query),
+            Box::new(Unit::Second),
+        )),
+        "qpm" | "queries/min" | "queries/minute" => Some(Unit::RateUnit(
+            Box::new(Unit::Query),
+            Box::new(Unit::Minute),
+        )),
+        "qph" | "queries/h" | "queries/hour" => {
+            Some(Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)))
         }
-        "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => {
-            Some(Unit::RequestsPerHour)
-        }
-        "qps" | "queries/s" | "queries/sec" => Some(Unit::QueriesPerSecond),
-        "qpm" | "queries/min" | "queries/minute" => Some(Unit::QueriesPerMinute),
-        "qph" | "queries/h" | "queries/hour" => Some(Unit::QueriesPerHour),
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
 

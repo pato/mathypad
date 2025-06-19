@@ -337,7 +337,7 @@ mod tests {
         println!("Tokens for '1 hour * 10 GiB/s': {:?}", result);
         assert!(result.is_ok(), "Parsing failed: {:?}", result);
         let tokens = result.unwrap();
-        // Should parse as: NumberWithUnit(1.0, Hour), Multiply, NumberWithUnit(10.0, GiBPerSecond)
+        // Should parse as: NumberWithUnit(1.0, Hour), Multiply, NumberWithUnit(10.0, RateUnit(GiB, Second))
         assert_eq!(tokens.len(), 3);
         assert!(matches!(tokens[0], Token::NumberWithUnit(1.0, _)));
         assert!(matches!(tokens[1], Token::Multiply));
@@ -413,8 +413,12 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert!(matches!(
             tokens[0],
-            Token::NumberWithUnit(10.0, Unit::GiBPerSecond)
+            Token::NumberWithUnit(10.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[0] {
+            assert_eq!(**unit1, Unit::GiB);
+            assert_eq!(**unit2, Unit::Second);
+        }
 
         // Test expressions with multiple units without spaces
         let result = parse_expression_chumsky("1,000GiB + 512MiB");
@@ -619,8 +623,12 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert!(matches!(
             tokens[0],
-            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
+            Token::NumberWithUnit(100.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[0] {
+            assert_eq!(**unit1, Unit::MB);
+            assert_eq!(**unit2, Unit::Second);
+        }
 
         // Test compound units without spaces (should still work)
         let result = parse_expression_chumsky("100 MB/s");
@@ -633,8 +641,12 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert!(matches!(
             tokens[0],
-            Token::NumberWithUnit(100.0, Unit::MBPerSecond)
+            Token::NumberWithUnit(100.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[0] {
+            assert_eq!(**unit1, Unit::MB);
+            assert_eq!(**unit2, Unit::Second);
+        }
 
         // Test conversion with compound units with spaces
         let result = parse_expression_chumsky("25 QPS to req / min");
@@ -647,13 +659,21 @@ mod tests {
         assert_eq!(tokens.len(), 3);
         assert!(matches!(
             tokens[0],
-            Token::NumberWithUnit(25.0, Unit::QueriesPerSecond)
+            Token::NumberWithUnit(25.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[0] {
+            assert_eq!(**unit1, Unit::Query);
+            assert_eq!(**unit2, Unit::Second);
+        }
         assert!(matches!(tokens[1], Token::To));
         assert!(matches!(
             tokens[2],
-            Token::NumberWithUnit(1.0, Unit::RequestsPerMinute)
+            Token::NumberWithUnit(1.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[2] {
+            assert_eq!(**unit1, Unit::Request);
+            assert_eq!(**unit2, Unit::Minute);
+        }
 
         // Test various request rate units with spaces
         let result = parse_expression_chumsky("50 req / s + 30 requests / min");
@@ -666,13 +686,21 @@ mod tests {
         assert_eq!(tokens.len(), 3);
         assert!(matches!(
             tokens[0],
-            Token::NumberWithUnit(50.0, Unit::RequestsPerSecond)
+            Token::NumberWithUnit(50.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[0] {
+            assert_eq!(**unit1, Unit::Request);
+            assert_eq!(**unit2, Unit::Second);
+        }
         assert!(matches!(tokens[1], Token::Plus));
         assert!(matches!(
             tokens[2],
-            Token::NumberWithUnit(30.0, Unit::RequestsPerMinute)
+            Token::NumberWithUnit(30.0, Unit::RateUnit(_, _))
         ));
+        if let Token::NumberWithUnit(_, Unit::RateUnit(ref unit1, ref unit2)) = tokens[2] {
+            assert_eq!(**unit1, Unit::Request);
+            assert_eq!(**unit2, Unit::Minute);
+        }
     }
 
     #[test]
