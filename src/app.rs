@@ -19,6 +19,7 @@ pub struct ResultAnimation {
 #[derive(Clone, Debug)]
 pub enum AnimationType {
     FadeIn,
+    CopyFlash,
 }
 
 impl ResultAnimation {
@@ -27,6 +28,14 @@ impl ResultAnimation {
             start_time: Instant::now(),
             duration_ms: 250, // 250ms fade-in
             animation_type: AnimationType::FadeIn,
+        }
+    }
+
+    pub fn new_copy_flash() -> Self {
+        Self {
+            start_time: Instant::now(),
+            duration_ms: 150, // 150ms flash animation - faster and snappier
+            animation_type: AnimationType::CopyFlash,
         }
     }
 
@@ -49,6 +58,11 @@ impl ResultAnimation {
                 let progress = self.progress();
                 // Smooth ease-out animation
                 1.0 - (1.0 - progress).powi(3)
+            }
+            AnimationType::CopyFlash => {
+                let progress = self.progress();
+                // Flash effect: bright at start, fade to normal
+                1.0 - progress
             }
         }
     }
@@ -73,6 +87,10 @@ pub struct App {
     pub separator_position: u16, // Position of the separator between text and results (percentage)
     pub is_dragging_separator: bool, // Whether the user is currently dragging the separator
     pub is_hovering_separator: bool, // Whether the mouse is hovering over the separator
+    pub copy_flash_animations: Vec<Option<ResultAnimation>>, // Flash animations for copied lines
+    pub copy_flash_is_result: Vec<bool>, // Track which panel was flashed (true = results, false = text)
+    pub last_click_time: Option<Instant>, // For double-click detection
+    pub last_click_position: Option<(u16, u16)>, // Last click position for double-click detection
 }
 
 impl Default for App {
@@ -84,17 +102,21 @@ impl Default for App {
             scroll_offset: 0,
             results: vec![None],
             variables: HashMap::new(),
-            mode: Mode::Insert,            // Start in insert mode
-            result_animations: vec![None], // Start with no animations
-            file_path: None,               // No file loaded initially
-            has_unsaved_changes: false,    // Start with no changes
-            show_unsaved_dialog: false,    // Start without showing dialog
-            show_save_as_dialog: false,    // Start without showing save as dialog
-            save_as_input: String::new(),  // Start with empty filename input
-            save_as_and_quit: false,       // Start without quit flag
-            separator_position: 80,        // Default to 80% for text, 20% for results
-            is_dragging_separator: false,  // Start without dragging
-            is_hovering_separator: false,  // Start without hovering
+            mode: Mode::Insert,                // Start in insert mode
+            result_animations: vec![None],     // Start with no animations
+            file_path: None,                   // No file loaded initially
+            has_unsaved_changes: false,        // Start with no changes
+            show_unsaved_dialog: false,        // Start without showing dialog
+            show_save_as_dialog: false,        // Start without showing save as dialog
+            save_as_input: String::new(),      // Start with empty filename input
+            save_as_and_quit: false,           // Start without quit flag
+            separator_position: 80,            // Default to 80% for text, 20% for results
+            is_dragging_separator: false,      // Start without dragging
+            is_hovering_separator: false,      // Start without hovering
+            copy_flash_animations: vec![None], // Start with no copy animations
+            copy_flash_is_result: vec![false], // Start with no copy panel tracking
+            last_click_time: None,             // No previous clicks
+            last_click_position: None,         // No previous click position
         }
     }
 }
@@ -154,6 +176,14 @@ impl App {
                 // Remove corresponding animation if it exists
                 if self.cursor_line < self.result_animations.len() {
                     self.result_animations.remove(self.cursor_line);
+                }
+
+                // Remove corresponding copy flash animation if it exists
+                if self.cursor_line < self.copy_flash_animations.len() {
+                    self.copy_flash_animations.remove(self.cursor_line);
+                }
+                if self.cursor_line < self.copy_flash_is_result.len() {
+                    self.copy_flash_is_result.remove(self.cursor_line);
                 }
 
                 // Check if the previous line is empty - if so, we conceptually want to delete
@@ -244,6 +274,19 @@ impl App {
                 // Ensure animations vector is large enough
                 while self.result_animations.len() <= self.cursor_line + 1 {
                     self.result_animations.push(None);
+                }
+            }
+
+            // Also ensure copy flash animations vector is large enough
+            if self.cursor_line + 1 < self.copy_flash_animations.len() {
+                self.copy_flash_animations
+                    .insert(self.cursor_line + 1, None);
+                self.copy_flash_is_result
+                    .insert(self.cursor_line + 1, false);
+            } else {
+                while self.copy_flash_animations.len() <= self.cursor_line + 1 {
+                    self.copy_flash_animations.push(None);
+                    self.copy_flash_is_result.push(false);
                 }
             }
 
@@ -492,6 +535,15 @@ impl App {
                 }
             }
         }
+
+        // Update copy flash animations
+        for animation in &mut self.copy_flash_animations {
+            if let Some(anim) = animation {
+                if anim.is_complete() {
+                    *animation = None;
+                }
+            }
+        }
     }
 
     /// Get the animation for a specific line
@@ -582,6 +634,74 @@ impl App {
     /// Set hover state for the separator
     pub fn set_separator_hover(&mut self, hovering: bool) {
         self.is_hovering_separator = hovering;
+    }
+
+    /// Copy text to clipboard and start flash animation
+    pub fn copy_to_clipboard(
+        &mut self,
+        text: &str,
+        line_index: usize,
+        is_result: bool,
+    ) -> Result<(), String> {
+        // Copy to clipboard using arboard
+        let mut clipboard =
+            arboard::Clipboard::new().map_err(|e| format!("Failed to access clipboard: {}", e))?;
+        clipboard
+            .set_text(text)
+            .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+
+        // Start flash animation for the copied line
+        self.start_copy_flash_animation(line_index, is_result);
+
+        Ok(())
+    }
+
+    /// Start a copy flash animation for a specific line
+    fn start_copy_flash_animation(&mut self, line_index: usize, is_result: bool) {
+        // Ensure the copy flash animations vector is large enough
+        while self.copy_flash_animations.len() <= line_index {
+            self.copy_flash_animations.push(None);
+            self.copy_flash_is_result.push(false);
+        }
+
+        self.copy_flash_animations[line_index] = Some(ResultAnimation::new_copy_flash());
+        // Ensure the tracking vector is large enough too
+        while self.copy_flash_is_result.len() <= line_index {
+            self.copy_flash_is_result.push(false);
+        }
+        self.copy_flash_is_result[line_index] = is_result;
+    }
+
+    /// Check if a click is a double-click
+    pub fn is_double_click(&mut self, mouse_x: u16, mouse_y: u16) -> bool {
+        let now = Instant::now();
+        let double_click_threshold = std::time::Duration::from_millis(500); // 500ms double-click window
+        let position_threshold = 2; // Allow 2 pixels of movement
+
+        if let (Some(last_time), Some((last_x, last_y))) =
+            (self.last_click_time, self.last_click_position)
+        {
+            let time_diff = now.duration_since(last_time);
+            let position_diff = ((mouse_x as i32 - last_x as i32).abs()
+                + (mouse_y as i32 - last_y as i32).abs()) as u16;
+
+            if time_diff <= double_click_threshold && position_diff <= position_threshold {
+                // Reset click tracking after successful double-click
+                self.last_click_time = None;
+                self.last_click_position = None;
+                return true;
+            }
+        }
+
+        // Update click tracking
+        self.last_click_time = Some(now);
+        self.last_click_position = Some((mouse_x, mouse_y));
+        false
+    }
+
+    /// Get the copy flash animation for a specific line
+    pub fn get_copy_flash_animation(&self, line_index: usize) -> Option<&ResultAnimation> {
+        self.copy_flash_animations.get(line_index)?.as_ref()
     }
 }
 
@@ -835,5 +955,63 @@ mod app_tests {
         // Test stopping hover
         app.set_separator_hover(false);
         assert!(!app.is_hovering_separator);
+    }
+
+    #[test]
+    fn test_double_click_detection() {
+        let mut app = App::default();
+
+        // First click should not be a double-click
+        assert!(!app.is_double_click(100, 100));
+
+        // Immediate second click should be a double-click
+        assert!(app.is_double_click(100, 100));
+
+        // After double-click, state should be reset
+        assert!(!app.is_double_click(100, 100));
+    }
+
+    #[test]
+    fn test_double_click_position_threshold() {
+        let mut app = App::default();
+
+        // First click
+        assert!(!app.is_double_click(100, 100));
+
+        // Click within threshold should be double-click
+        assert!(app.is_double_click(101, 101));
+
+        // Reset state
+        app.last_click_time = None;
+        app.last_click_position = None;
+
+        // First click
+        assert!(!app.is_double_click(100, 100));
+
+        // Click outside threshold should not be double-click
+        assert!(!app.is_double_click(110, 110));
+    }
+
+    #[test]
+    fn test_copy_flash_animation() {
+        let mut app = App::default();
+
+        // Ensure we have enough lines
+        app.text_lines = vec!["test".to_string(), "test2".to_string()];
+        app.copy_flash_animations = vec![None, None];
+
+        // Test copy to clipboard (we can't actually test clipboard, but we can test the animation)
+        app.start_copy_flash_animation(0, false);
+
+        // Should have flash animation
+        assert!(app.get_copy_flash_animation(0).is_some());
+        assert!(app.get_copy_flash_animation(1).is_none());
+
+        // Animation should be of correct type
+        let animation = app.get_copy_flash_animation(0).unwrap();
+        assert!(matches!(
+            animation.animation_type,
+            crate::app::AnimationType::CopyFlash
+        ));
     }
 }

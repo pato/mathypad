@@ -37,7 +37,11 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
         let has_active_animations = app
             .result_animations
             .iter()
-            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
+            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()))
+            || app
+                .copy_flash_animations
+                .iter()
+                .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
 
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering
@@ -220,7 +224,11 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         let has_active_animations = app
             .result_animations
             .iter()
-            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
+            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()))
+            || app
+                .copy_flash_animations
+                .iter()
+                .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
 
         let timeout = if has_active_animations {
             // Use a shorter timeout during animations for smooth rendering
@@ -520,7 +528,7 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
         _ => {}
     }
 }
-/// Handle mouse events for dragging the separator
+/// Handle mouse events for dragging the separator and copying content
 fn handle_mouse_event(app: &mut App, mouse: MouseEvent, terminal_width: u16) {
     match mouse.kind {
         MouseEventKind::Down(MouseButton::Left) => {
@@ -529,6 +537,11 @@ fn handle_mouse_event(app: &mut App, mouse: MouseEvent, terminal_width: u16) {
                 app.set_separator_hover(true);
             } else {
                 app.set_separator_hover(false);
+
+                // Check for double-click to copy content
+                if app.is_double_click(mouse.column, mouse.row) {
+                    handle_double_click_copy(app, mouse.column, mouse.row, terminal_width);
+                }
             }
         }
         MouseEventKind::Up(MouseButton::Left) => {
@@ -549,6 +562,76 @@ fn handle_mouse_event(app: &mut App, mouse: MouseEvent, terminal_width: u16) {
             app.set_separator_hover(is_over_separator);
         }
         _ => {}
+    }
+}
+
+/// Handle double-click to copy text or result
+fn handle_double_click_copy(app: &mut App, mouse_x: u16, mouse_y: u16, terminal_width: u16) {
+    use ratatui::{
+        layout::{Constraint, Direction, Layout, Rect},
+        widgets::{Block, Borders},
+    };
+
+    // Recreate the same layout calculation as the render function
+    let terminal_area = Rect {
+        x: 0,
+        y: 0,
+        width: terminal_width,
+        height: 50, // Height doesn't matter for our calculation
+    };
+
+    let text_percentage = app.separator_position;
+    let results_percentage = 100 - app.separator_position;
+
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(text_percentage),
+            Constraint::Percentage(results_percentage),
+        ])
+        .split(terminal_area);
+
+    // Determine which panel was clicked
+    let (is_results_panel, panel_area) = if mouse_x < chunks[0].x + chunks[0].width {
+        (false, chunks[0])
+    } else {
+        (true, chunks[1])
+    };
+
+    // Calculate the inner area (content area) for the clicked panel
+    let block = Block::default().borders(Borders::ALL);
+    let inner_area = block.inner(panel_area);
+
+    // Check if click is within the content area
+    if mouse_x >= inner_area.x
+        && mouse_x < inner_area.x + inner_area.width
+        && mouse_y >= inner_area.y
+        && mouse_y < inner_area.y + inner_area.height
+    {
+        // Calculate which line was clicked within the content area
+        let content_line = (mouse_y - inner_area.y) as usize;
+        let line_index = app.scroll_offset + content_line;
+
+        if is_results_panel {
+            // Clicked in results area - copy the result
+            if line_index < app.results.len() {
+                if let Some(result) = app.results[line_index].clone() {
+                    if let Err(e) = app.copy_to_clipboard(&result, line_index, true) {
+                        eprintln!("Copy failed: {}", e);
+                    }
+                }
+            }
+        } else {
+            // Clicked in text area - copy the line content
+            if line_index < app.text_lines.len() {
+                let text = app.text_lines[line_index].clone();
+                if !text.trim().is_empty() {
+                    if let Err(e) = app.copy_to_clipboard(&text, line_index, false) {
+                        eprintln!("Copy failed: {}", e);
+                    }
+                }
+            }
+        }
     }
 }
 

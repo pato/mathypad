@@ -44,6 +44,13 @@ fn animate_color(base_color: Color, opacity: f32) -> Color {
     }
 }
 
+/// Create a flash effect color that brightens based on opacity
+fn create_flash_color(opacity: f32) -> Color {
+    // Create a bright flash effect that fades from white to normal
+    let intensity = (opacity * 255.0) as u8;
+    Color::Rgb(255, 255, intensity.max(200)) // Bright white/yellow flash
+}
+
 /// Main UI layout and rendering
 pub fn ui(f: &mut Frame, app: &App) {
     let text_percentage = app.separator_position;
@@ -99,21 +106,47 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
     for (i, line_text) in app.text_lines[start_line..end_line].iter().enumerate() {
         let line_num = start_line + i + 1;
         let line_num_str = format!("{:4} ", line_num);
+        let line_index = start_line + i;
 
         let mut spans = vec![Span::styled(
             line_num_str,
             Style::default().fg(Color::DarkGray),
         )];
 
+        // Check if this line has a copy flash animation for the text area (not result area)
+        let line_style = if let Some(animation) = app.get_copy_flash_animation(line_index) {
+            // Only flash if this was a text area copy (not result area)
+            if line_index < app.copy_flash_is_result.len() && !app.copy_flash_is_result[line_index]
+            {
+                let opacity = animation.opacity();
+                Style::default().bg(create_flash_color(opacity))
+            } else {
+                Style::default()
+            }
+        } else {
+            Style::default()
+        };
+
         if start_line + i == app.cursor_line {
             // Parse with cursor highlighting
-            spans.extend(parse_colors_with_cursor(
-                line_text,
-                app.cursor_col,
-                &app.variables,
-            ));
+            let mut colored_spans =
+                parse_colors_with_cursor(line_text, app.cursor_col, &app.variables);
+            // Apply flash background to all spans if flashing
+            if line_style.bg.is_some() {
+                for span in &mut colored_spans {
+                    span.style = span.style.patch(line_style);
+                }
+            }
+            spans.extend(colored_spans);
         } else {
-            spans.extend(parse_colors(line_text, &app.variables));
+            let mut colored_spans = parse_colors(line_text, &app.variables);
+            // Apply flash background to all spans if flashing
+            if line_style.bg.is_some() {
+                for span in &mut colored_spans {
+                    span.style = span.style.patch(line_style);
+                }
+            }
+            spans.extend(colored_spans);
         }
 
         lines.push(Line::from(spans));
@@ -138,15 +171,28 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
     for (i, result) in app.results[start_line..end_line].iter().enumerate() {
         let line_num = start_line + i + 1;
         let line_num_str = format!("{:4} ", line_num);
+        let line_index = start_line + i;
 
         let mut spans = vec![Span::styled(
             line_num_str,
             Style::default().fg(Color::DarkGray),
         )];
 
+        // Check if this line has a copy flash animation for the results area (not text area)
+        let flash_style = if let Some(animation) = app.get_copy_flash_animation(line_index) {
+            // Only flash if this was a result area copy (not text area)
+            if line_index < app.copy_flash_is_result.len() && app.copy_flash_is_result[line_index] {
+                let opacity = animation.opacity();
+                Some(Style::default().bg(create_flash_color(opacity)))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         if let Some(value) = result {
             // Get animation state for this line
-            let line_index = start_line + i;
             let color = if let Some(animation) = app.get_result_animation(line_index) {
                 // Apply fade-in animation by adjusting color intensity
                 let opacity = animation.opacity();
@@ -155,7 +201,13 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
                 Color::Green
             };
 
-            spans.push(Span::styled(value.clone(), Style::default().fg(color)));
+            let mut result_style = Style::default().fg(color);
+            // Apply flash background if flashing
+            if let Some(flash) = flash_style {
+                result_style = result_style.patch(flash);
+            }
+
+            spans.push(Span::styled(value.clone(), result_style));
         }
 
         lines.push(Line::from(spans));

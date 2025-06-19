@@ -14,6 +14,7 @@ ratatui = "0.29"
 crossterm = "0.29"
 clap = { version = "4.5", features = ["derive", "cargo"] }
 chumsky = "0.10.1"
+arboard = "3.4"
 
 [dev-dependencies]
 tempfile = "3.8"
