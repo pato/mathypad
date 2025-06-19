@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.9] - 2025-06-19
+
+### Changes
+
+- Fix release script
+- Add support for generating auto completion
+- Improve its own code
+- Fix clippy
+- Allow dragging the border between typing and results
+- Add support for copying expressions or results with double click
+
 ## [0.1.8] - 2025-06-12
 
 ### Changes
