@@ -14,6 +14,7 @@ pub mod expression;
 pub mod mode;
 pub mod ui;
 pub mod units;
+pub mod version;
 
 #[cfg(test)]
 mod integration_tests;
