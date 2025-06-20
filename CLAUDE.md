@@ -137,3 +137,70 @@ mathypad2/
 - **Variable Support**: Store and reference variables in calculations
 - **Line References**: Reference values from other lines with automatic updates when referenced lines change
 - **One-shot Mode**: CLI mode for quick calculations without TUI
+
+# UI Snapshot Testing
+
+Mathypad uses snapshot testing with `cargo-insta` to ensure UI consistency and catch visual regressions.
+
+## Overview
+
+UI snapshot tests capture the exact visual output of the terminal UI and compare it against stored "golden" snapshots. Tests are in `src/ui/tests.rs` and use a fixed 120x30 terminal size for consistency.
+
+## Running Tests
+
+```bash
+# Run all UI snapshot tests
+cargo test ui::
+
+# Run specific snapshot test
+cargo test ui::tests::test_basic_ui_layout
+```
+
+## Managing Snapshot Changes
+
+When you make UI changes, snapshot tests will fail. This is expected.
+
+### Review Changes (RECOMMENDED)
+```bash
+cargo insta review
+```
+Interactive mode: `a` (accept), `r` (reject), `s` (skip)
+
+### Accept All Changes (Use with Caution)
+```bash
+cargo insta accept
+```
+
+### Check What Needs Review
+```bash
+cargo insta pending-snapshots
+```
+
+## Essential Workflow
+
+1. Make UI changes
+2. Run `cargo test ui::` 
+3. Use `cargo insta review` to examine diffs
+4. Accept expected changes, reject unexpected ones
+5. Commit both code and updated snapshots
+
+## Writing New Snapshot Tests
+
+- Use `create_test_terminal()` helper for consistent 120x30 size
+- Use `assert_snapshot!("test_name", output)` 
+- Include realistic test data in your App instance
+- Test edge cases (empty states, dialogs, different modes)
+
+## Key Points
+
+- **Always review diffs** - don't blindly accept with `cargo insta accept`
+- **Commit `.snap` files** - ignore `.snap.new` and `.snap.old` files  
+- **Snapshot failures catch regressions** - investigate unexpected changes
+- **Use descriptive test names** - they become snapshot file names
+- Tests cover: layout, syntax highlighting, dialogs, cursor states, scrolling
+
+## Common Issues
+
+- **New test failing**: Run once to generate snapshot, then `cargo insta accept`
+- **Size mismatch**: Ensure all tests use `create_test_terminal()` helper
+- **CI failures**: Commit snapshot files and ensure no platform differences
