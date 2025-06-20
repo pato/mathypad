@@ -1,7 +1,7 @@
 //! Binary entry point for mathypad
 
 use clap::{Arg, Command, ValueHint, crate_version};
-use mathypad::{run_interactive_mode_with_file, run_one_shot_mode};
+use mathypad::{run_interactive_mode_with_file, run_one_shot_mode, version};
 use std::error::Error;
 use std::path::PathBuf;
 
@@ -17,6 +17,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(shell) = matches.get_one::<String>("completions") {
         print_completion_script(shell);
         return Ok(());
+    }
+
+    // Handle changelog flags
+    if matches.get_flag("changelog") || matches.get_flag("whats-new") {
+        print_changelog();
+        return Ok(());
+    }
+
+    // Initialize version tracking (create ~/.mathypad and write current version)
+    if let Err(e) = version::init_version_tracking() {
+        eprintln!("Warning: Could not initialize version tracking: {}", e);
     }
 
     // Extract file path and run interactive mode
@@ -60,6 +71,18 @@ fn build_cli() -> Command {
                 .value_parser(["bash", "zsh", "fish"]),
         )
         .arg(
+            Arg::new("changelog")
+                .long("changelog")
+                .action(clap::ArgAction::SetTrue)
+                .help("Show the changelog"),
+        )
+        .arg(
+            Arg::new("whats-new")
+                .long("whats-new")
+                .action(clap::ArgAction::SetTrue)
+                .help("Show what's new (alias for --changelog)"),
+        )
+        .arg(
             Arg::new("file")
                 .help("File to open")
                 .value_name("FILE")
@@ -86,4 +109,11 @@ fn print_completion_script(shell: &str) {
     };
 
     print!("{}", completion_script);
+}
+
+/// Print the changelog/what's new information
+fn print_changelog() {
+    // Include the changelog directly from the repository
+    let changelog = include_str!("../../CHANGELOG.md");
+    println!("{}", changelog);
 }
