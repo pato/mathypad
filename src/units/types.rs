@@ -530,4 +530,49 @@ impl Unit {
             _ => Err(UnitConversionError),
         }
     }
+
+    /// Check if two units are compatible for addition/subtraction
+    pub fn is_compatible_for_addition(&self, other: &Unit) -> bool {
+        let self_type = self.unit_type();
+        let other_type = other.unit_type();
+        
+        // Direct unit type match (this covers most cases including exact rate matches)
+        if self_type == other_type {
+            return true;
+        }
+        
+        // Special case for rate units with different time units but same data units
+        match (self, other) {
+            (Unit::RateUnit(self_data, self_time), Unit::RateUnit(other_data, other_time)) => {
+                // Both must be time denominators
+                if self_time.unit_type() != UnitType::Time || other_time.unit_type() != UnitType::Time {
+                    return false;
+                }
+                
+                // For data rates, we need EXACT data unit type compatibility
+                // This means GiB (base-2) and MB (base-10) are NOT compatible
+                let self_data_type = self_data.unit_type();
+                let other_data_type = other_data.unit_type();
+                
+                match (self_data_type, other_data_type) {
+                    // Bit rates are only compatible with other bit rates
+                    (UnitType::Bit, UnitType::Bit) => true,
+                    // Request rates are only compatible with other request rates  
+                    (UnitType::Request, UnitType::Request) => true,
+                    // Data rates are compatible only if from same base system
+                    (UnitType::Data, UnitType::Data) => {
+                        // Check if both are base-2 or both are base-10
+                        self_data.is_base2_data() == other_data.is_base2_data()
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Check if this is a base-2 data unit (KiB, MiB, GiB, etc.)
+    fn is_base2_data(&self) -> bool {
+        matches!(self, Unit::KiB | Unit::MiB | Unit::GiB | Unit::TiB | Unit::PiB | Unit::EiB)
+    }
 }
