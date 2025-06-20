@@ -69,8 +69,8 @@ protect_breaking_commits = false
 # Assigns commits to groups.
 # Optionally sets the commit's scope and can decide to exclude commits from further processing.
 commit_parsers = [
-    { message = "^ai:", group = "<!-- 0 -->🤖 AI Generated" },
-    { message = "^no ai:", group = "<!-- 1 -->👤 Human Generated" },
+    { message = "^ai:", group = "<!-- 0 -->🤖 AI Assisted" },
+    { message = "^no ai:", group = "<!-- 1 -->👤 Artisanally Crafted" },
     { message = "^feat", group = "<!-- 2 -->🚀 Features" },
     { message = "^fix", group = "<!-- 3 -->🐛 Bug Fixes" },
     { message = "^doc", group = "<!-- 5 -->📚 Documentation" },
