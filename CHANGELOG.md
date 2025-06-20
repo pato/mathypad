@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### 👤 Artisanally Crafted
 - Todo
+- Changelog minor updates
 
 
 ### Changes
