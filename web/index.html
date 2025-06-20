@@ -247,11 +247,11 @@
     <div class="container">
         <div class="hero">
             <h1>mathypad</h1>
-            <div class="tagline">A smart calculator with units, variables, and natural language processing</div>
+            <div class="tagline">Terminal calculator for capacity planning, performance analysis, and infrastructure math</div>
             
             <div class="cta-section">
                 <div class="install-code">cargo install mathypad</div>
-                <p style="color: rgba(255,255,255,0.9); margin-top: 1rem;">Install with Cargo and start calculating with units, variables, and natural language</p>
+                <p style="color: rgba(255,255,255,0.9); margin-top: 1rem;">Rust-powered calculator for engineers. Unit-aware, scriptable, with vim keybindings.</p>
             </div>
         </div>
 
@@ -259,63 +259,86 @@
             <img src="screenshots/screen1.png" alt="Mathypad terminal interface showing unit-aware calculations" class="screenshot">
 
             <div class="examples">
-                <h3>✨ See what mathypad can do</h3>
+                <h3>🔧 Real engineering calculations</h3>
                 <div class="example-grid">
                     <div class="example">
-                        <div class="input">50 GiB in MiB</div>
-                        <div class="output">→ 51,200 MiB</div>
+                        <div class="input">Download: 4.5 TB at 1 Gbps</div>
+                        <div class="output">→ 10 h</div>
                     </div>
                     <div class="example">
-                        <div class="input">1 GB / 10 Mbps</div>
-                        <div class="output">→ 800 s</div>
+                        <div class="input">50 GiB + 2 TB to MiB</div>
+                        <div class="output">→ 2,101,248 MiB</div>
                     </div>
                     <div class="example">
-                        <div class="input">100 QPS * 1 hour</div>
-                        <div class="output">→ 360,000 query</div>
+                        <div class="input">API load: 500 QPS * 24 hours</div>
+                        <div class="output">→ 43,200,000 query</div>
                     </div>
                     <div class="example">
-                        <div class="input">line1 + 90 GiB</div>
-                        <div class="output">→ 143,360 MiB</div>
+                        <div class="input">line1 + 30% overhead</div>
+                        <div class="output">→ 56,160,000 query</div>
+                    </div>
+                    <div class="example">
+                        <div class="input">Backup: 10 TB / (100 Mbps * 0.8)</div>
+                        <div class="output">→ 27.778 h</div>
+                    </div>
+                    <div class="example">
+                        <div class="input">Storage: line3 * 365 days to PB</div>
+                        <div class="output">→ 15.768 PB</div>
                     </div>
                 </div>
             </div>
 
             <div class="features">
                 <div class="feature">
-                    <h3>📊 Variables & Assignments</h3>
-                    <p>Store values in variables and reference them in calculations. Build complex calculations step by step with reusable components.</p>
+                    <h3>📊 Variables & Line References</h3>
+                    <p>Store intermediate results and reference previous calculations. Build complex infrastructure models step-by-step with automatic dependency tracking.</p>
                 </div>
 
                 <div class="feature">
-                    <h3>💬 Natural Language Processing</h3>
-                    <p>Write calculations in natural text: "Calculate: 5 TB + 2 TB" or "The server has 16 GiB of RAM". Mathypad finds and evaluates mathematical expressions automatically.</p>
+                    <h3>💬 Context-Aware Parsing</h3>
+                    <p>Embed calculations in documentation: "Database: 5 TB + 2 TB" or "Memory: 16 GiB per node". Extracts and evaluates expressions from technical specs and comments.</p>
                 </div>
 
                 <div class="feature">
-                    <h3>🔄 Smart Unit Conversion</h3>
-                    <p>Seamlessly convert between data units (GB, GiB, MB, MiB), network speeds (Mbps vs MB/s), time units, and request rates. Automatically handles base 10 vs base 2 conversions.</p>
+                    <h3>🔄 Engineering Unit System</h3>
+                    <p>Handles binary vs decimal units correctly (GiB vs GB), bandwidth vs throughput (Mbps vs MB/s), and rate calculations. No more unit conversion bugs in capacity planning.</p>
                 </div>
 
                 <div class="feature">
-                    <h3>🧮 Unit-Aware Arithmetic</h3>
-                    <p>Perform complex calculations with mixed units. Calculate download times, bandwidth usage, storage requirements, and more with automatic unit handling.</p>
+                    <h3>🧮 Dimensional Analysis</h3>
+                    <p>Type-safe unit arithmetic prevents errors. Mix storage, bandwidth, time, and rate units naturally. The compiler ensures your math makes physical sense.</p>
                 </div>
 
                 <div class="feature">
-                    <h3>🔗 Line References</h3>
-                    <p>Reference previous calculation results in new expressions using line1, line2, etc. Build complex calculations step by step with confidence.</p>
+                    <h3>🔗 Calculation Dependencies</h3>
+                    <p>Reference previous results with line1, line2 syntax. Build infrastructure models where later calculations automatically update when inputs change.</p>
                 </div>
 
                 <div class="feature">
-                    <h3>🌐 DevOps & Capacity Planning</h3>
-                    <p>Perfect for DevOps, capacity planning, and system administration. Calculate transfer times, QPS loads, storage conversions, and infrastructure requirements.</p>
+                    <h3>💾 Calculation Notebooks</h3>
+                    <p>Version-controlled calculation files. Save capacity models, performance benchmarks, and infrastructure specs. Share reproducible calculations with your team.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>⌨️ Terminal-Native Interface</h3>
+                    <p>Full vim keybindings: hjkl navigation, w/b word movement, dd line deletion, modal editing. Integrates into your existing terminal workflow.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>⏱️ Performance & Capacity Math</h3>
+                    <p>Time-series calculations, rate conversions, and throughput analysis. Model API performance, estimate migration times, and plan infrastructure scaling.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🌐 Production Infrastructure</h3>
+                    <p>Built for SRE and DevOps workflows. Model production capacity, estimate costs, calculate SLA requirements, and validate infrastructure specs before deployment.</p>
                 </div>
             </div>
 
             <div style="text-align: center; margin: 3rem 0;">
                 <h2 style="margin-bottom: 1rem;">Ready to get started?</h2>
                 <div class="install-code" style="background: #1a1a1a; color: #fff;">cargo install mathypad</div>
-                <p style="margin-top: 1rem; color: #666;">Then run <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad</code> to launch the interactive calculator with variables and natural language support</p>
+                <p style="margin-top: 1rem; color: #666;">Launch with <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad</code> for interactive mode or <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad -- "100 GB / 10 Mbps"</code> for scripting and automation</p>
             </div>
         </div>
 
