@@ -156,9 +156,9 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Request),
             Box::new(Unit::Second),
         )),
-        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => Some(
-            rate_unit!(Unit::Request, Unit::Minute),
-        ),
+        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => {
+            Some(rate_unit!(Unit::Request, Unit::Minute))
+        }
         "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RateUnit(
             Box::new(Unit::Request),
             Box::new(Unit::Hour),
@@ -171,9 +171,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Query),
             Box::new(Unit::Minute),
         )),
-        "qph" | "queries/h" | "queries/hour" => {
-            Some(rate_unit!(Unit::Query, Unit::Hour))
-        }
+        "qph" | "queries/h" | "queries/hour" => Some(rate_unit!(Unit::Query, Unit::Hour)),
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
 
@@ -185,8 +183,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
                     let right_unit = parse_unit(&text[slash_pos + 1..]);
                     if let (Some(left_unit), Some(right_unit)) = (left_unit, right_unit) {
                         if right_unit.unit_type() == UnitType::Time {
-                            rate_type =
-                                Some(rate_unit!(left_unit, right_unit))
+                            rate_type = Some(rate_unit!(left_unit, right_unit))
                         }
                     }
                 }
