@@ -73,7 +73,9 @@ pub fn ui(f: &mut Frame, app: &App) {
     }
 
     // Render dialogs on top if needed
-    if app.show_unsaved_dialog {
+    if app.show_welcome_dialog {
+        render_welcome_dialog(f, app, f.area());
+    } else if app.show_unsaved_dialog {
         render_unsaved_dialog(f, app, f.area());
     } else if app.show_save_as_dialog {
         render_save_as_dialog(f, app, f.area());
@@ -660,4 +662,227 @@ pub fn render_save_as_dialog(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: false });
 
     f.render_widget(paragraph, dialog_area);
+}
+
+/// Render the welcome screen dialog showing changelog for new version
+pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
+    use ratatui::widgets::Clear;
+
+    // Calculate dialog size and position (larger than other dialogs for changelog content)
+    let dialog_width = 100.min(area.width.saturating_sub(4));
+    let dialog_height = 25.min(area.height.saturating_sub(4));
+    let x = (area.width.saturating_sub(dialog_width)) / 2;
+    let y = (area.height.saturating_sub(dialog_height)) / 2;
+
+    let dialog_area = Rect {
+        x: area.x + x,
+        y: area.y + y,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Clear the background
+    f.render_widget(Clear, dialog_area);
+
+    // Get the changelog content
+    let changelog_content = crate::version::get_changelog_since_version().unwrap_or_else(|| {
+        "Welcome to mathypad!\n\nThis appears to be your first time running this version."
+            .to_string()
+    });
+
+    let current_version = crate::version::get_current_version();
+    let stored_version = crate::version::get_stored_version();
+    let is_first_run = stored_version.is_none();
+
+    // Create the welcome dialog
+    let block = Block::default()
+        .title(format!(" Welcome to mathypad v{} ", current_version))
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+
+    // Prepare the content lines
+    let header_lines = if is_first_run {
+        vec![
+            Line::from(vec![
+                Span::styled("Welcome to mathypad! ", Style::default().fg(Color::Green)),
+                Span::styled(
+                    "Thank you for trying it out.",
+                    Style::default().fg(Color::White),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "What's in this version:",
+                Style::default().fg(Color::Cyan),
+            )]),
+            Line::from(""),
+        ]
+    } else {
+        let stored = stored_version.unwrap_or_else(|| "unknown".to_string());
+        vec![
+            Line::from(vec![
+                Span::styled("Welcome! ", Style::default().fg(Color::Green)),
+                Span::styled(
+                    format!(
+                        "You've updated from v{} to v{}",
+                        stored, current_version
+                    ),
+                    Style::default().fg(Color::White),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "What's new:",
+                Style::default().fg(Color::Cyan),
+            )]),
+            Line::from(""),
+        ]
+    };
+
+    // Split changelog into lines and apply scroll offset
+    let changelog_lines: Vec<Line> = changelog_content
+        .lines()
+        .map(|line| {
+            if line.starts_with("## ") {
+                // Version headers in bright yellow
+                Line::from(Span::styled(line, Style::default().fg(Color::Yellow)))
+            } else if line.starts_with("### ") {
+                // Section headers in cyan
+                Line::from(Span::styled(line, Style::default().fg(Color::Cyan)))
+            } else if line.starts_with("- ") {
+                // Bullet points in green
+                Line::from(Span::styled(line, Style::default().fg(Color::Green)))
+            } else {
+                // Regular text
+                Line::from(Span::styled(line, Style::default().fg(Color::White)))
+            }
+        })
+        .collect();
+
+    // Combine header and changelog lines
+    let mut all_lines = header_lines;
+    all_lines.extend(changelog_lines);
+
+    // Calculate layout: reserve space for footer (3 lines: empty, instructions, scroll indicator)
+    let inner_area = block.inner(dialog_area);
+    let footer_height = 3; // Empty line + instructions + scroll indicator
+    let content_height = inner_area.height as usize;
+    let scrollable_height = content_height.saturating_sub(footer_height);
+    
+    // Apply scroll offset
+    let total_lines = all_lines.len();
+    let max_scroll = total_lines.saturating_sub(scrollable_height);
+    let scroll_offset = app.welcome_scroll_offset.min(max_scroll);
+
+    let visible_lines: Vec<Line> = all_lines
+        .into_iter()
+        .skip(scroll_offset)
+        .take(scrollable_height)
+        .collect();
+
+    // Create content area (excludes footer)
+    let content_area = Rect {
+        x: inner_area.x,
+        y: inner_area.y,
+        width: inner_area.width,
+        height: scrollable_height as u16,
+    };
+
+    // Create footer area (bottom 3 lines)
+    let footer_area = Rect {
+        x: inner_area.x,
+        y: inner_area.y + scrollable_height as u16,
+        width: inner_area.width,
+        height: footer_height as u16,
+    };
+
+    // Render the main dialog block
+    f.render_widget(block, dialog_area);
+
+    // Render scrollable content
+    let content_paragraph = Paragraph::new(visible_lines)
+        .wrap(Wrap { trim: false });
+    f.render_widget(content_paragraph, content_area);
+
+    // Render footer with instructions (always visible at bottom)
+    let footer_lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(Color::Yellow)),
+            Span::styled(" scroll  ", Style::default().fg(Color::White)),
+            Span::styled("Enter", Style::default().fg(Color::Green)),
+            Span::styled(" or ", Style::default().fg(Color::White)),
+            Span::styled("Esc", Style::default().fg(Color::Red)),
+            Span::styled(" close", Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            if total_lines > scrollable_height {
+                Span::styled(
+                    format!("({}/{})", scroll_offset + 1, max_scroll + 1),
+                    Style::default().fg(Color::DarkGray),
+                )
+            } else {
+                Span::raw("")
+            }
+        ]),
+    ];
+
+    let footer_paragraph = Paragraph::new(footer_lines)
+        .wrap(Wrap { trim: false });
+    f.render_widget(footer_paragraph, footer_area);
+
+    // Render scrollbar if there's content to scroll
+    if total_lines > scrollable_height {
+        render_scrollbar(f, dialog_area, scroll_offset, total_lines, scrollable_height);
+    }
+}
+
+/// Render a scrollbar on the right side of a dialog
+fn render_scrollbar(f: &mut Frame, area: Rect, scroll_offset: usize, total_lines: usize, visible_height: usize) {
+    // Calculate scrollbar dimensions
+    let scrollbar_x = area.x + area.width - 1; // Right edge of the dialog
+    let scrollbar_y = area.y + 1; // Start below the top border
+    let scrollbar_height = area.height.saturating_sub(2); // Exclude top and bottom borders
+    
+    if scrollbar_height == 0 {
+        return;
+    }
+
+    // Calculate scroll thumb position and size
+    let content_height = total_lines.max(1);
+    let thumb_size = ((visible_height as f32 / content_height as f32) * scrollbar_height as f32).max(1.0) as u16;
+    let max_thumb_position = scrollbar_height.saturating_sub(thumb_size);
+    
+    let thumb_position = if content_height <= visible_height {
+        0
+    } else {
+        let scroll_ratio = scroll_offset as f32 / (content_height - visible_height) as f32;
+        (scroll_ratio * max_thumb_position as f32) as u16
+    };
+
+    // Draw the scrollbar track (background)
+    for y in 0..scrollbar_height {
+        let track_area = Rect {
+            x: scrollbar_x,
+            y: scrollbar_y + y,
+            width: 1,
+            height: 1,
+        };
+        
+        let track_char = if y >= thumb_position && y < thumb_position + thumb_size {
+            "█" // Solid block for thumb
+        } else {
+            "░" // Light shade for track
+        };
+        
+        let track_color = if y >= thumb_position && y < thumb_position + thumb_size {
+            Color::Cyan // Bright color for thumb
+        } else {
+            Color::DarkGray // Subtle color for track
+        };
+        
+        let scrollbar_widget = Paragraph::new(track_char)
+            .style(Style::default().fg(track_color));
+        f.render_widget(scrollbar_widget, track_area);
+    }
 }

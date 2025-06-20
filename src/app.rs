@@ -91,6 +91,8 @@ pub struct App {
     pub copy_flash_is_result: Vec<bool>, // Track which panel was flashed (true = results, false = text)
     pub last_click_time: Option<Instant>, // For double-click detection
     pub last_click_position: Option<(u16, u16)>, // Last click position for double-click detection
+    pub show_welcome_dialog: bool,       // Show the welcome screen for new versions
+    pub welcome_scroll_offset: usize,    // Scroll position for welcome screen changelog
 }
 
 impl Default for App {
@@ -117,6 +119,8 @@ impl Default for App {
             copy_flash_is_result: vec![false], // Start with no copy panel tracking
             last_click_time: None,             // No previous clicks
             last_click_position: None,         // No previous click position
+            show_welcome_dialog: false,        // Start without showing welcome dialog
+            welcome_scroll_offset: 0,          // Start at top of welcome content
         }
     }
 }
