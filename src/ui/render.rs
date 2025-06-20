@@ -666,6 +666,27 @@ pub fn render_save_as_dialog(f: &mut Frame, app: &App, area: Rect) {
 
 /// Render the welcome screen dialog showing changelog for new version
 pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
+    // Get the actual version information
+    let changelog_content = crate::version::get_changelog_since_version().unwrap_or_else(|| {
+        "Welcome to mathypad!\n\nThis appears to be your first time running this version."
+            .to_string()
+    });
+
+    let current_version = crate::version::get_current_version();
+    let stored_version = crate::version::get_stored_version();
+    
+    render_welcome_dialog_with_content(f, app, area, &changelog_content, current_version, stored_version.as_deref())
+}
+
+/// Render the welcome screen dialog with specific content (for testing)
+pub fn render_welcome_dialog_with_content(
+    f: &mut Frame, 
+    app: &App, 
+    area: Rect, 
+    changelog_content: &str,
+    current_version: &str,
+    stored_version: Option<&str>
+) {
     use ratatui::widgets::Clear;
 
     // Calculate dialog size and position (larger than other dialogs for changelog content)
@@ -684,14 +705,6 @@ pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
     // Clear the background
     f.render_widget(Clear, dialog_area);
 
-    // Get the changelog content
-    let changelog_content = crate::version::get_changelog_since_version().unwrap_or_else(|| {
-        "Welcome to mathypad!\n\nThis appears to be your first time running this version."
-            .to_string()
-    });
-
-    let current_version = crate::version::get_current_version();
-    let stored_version = crate::version::get_stored_version();
     let is_first_run = stored_version.is_none();
 
     // Create the welcome dialog
@@ -718,7 +731,7 @@ pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
             Line::from(""),
         ]
     } else {
-        let stored = stored_version.unwrap_or_else(|| "unknown".to_string());
+        let stored = stored_version.unwrap_or("unknown");
         vec![
             Line::from(vec![
                 Span::styled("Welcome! ", Style::default().fg(Color::Green)),

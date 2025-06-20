@@ -1,0 +1,34 @@
+---
+source: src/ui/tests.rs
+expression: output
+---
+"                                                                                                                        "
+"                                                                                                                        "
+"          ┌ Welcome to mathypad v1.2.0 ──────────────────────────────────────────────────────────────────────┐          "
+"          │                                                                                                  ░          "
+"          │## [1.2.0] - 2024-03-01                                                                           ░          "
+"          │                                                                                                  ░          "
+"          │### 🤖 AI Assisted                                                                                █          " Hidden by multi-width symbols: [(16, " ")]
+"          │                                                                                                  █          "
+"          │- Major UI overhaul with new themes                                                               █          "
+"          │- Advanced calculation engine                                                                     █          "
+"          │- Smart auto-completion                                                                           █          "
+"          │- Real-time result preview                                                                        █          "
+"          │- Enhanced error messages                                                                         █          "
+"          │- Improved keyboard shortcuts                                                                     █          "
+"          │- Better file handling                                                                            █          "
+"          │- Performance monitoring                                                                          █          "
+"          │- Extended unit support                                                                           █          "
+"          │- Advanced graphing features                                                                      █          "
+"          │                                                                                                  █          "
+"          │### 👤 Artisanally Crafted                                                                        █          " Hidden by multi-width symbols: [(16, " ")]
+"          │                                                                                                  █          "
+"          │- Critical security fixes                                                                         █          "
+"          │- Memory usage optimizations                                                                      █          "
+"          │                                                                                                  ░          "
+"          │↑↓ scroll  Enter or Esc close                                                                     ░          "
+"          │(4/7)                                                                                             ░          "
+"          └──────────────────────────────────────────────────────────────────────────────────────────────────┘          "
+"                                                                                                                        "
+"                                                                                                                        "
+"                                                                                                                        "
