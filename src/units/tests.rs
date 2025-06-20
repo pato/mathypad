@@ -223,6 +223,39 @@ fn test_generic_rate_display_names() {
 }
 
 #[test]
+fn test_rate_unit_addition() {
+    // Test addition of compatible rate units (same data type, different time units)
+    assert_eq!(
+        evaluate_test_expression("1 GiB/hour + 1 GiB/minute"),
+        Some("61 GiB/h".to_string()) // 1 + (1 * 60) = 61 GiB/hour
+    );
+    
+    // Test addition of same rate units
+    assert_eq!(
+        evaluate_test_expression("100 MB/s + 50 MB/s"),
+        Some("150 MB/s".to_string())
+    );
+    
+    // Test bit rate addition
+    assert_eq!(
+        evaluate_test_expression("1 Gb/s + 500 Mb/s"),
+        Some("1,500 Mb/s".to_string()) // Result in smaller unit (Mb)
+    );
+    
+    // Test request rate addition
+    assert_eq!(
+        evaluate_test_expression("100 req/s + 200 req/s"),
+        Some("300 req/s".to_string())
+    );
+
+    // Test subtraction of rate units  
+    assert_eq!(
+        evaluate_test_expression("2 GiB/hour - 1 GiB/minute"),
+        Some("-58 GiB/h".to_string()) // 2 - (1 * 60) = -58 GiB/hour
+    );
+}
+
+#[test]
 fn test_unit_conversions() {
     // Data unit conversions (base 2)
     let result = evaluate_with_unit_info("1 GiB to KiB");
