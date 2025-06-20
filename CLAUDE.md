@@ -5,7 +5,7 @@
 - `cargo test SPECIFIC_TEST -- --nocapture` - run one specific test (replace
   SPECIFIC_TEST with the desired test)
 - `cargo fmt` - format all the code
-- `cargo clippy` - check the code for lint errors
+- `cargo clippy --all-targets --all-features -- -D warnings` - check the code for lint errors
 - `cargo clippy --fix --allow-dirty` - use clippy to try and automatically fix
   lint errors
 
