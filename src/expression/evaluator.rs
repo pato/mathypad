@@ -705,7 +705,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
             // Addition: units must be compatible
             match (&a.unit, &b.unit) {
                 (Some(unit_a), Some(unit_b)) => {
-                    if unit_a.unit_type() == unit_b.unit_type() {
+                    if unit_a.is_compatible_for_addition(unit_b) {
                         let base_a = unit_a.to_base_value(a.value);
                         let base_b = unit_b.to_base_value(b.value);
                         let result_base = base_a + base_b;
@@ -730,7 +730,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
             // Subtraction: units must be compatible
             match (&a.unit, &b.unit) {
                 (Some(unit_a), Some(unit_b)) => {
-                    if unit_a.unit_type() == unit_b.unit_type() {
+                    if unit_a.is_compatible_for_addition(unit_b) {
                         let base_a = unit_a.to_base_value(a.value);
                         let base_b = unit_b.to_base_value(b.value);
                         let result_base = base_a - base_b;
