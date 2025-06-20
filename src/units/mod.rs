@@ -7,6 +7,7 @@
 
 mod parser;
 mod types;
+mod types_v2;
 mod value;
 
 #[cfg(test)]
