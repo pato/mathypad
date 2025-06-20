@@ -315,6 +315,46 @@ Cost: servers * $500 each            → 20,000
 
 Much better, right?
 
+## Development & Testing
+
+### UI Snapshot Testing
+
+Mathypad uses snapshot testing to ensure the terminal UI renders correctly across changes. This helps catch visual regressions and ensures consistent user experience.
+
+**What are snapshot tests?**
+Snapshot tests capture the exact visual output of the TUI and compare it against stored "golden" snapshots on future test runs. If the output changes, the test fails, allowing you to review whether the change was intentional.
+
+**Running UI tests:**
+```bash
+# Run all UI snapshot tests
+cargo test ui::
+
+# Run a specific UI test
+cargo test ui::tests::test_basic_ui_layout
+```
+
+**When tests fail due to intentional UI changes:**
+```bash
+# Install cargo-insta (if not already installed)
+cargo install cargo-insta
+
+# Review changes interactively - shows diffs and allows accept/reject
+cargo insta review
+
+# Or automatically accept all changes (use with caution)
+cargo insta accept
+```
+
+**What gets tested:**
+- Basic UI layout and panels
+- Syntax highlighting for different elements (numbers, units, operators)
+- Cursor positioning and highlighting
+- Dialog rendering (save/unsaved dialogs)  
+- Different app states (normal/insert mode, scrolling)
+- Separator indicators and layout changes
+
+The snapshot files are stored in `src/ui/snapshots/` and should be committed to version control. When making UI changes, always review the snapshot diffs to ensure they match your intentions.
+
 ## Developed using AI 🤖
 
 This was developed using Claude Code (with 3.5 Haiku and Sonnet 4) for a grand
