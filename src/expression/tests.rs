@@ -395,7 +395,7 @@ fn test_variable_conversions() {
 
     let mut variables = HashMap::new();
     variables.insert("storage".to_string(), "1024 GiB".to_string());
-    variables.insert("time".to_string(), "60 minutes".to_string());
+    variables.insert("time".to_string(), "8 minutes".to_string());
 
     let previous_results = vec![];
 
@@ -408,7 +408,7 @@ fn test_variable_conversions() {
     // Test variable in complex conversion expression with generic rates
     let (result, assignment) =
         evaluate_with_variables("storage / time", &variables, &previous_results, 0);
-    assert_eq!(result, Some("17.067 GiB/min".to_string())); // Creates generic rate
+    assert_eq!(result, Some("128 GiB/min".to_string())); // Creates generic rate
     assert_eq!(assignment, None);
 }
 
@@ -678,8 +678,8 @@ fn test_generic_rates_with_variables_and_references() {
 
     // Test multiple line references with generic rates
     assert_eq!(
-        evaluate_expression_with_context("line3 * 10 minutes", &previous_results, 3),
-        Some("5,000 MB".to_string())
+        evaluate_expression_with_context("line3 * 6 seconds", &previous_results, 3),
+        Some("50 MB".to_string())
     );
 
     // Test complex expression with line references

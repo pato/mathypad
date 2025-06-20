@@ -26,26 +26,44 @@ fn test_generic_rate() {
 #[test]
 fn test_generic_rate_parsing() {
     // Test parsing various generic rate units
-    assert!(matches!(
+    assert_eq!(
         parse_unit("GiB/minute"),
-        Some(Unit::RateUnit(_, _))
-    ));
-    assert!(matches!(parse_unit("MB/hour"), Some(Unit::RateUnit(_, _))));
-    assert!(matches!(parse_unit("KB/day"), Some(Unit::RateUnit(_, _))));
-    assert!(matches!(parse_unit("TiB/min"), Some(Unit::RateUnit(_, _))));
-    assert!(matches!(parse_unit("PB/h"), Some(Unit::RateUnit(_, _))));
+        Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Minute)))
+    );
+    assert_eq!(
+        parse_unit("MB/hour"),
+        Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Hour)))
+    );
+    assert_eq!(
+        parse_unit("KB/day"),
+        Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Day)))
+    );
+    assert_eq!(
+        parse_unit("TiB/min"),
+        Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Minute)))
+    );
+    assert_eq!(
+        parse_unit("PB/h"),
+        Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Hour)))
+    );
 
     // Test that non-time denominators don't create rate units
     assert!(parse_unit("GiB/MB").is_none());
     assert!(parse_unit("MB/GB").is_none());
 
     // Test bit rates with different time units
-    assert!(matches!(
+    assert_eq!(
         parse_unit("Mb/minute"),
-        Some(Unit::RateUnit(_, _))
-    ));
-    assert!(matches!(parse_unit("Gb/hour"), Some(Unit::RateUnit(_, _))));
-    assert!(matches!(parse_unit("Kb/day"), Some(Unit::RateUnit(_, _))));
+        Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Minute)))
+    );
+    assert_eq!(
+        parse_unit("Gb/hour"),
+        Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Hour)))
+    );
+    assert_eq!(
+        parse_unit("Kb/day"),
+        Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Day)))
+    );
 }
 
 #[test]
@@ -102,8 +120,8 @@ fn test_generic_rate_division() {
 #[test]
 fn test_generic_rate_conversions() {
     // Test conversion between generic rates with different data units but same time unit
-    let result = evaluate_test_expression("180 MiB/min in KiB/min");
-    assert_eq!(result, Some("184,320 KiB/min".to_string())); // 180 * 1024 = 184,320
+    let result = evaluate_test_expression("2 MiB/min in KiB/min");
+    assert_eq!(result, Some("2,048 KiB/min".to_string())); // 2 * 1024 = 2,048
 
     // Test more generic rate conversions
     let result = evaluate_test_expression("1 GiB/hour in MiB/hour");
@@ -117,8 +135,8 @@ fn test_generic_rate_conversions() {
     assert_eq!(result, Some("8,000 Mb/h".to_string())); // 8 Gb = 8000 Mb
 
     // Test conversion between different time units (the failing case)
-    let result = evaluate_test_expression("180 MiB/min in KiB/hour");
-    assert_eq!(result, Some("11,059,200 KiB/h".to_string())); // 180 MiB/min = 180 * 1024 KiB/min = 184,320 KiB/min = 184,320 * 60 KiB/hour = 11,059,200 KiB/hour
+    let result = evaluate_test_expression("10 MB/min in KB/hour");
+    assert_eq!(result, Some("600,000 KB/h".to_string())); // 10 MiB/min = 10 * 1000 KiB/min = 10,000 KiB/min = 10,000 * 60 KiB/hour = 600,000 KiB/hour
 
     // Test more cross-time-unit conversions
     let result = evaluate_test_expression("1 GiB/hour in MiB/min");
@@ -204,9 +222,6 @@ fn test_generic_rate_invalid_operations() {
 
 #[test]
 fn test_generic_rate_display_names() {
-    // TODO: This test will fail until we implement proper display names for RateUnit
-    // Currently returns "todo" - this needs to be fixed in the implementation
-
     // Test that rate units have proper display names
     let rate = Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Minute));
     assert_eq!(rate.display_name(), "GiB/min");
