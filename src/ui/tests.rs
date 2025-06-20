@@ -20,21 +20,23 @@ fn render_app_to_string(app: &App) -> String {
 
 /// Helper function to create an app with some sample content
 fn create_sample_app() -> App {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "5 + 3".to_string(),
-        "10 kg to lb".to_string(),
-        "line1 * 2".to_string(),
-        "sin(30 degrees)".to_string(),
-    ];
-    app.results = vec![
-        Some("8".to_string()),
-        Some("22.046 lb".to_string()),
-        Some("16".to_string()),
-        Some("0.5".to_string()),
-    ];
-    app.cursor_line = 1;
-    app.cursor_col = 5;
+    let mut app = App {
+        text_lines: vec![
+            "5 + 3".to_string(),
+            "10 kg to lb".to_string(),
+            "line1 * 2".to_string(),
+            "sin(30 degrees)".to_string(),
+        ],
+        results: vec![
+            Some("8".to_string()),
+            Some("22.046 lb".to_string()),
+            Some("16".to_string()),
+            Some("0.5".to_string()),
+        ],
+        cursor_line: 1,
+        cursor_col: 5,
+        ..Default::default()
+    };
 
     // Add some variables
     app.variables.insert("x".to_string(), "42".to_string());
@@ -123,13 +125,15 @@ fn test_results_panel_rendering() {
 
 #[test]
 fn test_syntax_highlighting_numbers() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "123".to_string(),
-        "3.14159".to_string(),
-        "1,234,567.89".to_string(),
-    ];
-    app.results = vec![None, None, None];
+    let app = App {
+        text_lines: vec![
+            "123".to_string(),
+            "3.14159".to_string(),
+            "1,234,567.89".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_numbers", output);
@@ -137,13 +141,15 @@ fn test_syntax_highlighting_numbers() {
 
 #[test]
 fn test_syntax_highlighting_operators() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "5 + 3 - 2".to_string(),
-        "10 * (4 / 2)".to_string(),
-        "x = 42".to_string(),
-    ];
-    app.results = vec![None, None, None];
+    let app = App {
+        text_lines: vec![
+            "5 + 3 - 2".to_string(),
+            "10 * (4 / 2)".to_string(),
+            "x = 42".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_operators", output);
@@ -151,14 +157,16 @@ fn test_syntax_highlighting_operators() {
 
 #[test]
 fn test_syntax_highlighting_units() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "100 kg".to_string(),
-        "50 miles per hour".to_string(),
-        "25 degrees celsius".to_string(),
-        "1 GiB".to_string(),
-    ];
-    app.results = vec![None, None, None, None];
+    let app = App {
+        text_lines: vec![
+            "100 kg".to_string(),
+            "50 miles per hour".to_string(),
+            "25 degrees celsius".to_string(),
+            "1 GiB".to_string(),
+        ],
+        results: vec![None, None, None, None],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_units", output);
@@ -166,13 +174,15 @@ fn test_syntax_highlighting_units() {
 
 #[test]
 fn test_syntax_highlighting_keywords() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "100 kg to lb".to_string(),
-        "50 miles in km".to_string(),
-        "25% of 200".to_string(),
-    ];
-    app.results = vec![None, None, None];
+    let app = App {
+        text_lines: vec![
+            "100 kg to lb".to_string(),
+            "50 miles in km".to_string(),
+            "25% of 200".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_keywords", output);
@@ -180,19 +190,21 @@ fn test_syntax_highlighting_keywords() {
 
 #[test]
 fn test_syntax_highlighting_line_references() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "100".to_string(),
-        "line1 + 50".to_string(),
-        "line2 * 2".to_string(),
-        "line1 + line2 + line3".to_string(),
-    ];
-    app.results = vec![
-        Some("100".to_string()),
-        Some("150".to_string()),
-        Some("300".to_string()),
-        Some("550".to_string()),
-    ];
+    let app = App {
+        text_lines: vec![
+            "100".to_string(),
+            "line1 + 50".to_string(),
+            "line2 * 2".to_string(),
+            "line1 + line2 + line3".to_string(),
+        ],
+        results: vec![
+            Some("100".to_string()),
+            Some("150".to_string()),
+            Some("300".to_string()),
+            Some("550".to_string()),
+        ],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_line_references", output);
@@ -200,13 +212,15 @@ fn test_syntax_highlighting_line_references() {
 
 #[test]
 fn test_syntax_highlighting_variables() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "x = 42".to_string(),
-        "y = x * 2".to_string(),
-        "result = x + y".to_string(),
-    ];
-    app.results = vec![None, None, None];
+    let mut app = App {
+        text_lines: vec![
+            "x = 42".to_string(),
+            "y = x * 2".to_string(),
+            "result = x + y".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
     app.variables.insert("x".to_string(), "42".to_string());
     app.variables.insert("y".to_string(), "84".to_string());
     app.variables
@@ -218,11 +232,13 @@ fn test_syntax_highlighting_variables() {
 
 #[test]
 fn test_cursor_highlighting() {
-    let mut app = App::default();
-    app.text_lines = vec!["hello world".to_string(), "123 + 456".to_string()];
-    app.results = vec![None, None];
-    app.cursor_line = 0;
-    app.cursor_col = 6; // Position cursor on 'w' in "world"
+    let app = App {
+        text_lines: vec!["hello world".to_string(), "123 + 456".to_string()],
+        results: vec![None, None],
+        cursor_line: 0,
+        cursor_col: 6, // Position cursor on 'w' in "world"
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("cursor_highlighting", output);
@@ -230,11 +246,13 @@ fn test_cursor_highlighting() {
 
 #[test]
 fn test_cursor_at_end_of_line() {
-    let mut app = App::default();
-    app.text_lines = vec!["hello".to_string()];
-    app.results = vec![None];
-    app.cursor_line = 0;
-    app.cursor_col = 5; // Position cursor at end of line
+    let app = App {
+        text_lines: vec!["hello".to_string()],
+        results: vec![None],
+        cursor_line: 0,
+        cursor_col: 5, // Position cursor at end of line
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("cursor_at_end_of_line", output);
@@ -242,13 +260,15 @@ fn test_cursor_at_end_of_line() {
 
 #[test]
 fn test_scrolled_content() {
-    let mut app = App::default();
-    // Create more lines than fit on screen
-    app.text_lines = (0..50).map(|i| format!("line {} content", i + 1)).collect();
-    app.results = vec![None; 50];
-    app.scroll_offset = 10; // Scroll down 10 lines
-    app.cursor_line = 15;
-    app.cursor_col = 5;
+    let app = App {
+        // Create more lines than fit on screen
+        text_lines: (0..50).map(|i| format!("line {} content", i + 1)).collect(),
+        results: vec![None; 50],
+        scroll_offset: 10, // Scroll down 10 lines
+        cursor_line: 15,
+        cursor_col: 5,
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("scrolled_content", output);
@@ -256,13 +276,15 @@ fn test_scrolled_content() {
 
 #[test]
 fn test_empty_results() {
-    let mut app = App::default();
-    app.text_lines = vec![
-        "".to_string(),
-        "invalid expression +++".to_string(),
-        "".to_string(),
-    ];
-    app.results = vec![None, None, None];
+    let app = App {
+        text_lines: vec![
+            "".to_string(),
+            "invalid expression +++".to_string(),
+            "".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
 
     let output = render_app_to_string(&app);
     assert_snapshot!("empty_results", output);
@@ -341,9 +363,11 @@ fn render_welcome_dialog_to_string(
 
 #[test]
 fn test_welcome_dialog_first_run() {
-    let mut app = App::default();
-    app.show_welcome_dialog = true;
-    app.welcome_scroll_offset = 0;
+    let app = App {
+        show_welcome_dialog: true,
+        welcome_scroll_offset: 0,
+        ..Default::default()
+    };
 
     let mock_changelog = "## [1.0.0] - 2024-01-01\n\n### 🤖 AI Assisted\n\n- Add welcome screen for new versions\n- Implement scrollable changelog display\n- Add version tracking functionality\n\n### 👤 Artisanally Crafted\n\n- Fix UI layout bugs\n- Improve error handling\n- Update documentation";
 
@@ -353,9 +377,11 @@ fn test_welcome_dialog_first_run() {
 
 #[test]
 fn test_welcome_dialog_upgrade() {
-    let mut app = App::default();
-    app.show_welcome_dialog = true;
-    app.welcome_scroll_offset = 0;
+    let app = App {
+        show_welcome_dialog: true,
+        welcome_scroll_offset: 0,
+        ..Default::default()
+    };
 
     let mock_changelog = "## [1.1.0] - 2024-02-01\n\n### 🤖 AI Assisted\n\n- Add new calculation features\n- Improve unit conversion accuracy\n- Enhanced TUI responsiveness\n\n### 👤 Artisanally Crafted\n\n- Performance optimizations\n- Bug fixes in expression parser\n- Updated dependencies\n\n## [1.0.0] - 2024-01-01\n\n### 🤖 AI Assisted\n\n- Initial release\n- Basic calculator functionality";
 
@@ -365,9 +391,11 @@ fn test_welcome_dialog_upgrade() {
 
 #[test]
 fn test_welcome_dialog_with_scrolling() {
-    let mut app = App::default();
-    app.show_welcome_dialog = true;
-    app.welcome_scroll_offset = 3; // Scroll down a bit
+    let app = App {
+        show_welcome_dialog: true,
+        welcome_scroll_offset: 3, // Scroll down a bit
+        ..Default::default()
+    };
 
     let mock_changelog = "## [1.2.0] - 2024-03-01\n\n### 🤖 AI Assisted\n\n- Major UI overhaul with new themes\n- Advanced calculation engine\n- Smart auto-completion\n- Real-time result preview\n- Enhanced error messages\n- Improved keyboard shortcuts\n- Better file handling\n- Performance monitoring\n- Extended unit support\n- Advanced graphing features\n\n### 👤 Artisanally Crafted\n\n- Critical security fixes\n- Memory usage optimizations\n- Cross-platform compatibility\n- Accessibility improvements\n- Test coverage expansion";
 
@@ -377,9 +405,11 @@ fn test_welcome_dialog_with_scrolling() {
 
 #[test]
 fn test_welcome_dialog_minimal_content() {
-    let mut app = App::default();
-    app.show_welcome_dialog = true;
-    app.welcome_scroll_offset = 0;
+    let app = App {
+        show_welcome_dialog: true,
+        welcome_scroll_offset: 0,
+        ..Default::default()
+    };
 
     let mock_changelog = "## [1.0.1] - 2024-01-02\n\n- Quick bug fix";
 

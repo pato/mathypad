@@ -1063,12 +1063,13 @@ mod app_tests {
 
     #[test]
     fn test_line_splitting_at_beginning() {
-        let mut app = App::default();
-        // Set up: "5" on line 1, "line1 + 1" on line 2
-        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
-        app.results = vec![None, None];
-        app.cursor_line = 0;
-        app.cursor_col = 0; // Position cursor at beginning of "5"
+        let mut app = App {
+            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
+            results: vec![None, None],
+            cursor_line: 0,
+            cursor_col: 0, // Position cursor at beginning of "5"
+            ..Default::default()
+        };
 
         app.new_line();
 
@@ -1085,12 +1086,14 @@ mod app_tests {
 
     #[test]
     fn test_user_reported_scenario() {
-        let mut app = App::default();
+        let mut app = App {
+            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
+            results: vec![None, None],
+            ..Default::default()
+        };
 
         // Simulate exactly what the user described:
         // "i have the following notebook: 5, line1 + 1"
-        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
-        app.results = vec![None, None];
         app.update_result(0); // This should make line 1 result in "5"
         app.update_result(1); // This should make line 2 result in "6" (5 + 1)
 
@@ -1127,11 +1130,13 @@ mod app_tests {
 
     #[test]
     fn test_deletion_with_line_references() {
-        let mut app = App::default();
+        let mut app = App {
+            text_lines: vec!["".to_string(), "5".to_string(), "line2 + 1".to_string()],
+            results: vec![None, None, None],
+            ..Default::default()
+        };
 
         // Set up: after line splitting we have ["", "5", "line2 + 1"]
-        app.text_lines = vec!["".to_string(), "5".to_string(), "line2 + 1".to_string()];
-        app.results = vec![None, None, None];
         app.update_result(0);
         app.update_result(1);
         app.update_result(2);
@@ -1165,11 +1170,13 @@ mod app_tests {
 
     #[test]
     fn test_full_user_workflow_add_then_remove_lines() {
-        let mut app = App::default();
+        let mut app = App {
+            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
+            results: vec![None, None],
+            ..Default::default()
+        };
 
         // Start with the user's original notebook
-        app.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
-        app.results = vec![None, None];
         app.update_result(0);
         app.update_result(1);
 
@@ -1312,11 +1319,13 @@ mod app_tests {
 
     #[test]
     fn test_copy_flash_animation() {
-        let mut app = App::default();
+        let mut app = App {
+            text_lines: vec!["test".to_string(), "test2".to_string()],
+            copy_flash_animations: vec![None, None],
+            ..Default::default()
+        };
 
         // Ensure we have enough lines
-        app.text_lines = vec!["test".to_string(), "test2".to_string()];
-        app.copy_flash_animations = vec![None, None];
 
         // Test copy to clipboard (we can't actually test clipboard, but we can test the animation)
         app.start_copy_flash_animation(0, false);
@@ -1335,17 +1344,19 @@ mod app_tests {
 
     #[test]
     fn test_delete_line() {
-        let mut app = App::default();
-        app.text_lines = vec![
-            "first".to_string(),
-            "second".to_string(),
-            "third".to_string(),
-        ];
-        app.results = vec![None, None, None];
-        app.result_animations = vec![None, None, None];
-        app.copy_flash_animations = vec![None, None, None];
-        app.copy_flash_is_result = vec![false, false, false];
-        app.cursor_line = 1;
+        let mut app = App {
+            text_lines: vec![
+                "first".to_string(),
+                "second".to_string(),
+                "third".to_string(),
+            ],
+            results: vec![None, None, None],
+            result_animations: vec![None, None, None],
+            copy_flash_animations: vec![None, None, None],
+            copy_flash_is_result: vec![false, false, false],
+            cursor_line: 1,
+            ..Default::default()
+        };
 
         // Delete middle line
         app.delete_line();
@@ -1366,11 +1377,13 @@ mod app_tests {
 
     #[test]
     fn test_delete_char_at_cursor() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello world".to_string()];
-        app.results = vec![None];
-        app.cursor_line = 0;
-        app.cursor_col = 6; // at 'w'
+        let mut app = App {
+            text_lines: vec!["hello world".to_string()],
+            results: vec![None],
+            cursor_line: 0,
+            cursor_col: 6, // at 'w'
+            ..Default::default()
+        };
 
         app.delete_char_at_cursor();
         assert_eq!(app.text_lines[0], "hello orld");
@@ -1384,10 +1397,12 @@ mod app_tests {
 
     #[test]
     fn test_word_movement_forward() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello world test_var 123".to_string()];
-        app.cursor_line = 0;
-        app.cursor_col = 0;
+        let mut app = App {
+            text_lines: vec!["hello world test_var 123".to_string()],
+            cursor_line: 0,
+            cursor_col: 0,
+            ..Default::default()
+        };
 
         // Move from start to 'world'
         app.move_word_forward();
@@ -1408,10 +1423,12 @@ mod app_tests {
 
     #[test]
     fn test_word_movement_backward() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello world test_var".to_string()];
-        app.cursor_line = 0;
-        app.cursor_col = 20; // at end
+        let mut app = App {
+            text_lines: vec!["hello world test_var".to_string()],
+            cursor_line: 0,
+            cursor_col: 20, // at end
+            ..Default::default()
+        };
 
         // Move to start of 'test_var'
         app.move_word_backward();
@@ -1428,10 +1445,12 @@ mod app_tests {
 
     #[test]
     fn test_word_movement_big() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello-world test::func()".to_string()];
-        app.cursor_line = 0;
-        app.cursor_col = 0;
+        let mut app = App {
+            text_lines: vec!["hello-world test::func()".to_string()],
+            cursor_line: 0,
+            cursor_col: 0,
+            ..Default::default()
+        };
 
         // 'hello-world' is one WORD
         app.move_word_forward_big();
@@ -1448,11 +1467,13 @@ mod app_tests {
 
     #[test]
     fn test_delete_word_forward() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello world test".to_string()];
-        app.results = vec![None];
-        app.cursor_line = 0;
-        app.cursor_col = 0;
+        let mut app = App {
+            text_lines: vec!["hello world test".to_string()],
+            results: vec![None],
+            cursor_line: 0,
+            cursor_col: 0,
+            ..Default::default()
+        };
 
         // Delete 'hello ' (word + trailing space)
         app.delete_word_forward();
@@ -1467,11 +1488,13 @@ mod app_tests {
 
     #[test]
     fn test_delete_word_backward() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello world test".to_string()];
-        app.results = vec![None];
-        app.cursor_line = 0;
-        app.cursor_col = 11; // at space after 'world'
+        let mut app = App {
+            text_lines: vec!["hello world test".to_string()],
+            results: vec![None],
+            cursor_line: 0,
+            cursor_col: 11, // at space after 'world'
+            ..Default::default()
+        };
 
         // Delete 'world'
         app.delete_word_backward();
@@ -1481,11 +1504,13 @@ mod app_tests {
 
     #[test]
     fn test_delete_word_forward_big() {
-        let mut app = App::default();
-        app.text_lines = vec!["hello-world test::func()".to_string()];
-        app.results = vec![None];
-        app.cursor_line = 0;
-        app.cursor_col = 0;
+        let mut app = App {
+            text_lines: vec!["hello-world test::func()".to_string()],
+            results: vec![None],
+            cursor_line: 0,
+            cursor_col: 0,
+            ..Default::default()
+        };
 
         // Delete 'hello-world ' (WORD + trailing space)
         app.delete_word_forward_big();
@@ -1495,8 +1520,10 @@ mod app_tests {
 
     #[test]
     fn test_pending_normal_command() {
-        let mut app = App::default();
-        app.pending_normal_command = Some('d');
+        let mut app = App {
+            pending_normal_command: Some('d'),
+            ..Default::default()
+        };
 
         // Should be able to set and read pending command
         assert_eq!(app.pending_normal_command, Some('d'));

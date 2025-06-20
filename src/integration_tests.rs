@@ -605,13 +605,15 @@ mod tests {
         let temp_path = temp_file.path().to_path_buf();
 
         // Create an app with some content
-        let mut app = App::default();
-        app.text_lines = vec![
-            "5 + 3".to_string(),
-            "x = 42".to_string(),
-            "x * 2".to_string(),
-        ];
-        app.results = vec![None, None, None];
+        let mut app = App {
+            text_lines: vec![
+                "5 + 3".to_string(),
+                "x = 42".to_string(),
+                "x * 2".to_string(),
+            ],
+            results: vec![None, None, None],
+            ..Default::default()
+        };
         app.set_file_path(Some(temp_path.clone()));
 
         // Verify initial state
@@ -638,10 +640,12 @@ mod tests {
         use tempfile::NamedTempFile;
 
         // Create an app with some content but no file path
-        let mut app = App::default();
-        app.text_lines = vec!["test content".to_string()];
-        app.results = vec![None];
-        app.has_unsaved_changes = true;
+        let mut app = App {
+            text_lines: vec!["test content".to_string()],
+            results: vec![None],
+            has_unsaved_changes: true,
+            ..Default::default()
+        };
 
         // Create a temporary file to save to
         let temp_file = NamedTempFile::new().unwrap();
