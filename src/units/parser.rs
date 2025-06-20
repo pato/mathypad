@@ -2,6 +2,7 @@
 
 use super::types::Unit;
 use crate::UnitType;
+use crate::rate_unit;
 
 /// Parse a unit string into a Unit enum variant
 pub fn parse_unit(text: &str) -> Option<Unit> {
@@ -39,47 +40,47 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
 
         // Traditional rate unit patterns - create generic rates
         "bps" | "bit/s" | "bits/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Bit, Unit::Second));
         }
-        "Kbps" | "Kb/s" => return Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second))),
-        "Mbps" | "Mb/s" => return Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second))),
-        "Gbps" | "Gb/s" => return Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second))),
-        "Tbps" | "Tb/s" => return Some(Unit::RateUnit(Box::new(Unit::Tb), Box::new(Unit::Second))),
-        "Pbps" | "Pb/s" => return Some(Unit::RateUnit(Box::new(Unit::Pb), Box::new(Unit::Second))),
-        "Ebps" | "Eb/s" => return Some(Unit::RateUnit(Box::new(Unit::Eb), Box::new(Unit::Second))),
+        "Kbps" | "Kb/s" => return Some(rate_unit!(Unit::Kb, Unit::Second)),
+        "Mbps" | "Mb/s" => return Some(rate_unit!(Unit::Mb, Unit::Second)),
+        "Gbps" | "Gb/s" => return Some(rate_unit!(Unit::Gb, Unit::Second)),
+        "Tbps" | "Tb/s" => return Some(rate_unit!(Unit::Tb, Unit::Second)),
+        "Pbps" | "Pb/s" => return Some(rate_unit!(Unit::Pb, Unit::Second)),
+        "Ebps" | "Eb/s" => return Some(rate_unit!(Unit::Eb, Unit::Second)),
         "Kibps" | "Kib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Kib, Unit::Second));
         }
         "Mibps" | "Mib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Mib, Unit::Second));
         }
         "Gibps" | "Gib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Gib, Unit::Second));
         }
         "Tibps" | "Tib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Tib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Tib, Unit::Second));
         }
         "Pibps" | "Pib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Pib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Pib, Unit::Second));
         }
         "Eibps" | "Eib/s" => {
-            return Some(Unit::RateUnit(Box::new(Unit::Eib), Box::new(Unit::Second)));
+            return Some(rate_unit!(Unit::Eib, Unit::Second));
         }
 
         // Byte rates (uppercase 'B/s' for bytes per second)
-        "B/s" => return Some(Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second))),
-        "KB/s" => return Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second))),
-        "MB/s" => return Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second))),
-        "GB/s" => return Some(Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second))),
-        "TB/s" => return Some(Unit::RateUnit(Box::new(Unit::TB), Box::new(Unit::Second))),
-        "PB/s" => return Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))),
-        "EB/s" => return Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))),
-        "KiB/s" => return Some(Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second))),
-        "MiB/s" => return Some(Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second))),
-        "GiB/s" => return Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second))),
-        "TiB/s" => return Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Second))),
-        "PiB/s" => return Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))),
-        "EiB/s" => return Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))),
+        "B/s" => return Some(rate_unit!(Unit::Byte, Unit::Second)),
+        "KB/s" => return Some(rate_unit!(Unit::KB, Unit::Second)),
+        "MB/s" => return Some(rate_unit!(Unit::MB, Unit::Second)),
+        "GB/s" => return Some(rate_unit!(Unit::GB, Unit::Second)),
+        "TB/s" => return Some(rate_unit!(Unit::TB, Unit::Second)),
+        "PB/s" => return Some(rate_unit!(Unit::PB, Unit::Second)),
+        "EB/s" => return Some(rate_unit!(Unit::EB, Unit::Second)),
+        "KiB/s" => return Some(rate_unit!(Unit::KiB, Unit::Second)),
+        "MiB/s" => return Some(rate_unit!(Unit::MiB, Unit::Second)),
+        "GiB/s" => return Some(rate_unit!(Unit::GiB, Unit::Second)),
+        "TiB/s" => return Some(rate_unit!(Unit::TiB, Unit::Second)),
+        "PiB/s" => return Some(rate_unit!(Unit::PiB, Unit::Second)),
+        "EiB/s" => return Some(rate_unit!(Unit::EiB, Unit::Second)),
 
         _ => {} // Fall through to case-insensitive matching
     }
@@ -118,35 +119,35 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         // Case-insensitive rate parsing - create generic rates
         // For "bps" suffix: bits take precedence (network convention)
         // For "/s" suffix: bytes take precedence (file transfer convention)
-        "b/s" | "bytes/s" => Some(Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second))),
-        "kb/s" => Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second))),
-        "mb/s" => Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second))),
-        "gb/s" => Some(Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second))),
-        "tb/s" => Some(Unit::RateUnit(Box::new(Unit::TB), Box::new(Unit::Second))),
-        "pb/s" => Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))),
-        "eb/s" => Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))),
-        "kib/s" => Some(Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second))),
-        "mib/s" => Some(Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second))),
-        "gib/s" => Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second))),
-        "tib/s" => Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Second))),
-        "pib/s" => Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))),
-        "eib/s" => Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))),
+        "b/s" | "bytes/s" => Some(rate_unit!(Unit::Byte, Unit::Second)),
+        "kb/s" => Some(rate_unit!(Unit::KB, Unit::Second)),
+        "mb/s" => Some(rate_unit!(Unit::MB, Unit::Second)),
+        "gb/s" => Some(rate_unit!(Unit::GB, Unit::Second)),
+        "tb/s" => Some(rate_unit!(Unit::TB, Unit::Second)),
+        "pb/s" => Some(rate_unit!(Unit::PB, Unit::Second)),
+        "eb/s" => Some(rate_unit!(Unit::EB, Unit::Second)),
+        "kib/s" => Some(rate_unit!(Unit::KiB, Unit::Second)),
+        "mib/s" => Some(rate_unit!(Unit::MiB, Unit::Second)),
+        "gib/s" => Some(rate_unit!(Unit::GiB, Unit::Second)),
+        "tib/s" => Some(rate_unit!(Unit::TiB, Unit::Second)),
+        "pib/s" => Some(rate_unit!(Unit::PiB, Unit::Second)),
+        "eib/s" => Some(rate_unit!(Unit::EiB, Unit::Second)),
 
         // For "bps" suffix: default to bits (network convention)
         // Exception: very large units (PB/EB) default to bytes for backwards compatibility
-        "bps" => Some(Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second))),
-        "kbps" => Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second))),
-        "mbps" => Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second))),
-        "gbps" => Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second))),
-        "tbps" => Some(Unit::RateUnit(Box::new(Unit::Tb), Box::new(Unit::Second))),
-        "pbps" => Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second))), // Exception: PB default to bytes
-        "ebps" => Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second))), // Exception: EB default to bytes
-        "kibps" => Some(Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second))),
-        "mibps" => Some(Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second))),
-        "gibps" => Some(Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second))),
-        "tibps" => Some(Unit::RateUnit(Box::new(Unit::Tib), Box::new(Unit::Second))),
-        "pibps" => Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second))), // Exception: PiB default to bytes
-        "eibps" => Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second))), // Exception: EiB default to bytes
+        "bps" => Some(rate_unit!(Unit::Bit, Unit::Second)),
+        "kbps" => Some(rate_unit!(Unit::Kb, Unit::Second)),
+        "mbps" => Some(rate_unit!(Unit::Mb, Unit::Second)),
+        "gbps" => Some(rate_unit!(Unit::Gb, Unit::Second)),
+        "tbps" => Some(rate_unit!(Unit::Tb, Unit::Second)),
+        "pbps" => Some(rate_unit!(Unit::PB, Unit::Second)), // Exception: PB default to bytes
+        "ebps" => Some(rate_unit!(Unit::EB, Unit::Second)), // Exception: EB default to bytes
+        "kibps" => Some(rate_unit!(Unit::Kib, Unit::Second)),
+        "mibps" => Some(rate_unit!(Unit::Mib, Unit::Second)),
+        "gibps" => Some(rate_unit!(Unit::Gib, Unit::Second)),
+        "tibps" => Some(rate_unit!(Unit::Tib, Unit::Second)),
+        "pibps" => Some(rate_unit!(Unit::PiB, Unit::Second)), // Exception: PiB default to bytes
+        "eibps" => Some(rate_unit!(Unit::EiB, Unit::Second)), // Exception: EiB default to bytes
 
         "req" | "request" | "requests" => Some(Unit::Request),
         "query" | "queries" => Some(Unit::Query),
@@ -156,7 +157,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Second),
         )),
         "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => Some(
-            Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Minute)),
+            rate_unit!(Unit::Request, Unit::Minute),
         ),
         "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RateUnit(
             Box::new(Unit::Request),
@@ -171,7 +172,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Minute),
         )),
         "qph" | "queries/h" | "queries/hour" => {
-            Some(Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)))
+            Some(rate_unit!(Unit::Query, Unit::Hour))
         }
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
@@ -185,7 +186,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
                     if let (Some(left_unit), Some(right_unit)) = (left_unit, right_unit) {
                         if right_unit.unit_type() == UnitType::Time {
                             rate_type =
-                                Some(Unit::RateUnit(Box::new(left_unit), Box::new(right_unit)))
+                                Some(rate_unit!(left_unit, right_unit))
                         }
                     }
                 }

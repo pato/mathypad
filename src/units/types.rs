@@ -70,6 +70,14 @@ pub enum Unit {
     RateUnit(Box<Unit>, Box<Unit>),
 }
 
+/// Macro to simplify creating RateUnit instances
+#[macro_export]
+macro_rules! rate_unit {
+    ($numerator:expr, $denominator:expr) => {
+        Unit::RateUnit(Box::new($numerator), Box::new($denominator))
+    };
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnitType {
     Time,

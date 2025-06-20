@@ -4,6 +4,7 @@ use super::parser::tokenize_with_units;
 use super::tokens::Token;
 use crate::FLOAT_EPSILON;
 use crate::units::{Unit, UnitType, UnitValue, parse_unit};
+use crate::rate_unit;
 use std::collections::HashMap;
 
 /// Main evaluation function that handles context for line references
@@ -913,7 +914,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     } else {
                         // Bit / other time unit = generic bit rate
                         let rate_unit =
-                            Unit::RateUnit(Box::new(bit_unit.clone()), Box::new(time_unit.clone()));
+                            rate_unit!(bit_unit.clone(), time_unit.clone());
                         UnitValue::new(a.value / b.value, Some(rate_unit))
                     }
                 }

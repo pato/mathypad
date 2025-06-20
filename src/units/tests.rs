@@ -1,6 +1,7 @@
 //! Tests for unit functionality
 
 use super::*;
+use crate::rate_unit;
 use crate::test_helpers::*;
 
 fn floats_equal(a: f64, b: f64) {
@@ -13,13 +14,13 @@ fn floats_equal(a: f64, b: f64) {
 #[test]
 fn test_generic_rate() {
     // Test that generic rates convert to bytes per second correctly
-    let rate = Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second));
+    let rate = rate_unit!(Unit::MB, Unit::Second);
     floats_equal(rate.to_base_value(1.0), 1_000_000.0); // 1 MB/s = 1,000,000 bytes/s
 
-    let rate = Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Minute));
+    let rate = rate_unit!(Unit::KB, Unit::Minute);
     floats_equal(rate.to_base_value(3.0), 50.0); // 3 KB/min = (3 * 1000) / 60 = 50 bytes/s
 
-    let rate = Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Day));
+    let rate = rate_unit!(Unit::Byte, Unit::Day);
     floats_equal(rate.to_base_value(86400.0), 1.0); // 86400 bytes/day = 86400 / 86400 = 1 byte/s
 }
 
@@ -28,24 +29,18 @@ fn test_generic_rate_parsing() {
     // Test parsing various generic rate units
     assert_eq!(
         parse_unit("GiB/minute"),
-        Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Minute)))
+        Some(rate_unit!(Unit::GiB, Unit::Minute))
     );
     assert_eq!(
         parse_unit("MB/hour"),
-        Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Hour)))
+        Some(rate_unit!(Unit::MB, Unit::Hour))
     );
-    assert_eq!(
-        parse_unit("KB/day"),
-        Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Day)))
-    );
+    assert_eq!(parse_unit("KB/day"), Some(rate_unit!(Unit::KB, Unit::Day)));
     assert_eq!(
         parse_unit("TiB/min"),
-        Some(Unit::RateUnit(Box::new(Unit::TiB), Box::new(Unit::Minute)))
+        Some(rate_unit!(Unit::TiB, Unit::Minute))
     );
-    assert_eq!(
-        parse_unit("PB/h"),
-        Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Hour)))
-    );
+    assert_eq!(parse_unit("PB/h"), Some(rate_unit!(Unit::PB, Unit::Hour)));
 
     // Test that non-time denominators don't create rate units
     assert!(parse_unit("GiB/MB").is_none());
@@ -54,16 +49,13 @@ fn test_generic_rate_parsing() {
     // Test bit rates with different time units
     assert_eq!(
         parse_unit("Mb/minute"),
-        Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Minute)))
+        Some(rate_unit!(Unit::Mb, Unit::Minute))
     );
     assert_eq!(
         parse_unit("Gb/hour"),
-        Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Hour)))
+        Some(rate_unit!(Unit::Gb, Unit::Hour))
     );
-    assert_eq!(
-        parse_unit("Kb/day"),
-        Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Day)))
-    );
+    assert_eq!(parse_unit("Kb/day"), Some(rate_unit!(Unit::Kb, Unit::Day)));
 }
 
 #[test]
@@ -157,13 +149,13 @@ fn test_generic_rate_edge_cases() {
     assert_eq!(result, Some("365 PiB".to_string()));
 
     // Test rate unit type classification
-    let rate = Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Minute));
+    let rate = rate_unit!(Unit::GiB, Unit::Minute);
     assert_eq!(rate.unit_type(), UnitType::DataRate(60.0)); // 60 seconds per minute
 
-    let rate = Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Hour));
+    let rate = rate_unit!(Unit::MB, Unit::Hour);
     assert_eq!(rate.unit_type(), UnitType::DataRate(3600.0)); // 3600 seconds per hour
 
-    let rate = Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Day));
+    let rate = rate_unit!(Unit::KB, Unit::Day);
     assert_eq!(rate.unit_type(), UnitType::DataRate(86400.0)); // 86400 seconds per day
 }
 
@@ -223,10 +215,10 @@ fn test_generic_rate_invalid_operations() {
 #[test]
 fn test_generic_rate_display_names() {
     // Test that rate units have proper display names
-    let rate = Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Minute));
+    let rate = rate_unit!(Unit::GiB, Unit::Minute);
     assert_eq!(rate.display_name(), "GiB/min");
 
-    let rate = Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Hour));
+    let rate = rate_unit!(Unit::MB, Unit::Hour);
     assert_eq!(rate.display_name(), "MB/h");
 }
 
@@ -566,17 +558,14 @@ fn test_qps_unit_parsing() {
             Box::new(Unit::Minute)
         ))
     );
-    assert_eq!(
-        parse_unit("qph"),
-        Some(Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)))
-    );
+    assert_eq!(parse_unit("qph"), Some(rate_unit!(Unit::Query, Unit::Hour)));
     assert_eq!(
         parse_unit("queries/h"),
-        Some(Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)))
+        Some(rate_unit!(Unit::Query, Unit::Hour))
     );
     assert_eq!(
         parse_unit("queries/hour"),
-        Some(Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)))
+        Some(rate_unit!(Unit::Query, Unit::Hour))
     );
 
     // Test request rate unit parsing
@@ -967,27 +956,27 @@ fn test_qps_edge_cases() {
 fn test_qps_unit_display_names() {
     // Test that display names are correct for QPS units
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Second)).display_name(),
+        rate_unit!(Unit::Query, Unit::Second).display_name(),
         "query/s"
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Minute)).display_name(),
+        rate_unit!(Unit::Query, Unit::Minute).display_name(),
         "query/min"
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)).display_name(),
+        rate_unit!(Unit::Query, Unit::Hour).display_name(),
         "query/h"
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Second)).display_name(),
+        rate_unit!(Unit::Request, Unit::Second).display_name(),
         "req/s"
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Minute)).display_name(),
+        rate_unit!(Unit::Request, Unit::Minute).display_name(),
         "req/min"
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Hour)).display_name(),
+        rate_unit!(Unit::Request, Unit::Hour).display_name(),
         "req/h"
     );
     assert_eq!(Unit::Request.display_name(), "req");
@@ -998,27 +987,27 @@ fn test_qps_unit_display_names() {
 fn test_qps_unit_type_classification() {
     // Test that QPS units are properly classified
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Query, Unit::Second).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Minute)).unit_type(),
+        rate_unit!(Unit::Query, Unit::Minute).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Query), Box::new(Unit::Hour)).unit_type(),
+        rate_unit!(Unit::Query, Unit::Hour).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Request, Unit::Second).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Minute)).unit_type(),
+        rate_unit!(Unit::Request, Unit::Minute).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Request), Box::new(Unit::Hour)).unit_type(),
+        rate_unit!(Unit::Request, Unit::Hour).unit_type(),
         UnitType::RequestRate
     );
     assert_eq!(Unit::Request.unit_type(), UnitType::Request);
@@ -1044,37 +1033,25 @@ fn test_large_data_unit_parsing() {
     assert_eq!(parse_unit("EiB"), Some(Unit::EiB));
 
     // Test rate units
-    assert_eq!(
-        parse_unit("pb/s"),
-        Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("pbps"),
-        Some(Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("eb/s"),
-        Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("ebps"),
-        Some(Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second)))
-    );
+    assert_eq!(parse_unit("pb/s"), Some(rate_unit!(Unit::PB, Unit::Second)));
+    assert_eq!(parse_unit("pbps"), Some(rate_unit!(Unit::PB, Unit::Second)));
+    assert_eq!(parse_unit("eb/s"), Some(rate_unit!(Unit::EB, Unit::Second)));
+    assert_eq!(parse_unit("ebps"), Some(rate_unit!(Unit::EB, Unit::Second)));
     assert_eq!(
         parse_unit("pib/s"),
-        Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::PiB, Unit::Second))
     );
     assert_eq!(
         parse_unit("pibps"),
-        Some(Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::PiB, Unit::Second))
     );
     assert_eq!(
         parse_unit("eib/s"),
-        Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::EiB, Unit::Second))
     );
     assert_eq!(
         parse_unit("eibps"),
-        Some(Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::EiB, Unit::Second))
     );
 }
 
@@ -1200,22 +1177,10 @@ fn test_large_data_unit_display_names() {
     assert_eq!(Unit::EiB.display_name(), "EiB");
 
     // Test display names for large rate units
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second)).display_name(),
-        "PB/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second)).display_name(),
-        "EB/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second)).display_name(),
-        "PiB/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second)).display_name(),
-        "EiB/s"
-    );
+    assert_eq!(rate_unit!(Unit::PB, Unit::Second).display_name(), "PB/s");
+    assert_eq!(rate_unit!(Unit::EB, Unit::Second).display_name(), "EB/s");
+    assert_eq!(rate_unit!(Unit::PiB, Unit::Second).display_name(), "PiB/s");
+    assert_eq!(rate_unit!(Unit::EiB, Unit::Second).display_name(), "EiB/s");
 }
 
 #[test]
@@ -1228,19 +1193,19 @@ fn test_large_data_unit_type_classification() {
 
     // Test that large rate units are properly classified
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::PB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::PB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::EB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::EB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::PiB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::PiB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::EiB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::EiB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
 }
@@ -1307,63 +1272,42 @@ fn test_bit_vs_byte_parsing() {
     assert_eq!(parse_unit("GiB"), Some(Unit::GiB));
 
     // Test bit rate units (bits per second)
-    assert_eq!(
-        parse_unit("bps"),
-        Some(Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("Kbps"),
-        Some(Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("Mbps"),
-        Some(Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("Gbps"),
-        Some(Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second)))
-    );
+    assert_eq!(parse_unit("bps"), Some(rate_unit!(Unit::Bit, Unit::Second)));
+    assert_eq!(parse_unit("Kbps"), Some(rate_unit!(Unit::Kb, Unit::Second)));
+    assert_eq!(parse_unit("Mbps"), Some(rate_unit!(Unit::Mb, Unit::Second)));
+    assert_eq!(parse_unit("Gbps"), Some(rate_unit!(Unit::Gb, Unit::Second)));
     assert_eq!(
         parse_unit("Kibps"),
-        Some(Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::Kib, Unit::Second))
     );
     assert_eq!(
         parse_unit("Mibps"),
-        Some(Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::Mib, Unit::Second))
     );
     assert_eq!(
         parse_unit("Gibps"),
-        Some(Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::Gib, Unit::Second))
     );
 
     // Test byte rate units (bytes per second)
     assert_eq!(
         parse_unit("B/s"),
-        Some(Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::Byte, Unit::Second))
     );
-    assert_eq!(
-        parse_unit("KB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("MB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second)))
-    );
-    assert_eq!(
-        parse_unit("GB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second)))
-    );
+    assert_eq!(parse_unit("KB/s"), Some(rate_unit!(Unit::KB, Unit::Second)));
+    assert_eq!(parse_unit("MB/s"), Some(rate_unit!(Unit::MB, Unit::Second)));
+    assert_eq!(parse_unit("GB/s"), Some(rate_unit!(Unit::GB, Unit::Second)));
     assert_eq!(
         parse_unit("KiB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::KiB, Unit::Second))
     );
     assert_eq!(
         parse_unit("MiB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::MiB, Unit::Second))
     );
     assert_eq!(
         parse_unit("GiB/s"),
-        Some(Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second)))
+        Some(rate_unit!(Unit::GiB, Unit::Second))
     );
 }
 
@@ -1581,34 +1525,13 @@ fn test_bit_byte_display_names() {
     assert_eq!(Unit::Gib.display_name(), "Gib");
 
     // Test display names for bit rate units
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second)).display_name(),
-        "bit/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second)).display_name(),
-        "Kb/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second)).display_name(),
-        "Mb/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second)).display_name(),
-        "Gb/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second)).display_name(),
-        "Kib/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second)).display_name(),
-        "Mib/s"
-    );
-    assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second)).display_name(),
-        "Gib/s"
-    );
+    assert_eq!(rate_unit!(Unit::Bit, Unit::Second).display_name(), "bit/s");
+    assert_eq!(rate_unit!(Unit::Kb, Unit::Second).display_name(), "Kb/s");
+    assert_eq!(rate_unit!(Unit::Mb, Unit::Second).display_name(), "Mb/s");
+    assert_eq!(rate_unit!(Unit::Gb, Unit::Second).display_name(), "Gb/s");
+    assert_eq!(rate_unit!(Unit::Kib, Unit::Second).display_name(), "Kib/s");
+    assert_eq!(rate_unit!(Unit::Mib, Unit::Second).display_name(), "Mib/s");
+    assert_eq!(rate_unit!(Unit::Gib, Unit::Second).display_name(), "Gib/s");
 
     // Test display names for byte units (should be unchanged)
     assert_eq!(Unit::Byte.display_name(), "B");
@@ -1633,31 +1556,31 @@ fn test_bit_byte_unit_type_classification() {
 
     // Test that bit rate units are classified as BitRate type
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Bit), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Bit, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Kb), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Kb, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Mb), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Mb, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Gb), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Gb, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Kib), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Kib, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Mib), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Mib, Unit::Second).unit_type(),
         UnitType::BitRate
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Gib), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Gib, Unit::Second).unit_type(),
         UnitType::BitRate
     );
 
@@ -1672,31 +1595,31 @@ fn test_bit_byte_unit_type_classification() {
 
     // Test that byte rate units are still classified as DataRate type
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::Byte), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::Byte, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::KB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::KB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::MB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::MB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::GB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::GB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::KiB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::KiB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::MiB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::MiB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
     assert_eq!(
-        Unit::RateUnit(Box::new(Unit::GiB), Box::new(Unit::Second)).unit_type(),
+        rate_unit!(Unit::GiB, Unit::Second).unit_type(),
         UnitType::DataRate(1.0)
     );
 }
