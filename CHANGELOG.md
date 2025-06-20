@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.11] - 2025-06-20
+
+### 🤖 AI Assisted
+- Check for clean working directory in release script
+- Add a welcome message with the latest changes
+- Add UI snapshot tests for welcome screen
+- Add more vim key support (e.g., dd, x)
+- Update website
+- Add github release actions
+
+
+### 👤 Artisanally Crafted
+- Minor website tweaks
+- Update readme ai section
+
+
 ## [0.1.10] - 2025-06-20
 
 ### 🤖 AI Assisted
@@ -16,6 +32,7 @@ All notable changes to this project will be documented in this file.
 ### 👤 Artisanally Crafted
 - Todo
 - Changelog minor updates
+
 
 
 ### Changes
