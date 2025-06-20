@@ -27,6 +27,12 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::default();
+
+    // Check if this is a newer version and show welcome screen if needed
+    if crate::version::is_newer_version() {
+        app.show_welcome_dialog = true;
+    }
+
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(TICK_RATE_MS);
 
@@ -151,6 +157,14 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                             } else if app.show_unsaved_dialog {
                                 // Dismiss the unsaved changes dialog
                                 app.show_unsaved_dialog = false;
+                            } else if app.show_welcome_dialog {
+                                // Dismiss the welcome dialog and update stored version
+                                app.show_welcome_dialog = false;
+                                app.welcome_scroll_offset = 0;
+                                // Update the stored version now that user has seen the welcome screen
+                                if let Err(e) = crate::version::update_stored_version() {
+                                    eprintln!("Warning: Could not update stored version: {}", e);
+                                }
                             } else {
                                 app.mode = Mode::Normal;
                             }
@@ -161,6 +175,9 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                 if handle_save_as_input(&mut app, key.code) {
                                     break;
                                 }
+                            } else if app.show_welcome_dialog {
+                                // Handle welcome dialog input (scrolling)
+                                handle_welcome_dialog_input(&mut app, key.code);
                             } else if !app.show_unsaved_dialog {
                                 // Only handle normal input if we're not showing any dialog
                                 match app.mode {
@@ -214,6 +231,11 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
         App::default()
     };
 
+    // Check if this is a newer version and show welcome screen if needed
+    if crate::version::is_newer_version() {
+        app.show_welcome_dialog = true;
+    }
+
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(TICK_RATE_MS);
 
@@ -338,6 +360,14 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                             } else if app.show_unsaved_dialog {
                                 // Dismiss the unsaved changes dialog
                                 app.show_unsaved_dialog = false;
+                            } else if app.show_welcome_dialog {
+                                // Dismiss the welcome dialog and update stored version
+                                app.show_welcome_dialog = false;
+                                app.welcome_scroll_offset = 0;
+                                // Update the stored version now that user has seen the welcome screen
+                                if let Err(e) = crate::version::update_stored_version() {
+                                    eprintln!("Warning: Could not update stored version: {}", e);
+                                }
                             } else {
                                 app.mode = Mode::Normal;
                             }
@@ -348,6 +378,9 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                 if handle_save_as_input(&mut app, key.code) {
                                     break;
                                 }
+                            } else if app.show_welcome_dialog {
+                                // Handle welcome dialog input (scrolling)
+                                handle_welcome_dialog_input(&mut app, key.code);
                             } else if !app.show_unsaved_dialog {
                                 // Only handle normal input if we're not showing any dialog
                                 match app.mode {
@@ -693,5 +726,70 @@ fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
             }
         }
         _ => false,
+    }
+}
+
+/// Handle key events for welcome dialog input (scrolling)
+fn handle_welcome_dialog_input(app: &mut App, key: KeyCode) {
+    // Get the changelog content to calculate max scroll
+    let changelog_content = crate::version::get_changelog_since_version().unwrap_or_else(|| {
+        "Welcome to mathypad!\n\nThis appears to be your first time running this version."
+            .to_string()
+    });
+
+    // Calculate the total number of lines (header + changelog)
+    let header_line_count = 4; // "Welcome! ...", "", "What's new:", ""
+    let changelog_line_count = changelog_content.lines().count();
+    let total_lines = header_line_count + changelog_line_count;
+
+    // Calculate scrollable height (matches calculation in render.rs)
+    // Dialog height is 25, minus 2 for borders, minus 3 for footer = 20 lines of scrollable content
+    let dialog_height: usize = 25;
+    let inner_height = dialog_height.saturating_sub(2); // Remove borders
+    let footer_height = 3; // Empty line + instructions + scroll indicator
+    let scrollable_height = inner_height.saturating_sub(footer_height);
+    let max_scroll = total_lines.saturating_sub(scrollable_height);
+
+    match key {
+        KeyCode::Up => {
+            if app.welcome_scroll_offset > 0 {
+                app.welcome_scroll_offset -= 1;
+            }
+        }
+        KeyCode::Down => {
+            if app.welcome_scroll_offset < max_scroll {
+                app.welcome_scroll_offset += 1;
+            }
+        }
+        KeyCode::PageUp => {
+            // Scroll up by half a screen
+            let scroll_amount = (scrollable_height / 2).max(1);
+            app.welcome_scroll_offset = app.welcome_scroll_offset.saturating_sub(scroll_amount);
+        }
+        KeyCode::PageDown => {
+            // Scroll down by half a screen
+            let scroll_amount = (scrollable_height / 2).max(1);
+            app.welcome_scroll_offset = (app.welcome_scroll_offset + scroll_amount).min(max_scroll);
+        }
+        KeyCode::Home => {
+            // Go to top
+            app.welcome_scroll_offset = 0;
+        }
+        KeyCode::End => {
+            // Go to bottom
+            app.welcome_scroll_offset = max_scroll;
+        }
+        KeyCode::Enter => {
+            // Enter also closes the dialog and updates stored version
+            app.show_welcome_dialog = false;
+            app.welcome_scroll_offset = 0;
+            // Update the stored version now that user has seen the welcome screen
+            if let Err(e) = crate::version::update_stored_version() {
+                eprintln!("Warning: Could not update stored version: {}", e);
+            }
+        }
+        _ => {
+            // Ignore other keys
+        }
     }
 }
