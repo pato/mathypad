@@ -12,13 +12,14 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "  ./release.sh --help    Show this help message"
     echo
     echo "The script will:"
-    echo "  1. Generate a changelog preview and show upcoming changes"
-    echo "  2. Ask for confirmation before proceeding"
-    echo "  3. Update CHANGELOG.md and Cargo.toml version"
-    echo "  4. Build the project with embedded changelog"
-    echo "  5. Create a git commit and tag"
-    echo "  6. Push to remote repository"
-    echo "  7. Publish to crates.io"
+    echo "  1. Check for uncommitted changes (cargo publish will fail if any exist)"
+    echo "  2. Generate a changelog preview and show upcoming changes"
+    echo "  3. Ask for confirmation before proceeding"
+    echo "  4. Update CHANGELOG.md and Cargo.toml version"
+    echo "  5. Build the project with embedded changelog"
+    echo "  6. Create a git commit and tag"
+    echo "  7. Push to remote repository"
+    echo "  8. Publish to crates.io"
     echo
     exit 0
 fi
@@ -41,8 +42,33 @@ else
     echo
 fi
 
+# Step 0: Check for uncommitted changes
+echo "[0/10] Checking for uncommitted changes..."
+if [ "$DRY_RUN" = true ]; then
+    if ! git diff-index --quiet HEAD --; then
+        echo "🔍 DRY RUN: Found uncommitted changes that would prevent release:"
+        git status --porcelain
+        echo "🔍 DRY RUN: In a real release, this would cause the script to exit"
+        echo "🔍 DRY RUN: Please commit these changes before running the actual release"
+    else
+        echo "✅ Working directory is clean"
+    fi
+else
+    if ! git diff-index --quiet HEAD --; then
+        echo "ERROR: You have uncommitted changes in your working directory."
+        echo
+        echo "The following files have uncommitted changes:"
+        git status --porcelain
+        echo
+        echo "Please commit or stash these changes before running the release script."
+        echo "cargo publish will fail if there are any uncommitted changes."
+        exit 1
+    fi
+    echo "✅ Working directory is clean"
+fi
+
 # Step 1: Generate changelog preview
-echo "[1/9] Generating changelog preview..."
+echo "[1/10] Generating changelog preview..."
 if ! git cliff --bump > temp_changelog.md; then
     echo "ERROR: Failed to generate changelog preview"
     rm -f temp_changelog.md
@@ -63,7 +89,7 @@ echo "Found new version: $NEW_VERSION"
 echo
 
 # Step 2: Show changes for the new version
-echo "[2/9] Changes in version $NEW_VERSION:"
+echo "[2/10] Changes in version $NEW_VERSION:"
 echo "========================================"
 
 # Extract content between the first ## and second ## (or end of file)
@@ -93,7 +119,7 @@ echo "Proceeding with release $NEW_VERSION..."
 echo
 
 # Step 4: Write the changelog file
-echo "[3/9] Writing changelog file..."
+echo "[3/10] Writing changelog file..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would write changelog to CHANGELOG.md using: git cliff --bump -o CHANGELOG.md"
 else
@@ -105,7 +131,7 @@ else
 fi
 
 # Step 5: Update Cargo.toml version
-echo "[4/9] Updating Cargo.toml version to $NEW_VERSION..."
+echo "[4/10] Updating Cargo.toml version to $NEW_VERSION..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would update Cargo.toml version to $NEW_VERSION"
     echo "🔍 DRY RUN: Current version line: $(grep '^version = ' Cargo.toml)"
@@ -121,7 +147,7 @@ else
 fi
 
 # Step 6: Build project to ensure changelog is embedded and update lock file
-echo "[5/9] Building project with updated changelog..."
+echo "[5/10] Building project with updated changelog..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would run: cargo build"
     echo "🔍 DRY RUN: This would embed the updated changelog in the binary"
@@ -170,7 +196,7 @@ else
 fi
 
 # Step 7: Git commit
-echo "[6/9] Creating git commit..."
+echo "[6/10] Creating git commit..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would run: git add CHANGELOG.md Cargo.toml Cargo.lock"
     echo "🔍 DRY RUN: Would commit with message: 'no ai: v$NEW_VERSION'"
@@ -188,7 +214,7 @@ else
 fi
 
 # Step 8: Create git tag with changelog content
-echo "[7/9] Creating git tag v$NEW_VERSION..."
+echo "[7/10] Creating git tag v$NEW_VERSION..."
 
 # Extract just the changes for this version (without the version header)
 awk '
@@ -216,7 +242,7 @@ else
 fi
 
 # Step 9: Push to remote with tags
-echo "[8/9] Pushing to remote repository..."
+echo "[8/10] Pushing to remote repository..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would run: git push origin main --tags"
     echo "🔍 DRY RUN: This would push the commit and tag v$NEW_VERSION to origin/main"
@@ -233,7 +259,7 @@ echo "Cleaning up temporary files..."
 rm -f temp_changelog.md tag_message.tmp
 
 # Step 10: Publish to crates.io
-echo "[9/9] Publishing to crates.io..."
+echo "[10/10] Publishing to crates.io..."
 if [ "$DRY_RUN" = true ]; then
     echo "🔍 DRY RUN: Would run: cargo publish"
     echo "🔍 DRY RUN: This would publish version $NEW_VERSION to crates.io"
@@ -253,6 +279,7 @@ if [ "$DRY_RUN" = true ]; then
     echo "========================================"
     echo
     echo "🔍 The following actions would be performed:"
+    echo "✅ Check for uncommitted changes (must be clean)"
     echo "✅ Update CHANGELOG.md with new changes"
     echo "✅ Bump version to $NEW_VERSION in Cargo.toml"
     echo "✅ Build project with embedded changelog"
