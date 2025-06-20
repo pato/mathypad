@@ -358,12 +358,13 @@ The snapshot files are stored in `src/ui/snapshots/` and should be committed to 
 
 ## Developed using AI 🤖
 
-This was developed using Claude Code (with 3.5 Haiku and Sonnet 4) for a grand
-total of $25.60
+This was developed using Claude Code (with 3.5 Haiku and Sonnet 4).
 
 Every commit has alongside with it the prompt I used that generated the
 contents of the commit (with the exception of commits marked as no ai, but
 there was no code that wasn't written by the model).
+
+For reference, the original V0 working version cost a grand total of $25.
 
 ```
 > /cost
