@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag name
+        id: tag_name
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract changelog for this version from CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            # Get content between this version and the next version header
+            VERSION="${{ steps.tag_name.outputs.TAG_NAME }}"
+            # Remove 'v' prefix if present
+            VERSION_NUM=${VERSION#v}
+            
+            # Extract changelog section for this version
+            CHANGELOG=$(awk -v version="$VERSION_NUM" '
+              /^## \[/ {
+                if (found) exit
+                if ($0 ~ "\\[" version "\\]") {
+                  found = 1
+                  next
+                }
+              }
+              found && /^## \[/ { exit }
+              found { print }
+            ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
+            
+            if [ -n "$CHANGELOG" ]; then
+              echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+              echo "$CHANGELOG" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "CHANGELOG=Release ${{ steps.tag_name.outputs.TAG_NAME }}" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "CHANGELOG=Release ${{ steps.tag_name.outputs.TAG_NAME }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag_name.outputs.TAG_NAME }}
+          release_name: ${{ steps.tag_name.outputs.TAG_NAME }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+
+  build:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: mathypad-linux-x86_64.tar.gz
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: mathypad-linux-aarch64.tar.gz
+
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: mathypad-macos-x86_64.tar.gz
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: mathypad-macos-aarch64.tar.gz
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Configure cross-compilation
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cache target directory
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.target }}-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-target-
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            aarch64-linux-gnu-strip target/${{ matrix.target }}/release/mathypad
+          else
+            strip target/${{ matrix.target }}/release/mathypad
+          fi
+
+      - name: Strip binary (macOS)
+        if: matrix.os == 'macos-latest'
+        run: strip target/${{ matrix.target }}/release/mathypad
+
+      - name: Create archive
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czf ../../../${{ matrix.name }} mathypad
+          cd -
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ matrix.name }}
+          asset_name: ${{ matrix.name }}
+          asset_content_type: application/gzip
+
