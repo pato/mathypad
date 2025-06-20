@@ -674,18 +674,25 @@ pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
 
     let current_version = crate::version::get_current_version();
     let stored_version = crate::version::get_stored_version();
-    
-    render_welcome_dialog_with_content(f, app, area, &changelog_content, current_version, stored_version.as_deref())
+
+    render_welcome_dialog_with_content(
+        f,
+        app,
+        area,
+        &changelog_content,
+        current_version,
+        stored_version.as_deref(),
+    )
 }
 
 /// Render the welcome screen dialog with specific content (for testing)
 pub fn render_welcome_dialog_with_content(
-    f: &mut Frame, 
-    app: &App, 
-    area: Rect, 
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
     changelog_content: &str,
     current_version: &str,
-    stored_version: Option<&str>
+    stored_version: Option<&str>,
 ) {
     use ratatui::widgets::Clear;
 
@@ -736,10 +743,7 @@ pub fn render_welcome_dialog_with_content(
             Line::from(vec![
                 Span::styled("Welcome! ", Style::default().fg(Color::Green)),
                 Span::styled(
-                    format!(
-                        "You've updated from v{} to v{}",
-                        stored, current_version
-                    ),
+                    format!("You've updated from v{} to v{}", stored, current_version),
                     Style::default().fg(Color::White),
                 ),
             ]),
@@ -781,7 +785,7 @@ pub fn render_welcome_dialog_with_content(
     let footer_height = 3; // Empty line + instructions + scroll indicator
     let content_height = inner_area.height as usize;
     let scrollable_height = content_height.saturating_sub(footer_height);
-    
+
     // Apply scroll offset
     let total_lines = all_lines.len();
     let max_scroll = total_lines.saturating_sub(scrollable_height);
@@ -813,8 +817,7 @@ pub fn render_welcome_dialog_with_content(
     f.render_widget(block, dialog_area);
 
     // Render scrollable content
-    let content_paragraph = Paragraph::new(visible_lines)
-        .wrap(Wrap { trim: false });
+    let content_paragraph = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
     f.render_widget(content_paragraph, content_area);
 
     // Render footer with instructions (always visible at bottom)
@@ -828,44 +831,54 @@ pub fn render_welcome_dialog_with_content(
             Span::styled("Esc", Style::default().fg(Color::Red)),
             Span::styled(" close", Style::default().fg(Color::White)),
         ]),
-        Line::from(vec![
-            if total_lines > scrollable_height {
-                Span::styled(
-                    format!("({}/{})", scroll_offset + 1, max_scroll + 1),
-                    Style::default().fg(Color::DarkGray),
-                )
-            } else {
-                Span::raw("")
-            }
-        ]),
+        Line::from(vec![if total_lines > scrollable_height {
+            Span::styled(
+                format!("({}/{})", scroll_offset + 1, max_scroll + 1),
+                Style::default().fg(Color::DarkGray),
+            )
+        } else {
+            Span::raw("")
+        }]),
     ];
 
-    let footer_paragraph = Paragraph::new(footer_lines)
-        .wrap(Wrap { trim: false });
+    let footer_paragraph = Paragraph::new(footer_lines).wrap(Wrap { trim: false });
     f.render_widget(footer_paragraph, footer_area);
 
     // Render scrollbar if there's content to scroll
     if total_lines > scrollable_height {
-        render_scrollbar(f, dialog_area, scroll_offset, total_lines, scrollable_height);
+        render_scrollbar(
+            f,
+            dialog_area,
+            scroll_offset,
+            total_lines,
+            scrollable_height,
+        );
     }
 }
 
 /// Render a scrollbar on the right side of a dialog
-fn render_scrollbar(f: &mut Frame, area: Rect, scroll_offset: usize, total_lines: usize, visible_height: usize) {
+fn render_scrollbar(
+    f: &mut Frame,
+    area: Rect,
+    scroll_offset: usize,
+    total_lines: usize,
+    visible_height: usize,
+) {
     // Calculate scrollbar dimensions
     let scrollbar_x = area.x + area.width - 1; // Right edge of the dialog
     let scrollbar_y = area.y + 1; // Start below the top border
     let scrollbar_height = area.height.saturating_sub(2); // Exclude top and bottom borders
-    
+
     if scrollbar_height == 0 {
         return;
     }
 
     // Calculate scroll thumb position and size
     let content_height = total_lines.max(1);
-    let thumb_size = ((visible_height as f32 / content_height as f32) * scrollbar_height as f32).max(1.0) as u16;
+    let thumb_size =
+        ((visible_height as f32 / content_height as f32) * scrollbar_height as f32).max(1.0) as u16;
     let max_thumb_position = scrollbar_height.saturating_sub(thumb_size);
-    
+
     let thumb_position = if content_height <= visible_height {
         0
     } else {
@@ -881,21 +894,20 @@ fn render_scrollbar(f: &mut Frame, area: Rect, scroll_offset: usize, total_lines
             width: 1,
             height: 1,
         };
-        
+
         let track_char = if y >= thumb_position && y < thumb_position + thumb_size {
             "█" // Solid block for thumb
         } else {
             "░" // Light shade for track
         };
-        
+
         let track_color = if y >= thumb_position && y < thumb_position + thumb_size {
             Color::Cyan // Bright color for thumb
         } else {
             Color::DarkGray // Subtle color for track
         };
-        
-        let scrollbar_widget = Paragraph::new(track_char)
-            .style(Style::default().fg(track_color));
+
+        let scrollbar_widget = Paragraph::new(track_char).style(Style::default().fg(track_color));
         f.render_widget(scrollbar_widget, track_area);
     }
 }

@@ -66,7 +66,7 @@ pub fn is_newer_version() -> bool {
 /// If no stored version exists (first run), show the latest version's changelog
 pub fn get_changelog_since_version() -> Option<String> {
     let current_version = get_current_version();
-    
+
     match get_stored_version() {
         Some(stored_version) => {
             // If versions are the same, no changelog to show
@@ -240,10 +240,13 @@ mod tests {
         // This tests the function with the actual embedded changelog
         let result = extract_latest_version_changelog();
         assert!(result.is_some(), "Should find the latest version changelog");
-        
+
         let changelog = result.unwrap();
         // Should start with a version header
-        assert!(changelog.starts_with("## ["), "Should start with version header");
+        assert!(
+            changelog.starts_with("## ["),
+            "Should start with version header"
+        );
         // Should contain some content
         assert!(changelog.len() > 20, "Should have substantial content");
     }

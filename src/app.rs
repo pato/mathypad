@@ -93,6 +93,7 @@ pub struct App {
     pub last_click_position: Option<(u16, u16)>, // Last click position for double-click detection
     pub show_welcome_dialog: bool,       // Show the welcome screen for new versions
     pub welcome_scroll_offset: usize,    // Scroll position for welcome screen changelog
+    pub pending_normal_command: Option<char>, // For multi-character vim commands like 'dd'
 }
 
 impl Default for App {
@@ -121,6 +122,7 @@ impl Default for App {
             last_click_position: None,         // No previous click position
             show_welcome_dialog: false,        // Start without showing welcome dialog
             welcome_scroll_offset: 0,          // Start at top of welcome content
+            pending_normal_command: None,      // No pending vim command
         }
     }
 }
@@ -358,6 +360,318 @@ impl App {
     pub fn move_cursor_right(&mut self) {
         if self.cursor_line < self.text_lines.len() {
             self.cursor_col = (self.cursor_col + 1).min(self.text_lines[self.cursor_line].len());
+        }
+    }
+
+    /// Delete the entire current line (vim 'dd' command)
+    pub fn delete_line(&mut self) {
+        if self.text_lines.len() > 1 {
+            // Update line references before deletion
+            self.update_line_references_for_deletion(self.cursor_line);
+
+            // Remove the line
+            self.text_lines.remove(self.cursor_line);
+            self.results.remove(self.cursor_line);
+
+            // Remove animation states
+            if self.cursor_line < self.result_animations.len() {
+                self.result_animations.remove(self.cursor_line);
+            }
+            if self.cursor_line < self.copy_flash_animations.len() {
+                self.copy_flash_animations.remove(self.cursor_line);
+                self.copy_flash_is_result.remove(self.cursor_line);
+            }
+
+            // Adjust cursor position
+            if self.cursor_line >= self.text_lines.len() && self.cursor_line > 0 {
+                self.cursor_line -= 1;
+            }
+            self.cursor_col = 0;
+
+            // Re-evaluate all lines after deletion
+            for i in self.cursor_line..self.text_lines.len() {
+                self.update_result(i);
+            }
+
+            self.has_unsaved_changes = true;
+        } else if self.text_lines.len() == 1 {
+            // If only one line, just clear it instead of deleting
+            self.text_lines[0].clear();
+            self.results[0] = None;
+            self.cursor_col = 0;
+            self.update_result(0);
+            self.has_unsaved_changes = true;
+        }
+    }
+
+    /// Delete character at cursor position (vim 'x' command)
+    pub fn delete_char_at_cursor(&mut self) {
+        if self.cursor_line < self.text_lines.len() {
+            let line_len = self.text_lines[self.cursor_line].len();
+            if self.cursor_col < line_len {
+                self.text_lines[self.cursor_line].remove(self.cursor_col);
+                // Adjust cursor if at end of line after deletion
+                if self.cursor_col >= self.text_lines[self.cursor_line].len() && self.cursor_col > 0
+                {
+                    self.cursor_col = self.text_lines[self.cursor_line].len();
+                }
+                self.update_result(self.cursor_line);
+                self.has_unsaved_changes = true;
+            }
+        }
+    }
+
+    /// Move cursor forward by one word (vim 'w' command)
+    /// A word is a sequence of alphanumeric characters or underscores
+    pub fn move_word_forward(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let mut new_col = self.cursor_col;
+
+        // Skip current word if we're in one
+        while new_col < chars.len() && (chars[new_col].is_alphanumeric() || chars[new_col] == '_') {
+            new_col += 1;
+        }
+
+        // Skip non-word characters
+        while new_col < chars.len() && !(chars[new_col].is_alphanumeric() || chars[new_col] == '_')
+        {
+            new_col += 1;
+        }
+
+        // If we've reached the end of the line, move to the next line
+        if new_col >= chars.len() && self.cursor_line + 1 < self.text_lines.len() {
+            self.cursor_line += 1;
+            self.cursor_col = 0;
+        } else {
+            self.cursor_col = new_col;
+        }
+    }
+
+    /// Move cursor backward by one word (vim 'b' command)
+    pub fn move_word_backward(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+
+        if self.cursor_col == 0 {
+            // If at start of line, move to end of previous line
+            if self.cursor_line > 0 {
+                self.cursor_line -= 1;
+                self.cursor_col = self.text_lines[self.cursor_line].len();
+            }
+            return;
+        }
+
+        let mut new_col = self.cursor_col;
+        new_col = new_col.saturating_sub(1);
+
+        // Skip non-word characters backwards
+        while new_col > 0 && !(chars[new_col].is_alphanumeric() || chars[new_col] == '_') {
+            new_col -= 1;
+        }
+
+        // Skip word characters backwards to find start of word
+        while new_col > 0 && (chars[new_col - 1].is_alphanumeric() || chars[new_col - 1] == '_') {
+            new_col -= 1;
+        }
+
+        self.cursor_col = new_col;
+    }
+
+    /// Move cursor forward by one WORD (vim 'W' command)
+    /// A WORD is a sequence of non-whitespace characters
+    pub fn move_word_forward_big(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let mut new_col = self.cursor_col;
+
+        // Skip current WORD if we're in one
+        while new_col < chars.len() && !chars[new_col].is_whitespace() {
+            new_col += 1;
+        }
+
+        // Skip whitespace
+        while new_col < chars.len() && chars[new_col].is_whitespace() {
+            new_col += 1;
+        }
+
+        // If we've reached the end of the line, move to the next line
+        if new_col >= chars.len() && self.cursor_line + 1 < self.text_lines.len() {
+            self.cursor_line += 1;
+            self.cursor_col = 0;
+        } else {
+            self.cursor_col = new_col;
+        }
+    }
+
+    /// Move cursor backward by one WORD (vim 'B' command)
+    pub fn move_word_backward_big(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+
+        if self.cursor_col == 0 {
+            // If at start of line, move to end of previous line
+            if self.cursor_line > 0 {
+                self.cursor_line -= 1;
+                self.cursor_col = self.text_lines[self.cursor_line].len();
+            }
+            return;
+        }
+
+        let mut new_col = self.cursor_col;
+        new_col = new_col.saturating_sub(1);
+
+        // Skip whitespace backwards
+        while new_col > 0 && chars[new_col].is_whitespace() {
+            new_col -= 1;
+        }
+
+        // Skip non-whitespace backwards to find start of WORD
+        while new_col > 0 && !chars[new_col - 1].is_whitespace() {
+            new_col -= 1;
+        }
+
+        self.cursor_col = new_col;
+    }
+
+    /// Delete from cursor to the end of the current word (vim 'dw' command)
+    pub fn delete_word_forward(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let start_col = self.cursor_col;
+        let mut end_col = self.cursor_col;
+
+        // Skip current word if we're in one
+        while end_col < chars.len() && (chars[end_col].is_alphanumeric() || chars[end_col] == '_') {
+            end_col += 1;
+        }
+
+        // Also skip trailing non-word characters (spaces, punctuation) to next word
+        while end_col < chars.len() && !(chars[end_col].is_alphanumeric() || chars[end_col] == '_')
+        {
+            end_col += 1;
+        }
+
+        // Delete the range
+        if end_col > start_col {
+            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            self.update_result(self.cursor_line);
+            self.has_unsaved_changes = true;
+        }
+    }
+
+    /// Delete from cursor to the beginning of the previous word (vim 'db' command)
+    pub fn delete_word_backward(&mut self) {
+        if self.cursor_line >= self.text_lines.len() || self.cursor_col == 0 {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let end_col = self.cursor_col;
+        let mut start_col = self.cursor_col;
+
+        start_col = start_col.saturating_sub(1);
+
+        // Skip non-word characters backwards
+        while start_col > 0 && !(chars[start_col].is_alphanumeric() || chars[start_col] == '_') {
+            start_col -= 1;
+        }
+
+        // Skip word characters backwards to find start of word
+        while start_col > 0
+            && (chars[start_col - 1].is_alphanumeric() || chars[start_col - 1] == '_')
+        {
+            start_col -= 1;
+        }
+
+        // Delete the range
+        if end_col > start_col {
+            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            self.cursor_col = start_col;
+            self.update_result(self.cursor_line);
+            self.has_unsaved_changes = true;
+        }
+    }
+
+    /// Delete from cursor to the end of the current WORD (vim 'dW' command)
+    pub fn delete_word_forward_big(&mut self) {
+        if self.cursor_line >= self.text_lines.len() {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let start_col = self.cursor_col;
+        let mut end_col = self.cursor_col;
+
+        // Skip current WORD if we're in one
+        while end_col < chars.len() && !chars[end_col].is_whitespace() {
+            end_col += 1;
+        }
+
+        // Also skip trailing whitespace to next WORD
+        while end_col < chars.len() && chars[end_col].is_whitespace() {
+            end_col += 1;
+        }
+
+        // Delete the range
+        if end_col > start_col {
+            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            self.update_result(self.cursor_line);
+            self.has_unsaved_changes = true;
+        }
+    }
+
+    /// Delete from cursor to the beginning of the previous WORD (vim 'dB' command)
+    pub fn delete_word_backward_big(&mut self) {
+        if self.cursor_line >= self.text_lines.len() || self.cursor_col == 0 {
+            return;
+        }
+
+        let line = &self.text_lines[self.cursor_line];
+        let chars: Vec<char> = line.chars().collect();
+        let end_col = self.cursor_col;
+        let mut start_col = self.cursor_col;
+
+        start_col = start_col.saturating_sub(1);
+
+        // Skip whitespace backwards
+        while start_col > 0 && chars[start_col].is_whitespace() {
+            start_col -= 1;
+        }
+
+        // Skip non-whitespace backwards to find start of WORD
+        while start_col > 0 && !chars[start_col - 1].is_whitespace() {
+            start_col -= 1;
+        }
+
+        // Delete the range
+        if end_col > start_col {
+            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            self.cursor_col = start_col;
+            self.update_result(self.cursor_line);
+            self.has_unsaved_changes = true;
         }
     }
 
@@ -1017,5 +1331,178 @@ mod app_tests {
             animation.animation_type,
             crate::app::AnimationType::CopyFlash
         ));
+    }
+
+    #[test]
+    fn test_delete_line() {
+        let mut app = App::default();
+        app.text_lines = vec![
+            "first".to_string(),
+            "second".to_string(),
+            "third".to_string(),
+        ];
+        app.results = vec![None, None, None];
+        app.result_animations = vec![None, None, None];
+        app.copy_flash_animations = vec![None, None, None];
+        app.copy_flash_is_result = vec![false, false, false];
+        app.cursor_line = 1;
+
+        // Delete middle line
+        app.delete_line();
+        assert_eq!(app.text_lines, vec!["first", "third"]);
+        assert_eq!(app.cursor_line, 1);
+        assert_eq!(app.cursor_col, 0);
+
+        // Delete last line
+        app.delete_line();
+        assert_eq!(app.text_lines, vec!["first"]);
+        assert_eq!(app.cursor_line, 0);
+
+        // Try to delete only line - should just clear it
+        app.delete_line();
+        assert_eq!(app.text_lines, vec![""]);
+        assert_eq!(app.cursor_line, 0);
+    }
+
+    #[test]
+    fn test_delete_char_at_cursor() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello world".to_string()];
+        app.results = vec![None];
+        app.cursor_line = 0;
+        app.cursor_col = 6; // at 'w'
+
+        app.delete_char_at_cursor();
+        assert_eq!(app.text_lines[0], "hello orld");
+        assert_eq!(app.cursor_col, 6);
+
+        // Delete at end of line should do nothing
+        app.cursor_col = app.text_lines[0].len();
+        app.delete_char_at_cursor();
+        assert_eq!(app.text_lines[0], "hello orld");
+    }
+
+    #[test]
+    fn test_word_movement_forward() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello world test_var 123".to_string()];
+        app.cursor_line = 0;
+        app.cursor_col = 0;
+
+        // Move from start to 'world'
+        app.move_word_forward();
+        assert_eq!(app.cursor_col, 6);
+
+        // Move to 'test_var'
+        app.move_word_forward();
+        assert_eq!(app.cursor_col, 12);
+
+        // Move to '123'
+        app.move_word_forward();
+        assert_eq!(app.cursor_col, 21);
+
+        // Try to move past end - should go to end of line
+        app.move_word_forward();
+        assert_eq!(app.cursor_col, 24); // Should be at end of line
+    }
+
+    #[test]
+    fn test_word_movement_backward() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello world test_var".to_string()];
+        app.cursor_line = 0;
+        app.cursor_col = 20; // at end
+
+        // Move to start of 'test_var'
+        app.move_word_backward();
+        assert_eq!(app.cursor_col, 12);
+
+        // Move to start of 'world'
+        app.move_word_backward();
+        assert_eq!(app.cursor_col, 6);
+
+        // Move to start of 'hello'
+        app.move_word_backward();
+        assert_eq!(app.cursor_col, 0);
+    }
+
+    #[test]
+    fn test_word_movement_big() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello-world test::func()".to_string()];
+        app.cursor_line = 0;
+        app.cursor_col = 0;
+
+        // 'hello-world' is one WORD
+        app.move_word_forward_big();
+        assert_eq!(app.cursor_col, 12);
+
+        // Move backward
+        app.cursor_col = 24;
+        app.move_word_backward_big();
+        assert_eq!(app.cursor_col, 12);
+
+        app.move_word_backward_big();
+        assert_eq!(app.cursor_col, 0);
+    }
+
+    #[test]
+    fn test_delete_word_forward() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello world test".to_string()];
+        app.results = vec![None];
+        app.cursor_line = 0;
+        app.cursor_col = 0;
+
+        // Delete 'hello ' (word + trailing space)
+        app.delete_word_forward();
+        assert_eq!(app.text_lines[0], "world test");
+        assert_eq!(app.cursor_col, 0);
+
+        // Delete from middle of word
+        app.cursor_col = 2; // in 'world'
+        app.delete_word_forward();
+        assert_eq!(app.text_lines[0], "wotest");
+    }
+
+    #[test]
+    fn test_delete_word_backward() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello world test".to_string()];
+        app.results = vec![None];
+        app.cursor_line = 0;
+        app.cursor_col = 11; // at space after 'world'
+
+        // Delete 'world'
+        app.delete_word_backward();
+        assert_eq!(app.text_lines[0], "hello  test");
+        assert_eq!(app.cursor_col, 6);
+    }
+
+    #[test]
+    fn test_delete_word_forward_big() {
+        let mut app = App::default();
+        app.text_lines = vec!["hello-world test::func()".to_string()];
+        app.results = vec![None];
+        app.cursor_line = 0;
+        app.cursor_col = 0;
+
+        // Delete 'hello-world ' (WORD + trailing space)
+        app.delete_word_forward_big();
+        assert_eq!(app.text_lines[0], "test::func()");
+        assert_eq!(app.cursor_col, 0);
+    }
+
+    #[test]
+    fn test_pending_normal_command() {
+        let mut app = App::default();
+        app.pending_normal_command = Some('d');
+
+        // Should be able to set and read pending command
+        assert_eq!(app.pending_normal_command, Some('d'));
+
+        // Clear it
+        app.pending_normal_command = None;
+        assert_eq!(app.pending_normal_command, None);
     }
 }

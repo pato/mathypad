@@ -108,6 +108,7 @@ $ mathypad
 
 • ESC → Normal mode (hjkl navigation, indicator at bottom)
 • i/a/o → Insert mode for editing
+• Normal mode: hjkl (movement), w/b (word movement), W/B (WORD movement), x (delete char), dd (delete line), dw/db/dW/dB (delete word)
 • Ctrl+C/Ctrl+Q → Quit
 ```
 
