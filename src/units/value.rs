@@ -20,8 +20,10 @@ impl UnitValue {
     pub fn to_unit(&self, target_unit: &Unit) -> Option<UnitValue> {
         match &self.unit {
             Some(current_unit) => {
-                // Check if units are the same type
-                if current_unit.unit_type() == target_unit.unit_type() {
+                // Check if units are the same type or compatible data rates
+                if current_unit.unit_type() == target_unit.unit_type()
+                    || self.can_convert_between_data_rates(current_unit, target_unit)
+                {
                     let base_value = current_unit.to_base_value(self.value);
                     let converted_value = target_unit.clone().from_base_value(base_value);
                     Some(UnitValue::new(converted_value, Some(target_unit.clone())))
@@ -46,6 +48,15 @@ impl UnitValue {
         }
     }
 
+    /// Check if conversion between data rates with different time units is possible
+    fn can_convert_between_data_rates(&self, current: &Unit, target: &Unit) -> bool {
+        use super::types::UnitType;
+        matches!(
+            (current.unit_type(), target.unit_type()),
+            (UnitType::DataRate(_), UnitType::DataRate(_))
+        )
+    }
+
     /// Check if conversion between bits and bytes is possible
     fn can_convert_between_bits_bytes(&self, current: &Unit, target: &Unit) -> bool {
         use super::types::UnitType;
@@ -53,8 +64,8 @@ impl UnitValue {
             (current.unit_type(), target.unit_type()),
             (UnitType::Bit, UnitType::Data)
                 | (UnitType::Data, UnitType::Bit)
-                | (UnitType::BitRate, UnitType::DataRate)
-                | (UnitType::DataRate, UnitType::BitRate)
+                | (UnitType::BitRate, UnitType::DataRate(_))
+                | (UnitType::DataRate(_), UnitType::BitRate)
         )
     }
 
@@ -78,14 +89,14 @@ impl UnitValue {
                 Some(UnitValue::new(converted_value, Some(target.clone())))
             }
             // Bit rate to Byte rate conversion
-            (UnitType::BitRate, UnitType::DataRate) => {
+            (UnitType::BitRate, UnitType::DataRate(_seconds)) => {
                 let bits_per_sec = current.to_base_value(self.value); // Convert to base bits/sec
                 let bytes_per_sec = bits_per_sec / 8.0; // 8 bits/sec = 1 byte/sec
                 let converted_value = target.clone().from_base_value(bytes_per_sec);
                 Some(UnitValue::new(converted_value, Some(target.clone())))
             }
             // Byte rate to Bit rate conversion
-            (UnitType::DataRate, UnitType::BitRate) => {
+            (UnitType::DataRate(_seconds), UnitType::BitRate) => {
                 let bytes_per_sec = current.to_base_value(self.value); // Convert to base bytes/sec
                 let bits_per_sec = bytes_per_sec * 8.0; // 1 byte/sec = 8 bits/sec
                 let converted_value = target.clone().from_base_value(bits_per_sec);

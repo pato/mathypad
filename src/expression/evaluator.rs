@@ -4,6 +4,7 @@ use super::parser::tokenize_with_units;
 use super::tokens::Token;
 use crate::FLOAT_EPSILON;
 use crate::units::{Unit, UnitType, UnitValue, parse_unit};
+use crate::rate_unit;
 use std::collections::HashMap;
 
 /// Main evaluation function that handles context for line references
@@ -756,7 +757,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Time * Rate = Data (convert time to seconds first)
                 (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
                     if time_unit.unit_type() == UnitType::Time
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && (matches!(rate_unit.unit_type(), UnitType::DataRate(_))) =>
                 {
                     // Determine which value is time and which is rate
                     let (time_value, time_u, rate_value, rate_u) =
@@ -766,8 +767,13 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                             (b.value, time_unit, a.value, rate_unit)
                         };
 
-                    // Convert time to seconds
-                    let time_in_seconds = time_u.to_base_value(time_value);
+                    let time_divider = match rate_unit.unit_type() {
+                        UnitType::DataRate(seconds) => seconds,
+                        _ => 1.0,
+                    };
+
+                    // Convert times to seconds
+                    let time_in_seconds = time_u.to_base_value(time_value) / time_divider;
 
                     // Rate * time = data
                     let data_unit = match rate_u.to_data_unit() {
@@ -776,28 +782,52 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(data_unit))
                 }
-                // Time * BitRate = Bits (convert time to seconds first)
+                // Time * BitRate = Bits
                 (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
                     if time_unit.unit_type() == UnitType::Time
                         && rate_unit.unit_type() == UnitType::BitRate =>
                 {
-                    // Determine which value is time and which is rate
-                    let (time_value, time_u, rate_value, rate_u) =
-                        if time_unit.unit_type() == UnitType::Time {
-                            (a.value, time_unit, b.value, rate_unit)
+                    // Check if this is a generic rate unit
+                    if let Unit::RateUnit(rate_data, rate_time) = rate_unit {
+                        // For generic rates, handle the time conversion properly
+                        let (time_value, rate_value) = if time_unit.unit_type() == UnitType::Time {
+                            (a.value, b.value)
                         } else {
-                            (b.value, time_unit, a.value, rate_unit)
+                            (b.value, a.value)
                         };
 
-                    // Convert time to seconds
-                    let time_in_seconds = time_u.to_base_value(time_value);
+                        // Convert time units to match
+                        let time_in_rate_units = if time_unit == rate_time.as_ref() {
+                            time_value
+                        } else {
+                            // Convert time to the rate's time unit
+                            let time_in_seconds = time_unit.to_base_value(time_value);
+                            rate_time.clone().from_base_value(time_in_seconds)
+                        };
 
-                    // BitRate * time = bits
-                    let bit_unit = match rate_u.to_data_unit() {
-                        Ok(unit) => unit,
-                        Err(_) => return false,
-                    };
-                    UnitValue::new(rate_value * time_in_seconds, Some(bit_unit))
+                        UnitValue::new(
+                            rate_value * time_in_rate_units,
+                            Some(rate_data.as_ref().clone()),
+                        )
+                    } else {
+                        // Standard bit rate handling (per second)
+                        let (time_value, time_u, rate_value, rate_u) =
+                            if time_unit.unit_type() == UnitType::Time {
+                                (a.value, time_unit, b.value, rate_unit)
+                            } else {
+                                (b.value, time_unit, a.value, rate_unit)
+                            };
+
+                        // Convert time to seconds
+                        let time_in_seconds = time_u.to_base_value(time_value);
+
+                        // BitRate * time = bits
+                        let bit_unit = match rate_u.to_data_unit() {
+                            Ok(unit) => unit,
+                            Err(_) => return false,
+                        };
+                        UnitValue::new(rate_value * time_in_seconds, Some(bit_unit))
+                    }
                 }
                 // Time * RequestRate = Requests (convert time to seconds first)
                 (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
@@ -830,7 +860,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     UnitValue::new(a.value * b.value, Some(data_unit.clone()))
                 }
                 (Some(rate_unit), Some(Unit::Second)) | (Some(Unit::Second), Some(rate_unit))
-                    if rate_unit.unit_type() == UnitType::DataRate =>
+                    if matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
                     let data_unit = match rate_unit.to_data_unit() {
                         Ok(unit) => unit,
@@ -852,14 +882,41 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     if data_unit.unit_type() == UnitType::Data
                         && time_unit.unit_type() == UnitType::Time =>
                 {
-                    // Data / time = rate
-                    // Convert time to seconds first
-                    let time_in_seconds = time_unit.to_base_value(b.value);
-                    let rate_unit = match data_unit.to_rate_unit() {
-                        Ok(unit) => unit,
-                        Err(_) => return false,
-                    };
-                    UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
+                    // Check if time unit is seconds - if so, create traditional per-second rate
+                    if time_unit == &Unit::Second {
+                        // Data / seconds = traditional rate (for backwards compatibility)
+                        let rate_unit = match data_unit.to_rate_unit() {
+                            Ok(unit) => unit,
+                            Err(_) => return false,
+                        };
+                        UnitValue::new(a.value / b.value, Some(rate_unit))
+                    } else {
+                        // Data / other time unit = generic rate
+                        let rate_unit = Unit::RateUnit(
+                            Box::new(data_unit.clone()),
+                            Box::new(time_unit.clone()),
+                        );
+                        UnitValue::new(a.value / b.value, Some(rate_unit))
+                    }
+                }
+                (Some(bit_unit), Some(time_unit))
+                    if bit_unit.unit_type() == UnitType::Bit
+                        && time_unit.unit_type() == UnitType::Time =>
+                {
+                    // Check if time unit is seconds - if so, create traditional per-second bit rate
+                    if time_unit == &Unit::Second {
+                        // Bit / seconds = traditional bit rate (for backwards compatibility)
+                        let rate_unit = match bit_unit.to_rate_unit() {
+                            Ok(unit) => unit,
+                            Err(_) => return false,
+                        };
+                        UnitValue::new(a.value / b.value, Some(rate_unit))
+                    } else {
+                        // Bit / other time unit = generic bit rate
+                        let rate_unit =
+                            rate_unit!(bit_unit.clone(), time_unit.clone());
+                        UnitValue::new(a.value / b.value, Some(rate_unit))
+                    }
                 }
                 (Some(request_unit), Some(time_unit))
                     if request_unit.unit_type() == UnitType::Request
@@ -877,16 +934,33 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Data / DataRate = Time
                 (Some(data_unit), Some(rate_unit))
                     if data_unit.unit_type() == UnitType::Data
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
-                    // Convert data to bytes and rate to bytes per second
-                    let data_in_bytes = data_unit.to_base_value(a.value);
-                    let rate_in_bytes_per_sec = rate_unit.to_base_value(b.value);
-                    if rate_in_bytes_per_sec.abs() < FLOAT_EPSILON {
-                        return false;
+                    // Check if this is a generic rate unit
+                    if let Unit::RateUnit(rate_data, rate_time) = rate_unit {
+                        // For generic rates, we need to match the data units and return the time unit
+                        if data_unit.unit_type() == rate_data.unit_type() {
+                            // Convert both to base units
+                            let data_base = data_unit.to_base_value(a.value);
+                            let rate_data_base = rate_data.to_base_value(b.value);
+                            if rate_data_base.abs() < FLOAT_EPSILON {
+                                return false;
+                            }
+                            let time_value = data_base / rate_data_base;
+                            UnitValue::new(time_value, Some(rate_time.as_ref().clone()))
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        // Standard per-second rate handling
+                        let data_in_bytes = data_unit.to_base_value(a.value);
+                        let rate_in_bytes_per_sec = rate_unit.to_base_value(b.value);
+                        if rate_in_bytes_per_sec.abs() < FLOAT_EPSILON {
+                            return false;
+                        }
+                        let time_in_seconds = data_in_bytes / rate_in_bytes_per_sec;
+                        UnitValue::new(time_in_seconds, Some(Unit::Second))
                     }
-                    let time_in_seconds = data_in_bytes / rate_in_bytes_per_sec;
-                    UnitValue::new(time_in_seconds, Some(Unit::Second))
                 }
                 // Data / BitRate = Time (need to convert between bits and bytes)
                 (Some(data_unit), Some(rate_unit))
@@ -907,7 +981,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 // Bit / DataRate = Time (need to convert between bits and bytes)
                 (Some(data_unit), Some(rate_unit))
                     if data_unit.unit_type() == UnitType::Bit
-                        && rate_unit.unit_type() == UnitType::DataRate =>
+                        && matches!(rate_unit.unit_type(), UnitType::DataRate(_)) =>
                 {
                     // Convert data to bits and rate to bytes per second
                     let data_in_bits = data_unit.to_base_value(a.value);

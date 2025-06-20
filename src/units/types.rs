@@ -1,5 +1,7 @@
 //! Unit type definitions and conversions
 
+use std::borrow::Cow;
+
 /// Error type for unit conversion operations
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnitConversionError;
@@ -61,46 +63,19 @@ pub enum Unit {
     Request,
     Query,
 
-    // Bit rate units
-    BitsPerSecond,
-    KbPerSecond,
-    MbPerSecond,
-    GbPerSecond,
-    TbPerSecond,
-    PbPerSecond,
-    EbPerSecond,
-    KibPerSecond,
-    MibPerSecond,
-    GibPerSecond,
-    TibPerSecond,
-    PibPerSecond,
-    EibPerSecond,
-
-    // Data rate units
-    BytesPerSecond,
-    KBPerSecond,
-    MBPerSecond,
-    GBPerSecond,
-    TBPerSecond,
-    PBPerSecond,
-    EBPerSecond,
-    KiBPerSecond,
-    MiBPerSecond,
-    GiBPerSecond,
-    TiBPerSecond,
-    PiBPerSecond,
-    EiBPerSecond,
-
-    // Request/Query rate units (base: requests per second)
-    RequestsPerSecond,
-    RequestsPerMinute,
-    RequestsPerHour,
-    QueriesPerSecond,
-    QueriesPerMinute,
-    QueriesPerHour,
-
     // Percentage unit (base: decimal value 0.0-1.0)
     Percent,
+
+    //  Generic rates
+    RateUnit(Box<Unit>, Box<Unit>),
+}
+
+/// Macro to simplify creating RateUnit instances
+#[macro_export]
+macro_rules! rate_unit {
+    ($numerator:expr, $denominator:expr) => {
+        Unit::RateUnit(Box::new($numerator), Box::new($denominator))
+    };
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -110,7 +85,7 @@ pub enum UnitType {
     Data,
     Request,
     BitRate,
-    DataRate,
+    DataRate(f64),
     RequestRate,
     Percentage,
 }
@@ -166,46 +141,16 @@ impl Unit {
             Unit::Request => value,
             Unit::Query => value, // Queries and requests are equivalent
 
-            // Bit rate units (convert to bits per second)
-            Unit::BitsPerSecond => value,
-            Unit::KbPerSecond => value * 1_000.0,
-            Unit::MbPerSecond => value * 1_000_000.0,
-            Unit::GbPerSecond => value * 1_000_000_000.0,
-            Unit::TbPerSecond => value * 1_000_000_000_000.0,
-            Unit::PbPerSecond => value * 1_000_000_000_000_000.0,
-            Unit::EbPerSecond => value * 1_000_000_000_000_000_000.0,
-            Unit::KibPerSecond => value * 1_024.0,
-            Unit::MibPerSecond => value * 1_048_576.0,
-            Unit::GibPerSecond => value * 1_073_741_824.0,
-            Unit::TibPerSecond => value * 1_099_511_627_776.0,
-            Unit::PibPerSecond => value * 1_125_899_906_842_624.0,
-            Unit::EibPerSecond => value * 1_152_921_504_606_846_976.0,
-
-            // Data rate units (convert to bytes per second)
-            Unit::BytesPerSecond => value,
-            Unit::KBPerSecond => value * 1_000.0,
-            Unit::MBPerSecond => value * 1_000_000.0,
-            Unit::GBPerSecond => value * 1_000_000_000.0,
-            Unit::TBPerSecond => value * 1_000_000_000_000.0,
-            Unit::PBPerSecond => value * 1_000_000_000_000_000.0,
-            Unit::EBPerSecond => value * 1_000_000_000_000_000_000.0,
-            Unit::KiBPerSecond => value * 1_024.0,
-            Unit::MiBPerSecond => value * 1_048_576.0,
-            Unit::GiBPerSecond => value * 1_073_741_824.0,
-            Unit::TiBPerSecond => value * 1_099_511_627_776.0,
-            Unit::PiBPerSecond => value * 1_125_899_906_842_624.0,
-            Unit::EiBPerSecond => value * 1_152_921_504_606_846_976.0,
-
-            // Request/Query rate units (convert to requests per second)
-            Unit::RequestsPerSecond => value,
-            Unit::RequestsPerMinute => value / 60.0,
-            Unit::RequestsPerHour => value / 3600.0,
-            Unit::QueriesPerSecond => value, // QPS = requests per second
-            Unit::QueriesPerMinute => value / 60.0,
-            Unit::QueriesPerHour => value / 3600.0,
-
             // Percentage unit (convert to decimal 0.0-1.0)
             Unit::Percent => value / 100.0,
+
+            Unit::RateUnit(v1, v2) => {
+                // Convert to base units per second: (data_value * data_base) / (time_value * time_base)
+                // where time_base is always in seconds
+                let data_base = v1.to_base_value(1.0);
+                let time_base = v2.to_base_value(1.0);
+                (value * data_base) / time_base
+            }
         }
     }
 
@@ -260,46 +205,18 @@ impl Unit {
             Unit::Request => base_value,
             Unit::Query => base_value,
 
-            // Bit rate units (from bits per second)
-            Unit::BitsPerSecond => base_value,
-            Unit::KbPerSecond => base_value / 1_000.0,
-            Unit::MbPerSecond => base_value / 1_000_000.0,
-            Unit::GbPerSecond => base_value / 1_000_000_000.0,
-            Unit::TbPerSecond => base_value / 1_000_000_000_000.0,
-            Unit::PbPerSecond => base_value / 1_000_000_000_000_000.0,
-            Unit::EbPerSecond => base_value / 1_000_000_000_000_000_000.0,
-            Unit::KibPerSecond => base_value / 1_024.0,
-            Unit::MibPerSecond => base_value / 1_048_576.0,
-            Unit::GibPerSecond => base_value / 1_073_741_824.0,
-            Unit::TibPerSecond => base_value / 1_099_511_627_776.0,
-            Unit::PibPerSecond => base_value / 1_125_899_906_842_624.0,
-            Unit::EibPerSecond => base_value / 1_152_921_504_606_846_976.0,
-
-            // Data rate units (from bytes per second)
-            Unit::BytesPerSecond => base_value,
-            Unit::KBPerSecond => base_value / 1_000.0,
-            Unit::MBPerSecond => base_value / 1_000_000.0,
-            Unit::GBPerSecond => base_value / 1_000_000_000.0,
-            Unit::TBPerSecond => base_value / 1_000_000_000_000.0,
-            Unit::PBPerSecond => base_value / 1_000_000_000_000_000.0,
-            Unit::EBPerSecond => base_value / 1_000_000_000_000_000_000.0,
-            Unit::KiBPerSecond => base_value / 1_024.0,
-            Unit::MiBPerSecond => base_value / 1_048_576.0,
-            Unit::GiBPerSecond => base_value / 1_073_741_824.0,
-            Unit::TiBPerSecond => base_value / 1_099_511_627_776.0,
-            Unit::PiBPerSecond => base_value / 1_125_899_906_842_624.0,
-            Unit::EiBPerSecond => base_value / 1_152_921_504_606_846_976.0,
-
-            // Request/Query rate units (from requests per second)
-            Unit::RequestsPerSecond => base_value,
-            Unit::RequestsPerMinute => base_value * 60.0,
-            Unit::RequestsPerHour => base_value * 3600.0,
-            Unit::QueriesPerSecond => base_value,
-            Unit::QueriesPerMinute => base_value * 60.0,
-            Unit::QueriesPerHour => base_value * 3600.0,
-
             // Percentage unit (from decimal 0.0-1.0)
             Unit::Percent => base_value * 100.0,
+
+            // Rate unit
+            Unit::RateUnit(v1, v2) => {
+                // Convert from base units per second to target rate
+                // base_value is in (base_data_units / second)
+                // We want (target_data_units / target_time_units)
+                let data_base = v1.to_base_value(1.0);
+                let time_base = v2.to_base_value(1.0);
+                (base_value * time_base) / data_base
+            }
         }
     }
 
@@ -340,147 +257,109 @@ impl Unit {
             | Unit::PiB
             | Unit::EiB => UnitType::Data,
             Unit::Request | Unit::Query => UnitType::Request,
-            Unit::BitsPerSecond
-            | Unit::KbPerSecond
-            | Unit::MbPerSecond
-            | Unit::GbPerSecond
-            | Unit::TbPerSecond
-            | Unit::PbPerSecond
-            | Unit::EbPerSecond
-            | Unit::KibPerSecond
-            | Unit::MibPerSecond
-            | Unit::GibPerSecond
-            | Unit::TibPerSecond
-            | Unit::PibPerSecond
-            | Unit::EibPerSecond => UnitType::BitRate,
-            Unit::BytesPerSecond
-            | Unit::KBPerSecond
-            | Unit::MBPerSecond
-            | Unit::GBPerSecond
-            | Unit::TBPerSecond
-            | Unit::PBPerSecond
-            | Unit::EBPerSecond
-            | Unit::KiBPerSecond
-            | Unit::MiBPerSecond
-            | Unit::GiBPerSecond
-            | Unit::TiBPerSecond
-            | Unit::PiBPerSecond
-            | Unit::EiBPerSecond => UnitType::DataRate,
-            Unit::RequestsPerSecond
-            | Unit::RequestsPerMinute
-            | Unit::RequestsPerHour
-            | Unit::QueriesPerSecond
-            | Unit::QueriesPerMinute
-            | Unit::QueriesPerHour => UnitType::RequestRate,
             Unit::Percent => UnitType::Percentage,
+            Unit::RateUnit(b1, b2) => {
+                if b2.unit_type() != UnitType::Time {
+                    panic!("We handle only rates")
+                }
+                match b1.unit_type() {
+                    UnitType::Bit => UnitType::BitRate,
+                    UnitType::Data => UnitType::DataRate(b2.to_base_value(1.0)),
+                    UnitType::Request => UnitType::RequestRate,
+                    _ => panic!("Rate unknown"),
+                }
+            }
         }
     }
 
     /// Get the display name for this unit
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> Cow<'static, str> {
         match self {
-            Unit::Nanosecond => "ns",
-            Unit::Microsecond => "us",
-            Unit::Millisecond => "ms",
-            Unit::Second => "s",
-            Unit::Minute => "min",
-            Unit::Hour => "h",
-            Unit::Day => "day",
-            Unit::Bit => "bit",
-            Unit::Kb => "Kb",
-            Unit::Mb => "Mb",
-            Unit::Gb => "Gb",
-            Unit::Tb => "Tb",
-            Unit::Pb => "Pb",
-            Unit::Eb => "Eb",
-            Unit::Kib => "Kib",
-            Unit::Mib => "Mib",
-            Unit::Gib => "Gib",
-            Unit::Tib => "Tib",
-            Unit::Pib => "Pib",
-            Unit::Eib => "Eib",
-            Unit::Byte => "B",
-            Unit::KB => "KB",
-            Unit::MB => "MB",
-            Unit::GB => "GB",
-            Unit::TB => "TB",
-            Unit::PB => "PB",
-            Unit::EB => "EB",
-            Unit::KiB => "KiB",
-            Unit::MiB => "MiB",
-            Unit::GiB => "GiB",
-            Unit::TiB => "TiB",
-            Unit::PiB => "PiB",
-            Unit::EiB => "EiB",
-            Unit::Request => "req",
-            Unit::Query => "query",
-            Unit::BitsPerSecond => "bps",
-            Unit::KbPerSecond => "Kbps",
-            Unit::MbPerSecond => "Mbps",
-            Unit::GbPerSecond => "Gbps",
-            Unit::TbPerSecond => "Tbps",
-            Unit::PbPerSecond => "Pbps",
-            Unit::EbPerSecond => "Ebps",
-            Unit::KibPerSecond => "Kibps",
-            Unit::MibPerSecond => "Mibps",
-            Unit::GibPerSecond => "Gibps",
-            Unit::TibPerSecond => "Tibps",
-            Unit::PibPerSecond => "Pibps",
-            Unit::EibPerSecond => "Eibps",
-            Unit::BytesPerSecond => "B/s",
-            Unit::KBPerSecond => "KB/s",
-            Unit::MBPerSecond => "MB/s",
-            Unit::GBPerSecond => "GB/s",
-            Unit::TBPerSecond => "TB/s",
-            Unit::PBPerSecond => "PB/s",
-            Unit::EBPerSecond => "EB/s",
-            Unit::KiBPerSecond => "KiB/s",
-            Unit::MiBPerSecond => "MiB/s",
-            Unit::GiBPerSecond => "GiB/s",
-            Unit::TiBPerSecond => "TiB/s",
-            Unit::PiBPerSecond => "PiB/s",
-            Unit::EiBPerSecond => "EiB/s",
-            Unit::RequestsPerSecond => "req/s",
-            Unit::RequestsPerMinute => "req/min",
-            Unit::RequestsPerHour => "req/h",
-            Unit::QueriesPerSecond => "QPS",
-            Unit::QueriesPerMinute => "QPM",
-            Unit::QueriesPerHour => "QPH",
-            Unit::Percent => "%",
+            Unit::Nanosecond => Cow::Borrowed("ns"),
+            Unit::Microsecond => Cow::Borrowed("us"),
+            Unit::Millisecond => Cow::Borrowed("ms"),
+            Unit::Second => Cow::Borrowed("s"),
+            Unit::Minute => Cow::Borrowed("min"),
+            Unit::Hour => Cow::Borrowed("h"),
+            Unit::Day => Cow::Borrowed("day"),
+            Unit::Bit => Cow::Borrowed("bit"),
+            Unit::Kb => Cow::Borrowed("Kb"),
+            Unit::Mb => Cow::Borrowed("Mb"),
+            Unit::Gb => Cow::Borrowed("Gb"),
+            Unit::Tb => Cow::Borrowed("Tb"),
+            Unit::Pb => Cow::Borrowed("Pb"),
+            Unit::Eb => Cow::Borrowed("Eb"),
+            Unit::Kib => Cow::Borrowed("Kib"),
+            Unit::Mib => Cow::Borrowed("Mib"),
+            Unit::Gib => Cow::Borrowed("Gib"),
+            Unit::Tib => Cow::Borrowed("Tib"),
+            Unit::Pib => Cow::Borrowed("Pib"),
+            Unit::Eib => Cow::Borrowed("Eib"),
+            Unit::Byte => Cow::Borrowed("B"),
+            Unit::KB => Cow::Borrowed("KB"),
+            Unit::MB => Cow::Borrowed("MB"),
+            Unit::GB => Cow::Borrowed("GB"),
+            Unit::TB => Cow::Borrowed("TB"),
+            Unit::PB => Cow::Borrowed("PB"),
+            Unit::EB => Cow::Borrowed("EB"),
+            Unit::KiB => Cow::Borrowed("KiB"),
+            Unit::MiB => Cow::Borrowed("MiB"),
+            Unit::GiB => Cow::Borrowed("GiB"),
+            Unit::TiB => Cow::Borrowed("TiB"),
+            Unit::PiB => Cow::Borrowed("PiB"),
+            Unit::EiB => Cow::Borrowed("EiB"),
+            Unit::Request => Cow::Borrowed("req"),
+            Unit::Query => Cow::Borrowed("query"),
+            Unit::Percent => Cow::Borrowed("%"),
+            Unit::RateUnit(b1, b2) => {
+                // Dynamically construct the display name for generic rates (only allocates when needed)
+                Cow::Owned(format!("{}/{}", b1.display_name(), b2.display_name()))
+            }
         }
     }
 
-    /// Convert a data unit to its corresponding rate unit
+    /// Convert a data unit to its corresponding rate unit (per second)
     pub fn to_rate_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
-            Unit::Bit => Ok(Unit::BitsPerSecond),
-            Unit::Kb => Ok(Unit::KbPerSecond),
-            Unit::Mb => Ok(Unit::MbPerSecond),
-            Unit::Gb => Ok(Unit::GbPerSecond),
-            Unit::Tb => Ok(Unit::TbPerSecond),
-            Unit::Pb => Ok(Unit::PbPerSecond),
-            Unit::Eb => Ok(Unit::EbPerSecond),
-            Unit::Kib => Ok(Unit::KibPerSecond),
-            Unit::Mib => Ok(Unit::MibPerSecond),
-            Unit::Gib => Ok(Unit::GibPerSecond),
-            Unit::Tib => Ok(Unit::TibPerSecond),
-            Unit::Pib => Ok(Unit::PibPerSecond),
-            Unit::Eib => Ok(Unit::EibPerSecond),
-            Unit::Byte => Ok(Unit::BytesPerSecond),
-            Unit::KB => Ok(Unit::KBPerSecond),
-            Unit::MB => Ok(Unit::MBPerSecond),
-            Unit::GB => Ok(Unit::GBPerSecond),
-            Unit::TB => Ok(Unit::TBPerSecond),
-            Unit::PB => Ok(Unit::PBPerSecond),
-            Unit::EB => Ok(Unit::EBPerSecond),
-            Unit::KiB => Ok(Unit::KiBPerSecond),
-            Unit::MiB => Ok(Unit::MiBPerSecond),
-            Unit::GiB => Ok(Unit::GiBPerSecond),
-            Unit::TiB => Ok(Unit::TiBPerSecond),
-            Unit::PiB => Ok(Unit::PiBPerSecond),
-            Unit::EiB => Ok(Unit::EiBPerSecond),
-            Unit::Request => Ok(Unit::RequestsPerSecond),
-            Unit::Query => Ok(Unit::QueriesPerSecond),
+            // Bit units
+            Unit::Bit
+            | Unit::Kb
+            | Unit::Mb
+            | Unit::Gb
+            | Unit::Tb
+            | Unit::Pb
+            | Unit::Eb
+            | Unit::Kib
+            | Unit::Mib
+            | Unit::Gib
+            | Unit::Tib
+            | Unit::Pib
+            | Unit::Eib => Ok(Unit::RateUnit(
+                Box::new(self.clone()),
+                Box::new(Unit::Second),
+            )),
+            // Data units
+            Unit::Byte
+            | Unit::KB
+            | Unit::MB
+            | Unit::GB
+            | Unit::TB
+            | Unit::PB
+            | Unit::EB
+            | Unit::KiB
+            | Unit::MiB
+            | Unit::GiB
+            | Unit::TiB
+            | Unit::PiB
+            | Unit::EiB => Ok(Unit::RateUnit(
+                Box::new(self.clone()),
+                Box::new(Unit::Second),
+            )),
+            // Request/Query units
+            Unit::Request | Unit::Query => Ok(Unit::RateUnit(
+                Box::new(self.clone()),
+                Box::new(Unit::Second),
+            )),
             _ => Err(UnitConversionError),
         }
     }
@@ -488,32 +367,7 @@ impl Unit {
     /// Convert a rate unit to its corresponding data unit
     pub fn to_data_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
-            Unit::BitsPerSecond => Ok(Unit::Bit),
-            Unit::KbPerSecond => Ok(Unit::Kb),
-            Unit::MbPerSecond => Ok(Unit::Mb),
-            Unit::GbPerSecond => Ok(Unit::Gb),
-            Unit::TbPerSecond => Ok(Unit::Tb),
-            Unit::PbPerSecond => Ok(Unit::Pb),
-            Unit::EbPerSecond => Ok(Unit::Eb),
-            Unit::KibPerSecond => Ok(Unit::Kib),
-            Unit::MibPerSecond => Ok(Unit::Mib),
-            Unit::GibPerSecond => Ok(Unit::Gib),
-            Unit::TibPerSecond => Ok(Unit::Tib),
-            Unit::PibPerSecond => Ok(Unit::Pib),
-            Unit::EibPerSecond => Ok(Unit::Eib),
-            Unit::BytesPerSecond => Ok(Unit::Byte),
-            Unit::KBPerSecond => Ok(Unit::KB),
-            Unit::MBPerSecond => Ok(Unit::MB),
-            Unit::GBPerSecond => Ok(Unit::GB),
-            Unit::TBPerSecond => Ok(Unit::TB),
-            Unit::PBPerSecond => Ok(Unit::PB),
-            Unit::EBPerSecond => Ok(Unit::EB),
-            Unit::KiBPerSecond => Ok(Unit::KiB),
-            Unit::MiBPerSecond => Ok(Unit::MiB),
-            Unit::GiBPerSecond => Ok(Unit::GiB),
-            Unit::TiBPerSecond => Ok(Unit::TiB),
-            Unit::PiBPerSecond => Ok(Unit::PiB),
-            Unit::EiBPerSecond => Ok(Unit::EiB),
+            Unit::RateUnit(b1, _) => Ok(*b1.clone()),
             _ => Err(UnitConversionError),
         }
     }
@@ -521,12 +375,10 @@ impl Unit {
     /// Convert a request rate unit to its corresponding count unit
     pub fn to_request_unit(&self) -> Result<Unit, UnitConversionError> {
         match self {
-            Unit::RequestsPerSecond => Ok(Unit::Request),
-            Unit::RequestsPerMinute => Ok(Unit::Request),
-            Unit::RequestsPerHour => Ok(Unit::Request),
-            Unit::QueriesPerSecond => Ok(Unit::Query),
-            Unit::QueriesPerMinute => Ok(Unit::Query),
-            Unit::QueriesPerHour => Ok(Unit::Query),
+            Unit::RateUnit(b1, _) => match b1.as_ref() {
+                Unit::Request | Unit::Query => Ok(*b1.clone()),
+                _ => Err(UnitConversionError),
+            },
             _ => Err(UnitConversionError),
         }
     }

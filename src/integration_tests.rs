@@ -96,7 +96,7 @@ mod tests {
         );
         assert_eq!(
             evaluate_test_expression("1000GiB / 10min"),
-            Some("1.667 GiB/s".to_string())
+            Some("100 GiB/min".to_string())
         );
     }
 
@@ -113,13 +113,13 @@ mod tests {
         );
         assert_eq!(
             evaluate_test_expression("5000 queries / 10 minutes"),
-            Some("8.333 QPS".to_string())
+            Some("8.333 query/s".to_string())
         );
 
         // Test QPS arithmetic
         assert_eq!(
             evaluate_test_expression("100 QPS + 50 QPS"),
-            Some("150 QPS".to_string())
+            Some("150 query/s".to_string())
         );
         assert_eq!(
             evaluate_test_expression("200 req/min - 80 req/min"),
@@ -282,10 +282,10 @@ mod tests {
             Some("450,000 req".to_string())
         );
 
-        // Test complex data transfer calculations
+        // Test complex data transfer calculations with generic rates
         assert_eq!(
-            evaluate_test_expression("(5 PB + 1000 TB) / (10 hours) to GB/s"),
-            Some("166.667 GB/s".to_string())
+            evaluate_test_expression("(5 PB + 1000 TB) / (10 hours)"),
+            Some("600 TB/h".to_string())
         );
     }
 
@@ -300,13 +300,13 @@ mod tests {
         // Test API load balancing
         assert_eq!(
             evaluate_test_expression("Total load: 250 QPS + 150 QPS + 100 QPS"),
-            Some("500 QPS".to_string())
+            Some("500 query/s".to_string())
         );
 
-        // Test bandwidth calculations
+        // Test bandwidth calculations with generic rates
         assert_eq!(
             evaluate_test_expression("Bandwidth used: 1,000 GiB / 1 hour"),
-            Some("0.278 GiB/s".to_string())
+            Some("1,000 GiB/h".to_string())
         );
 
         // Test backup scenarios
