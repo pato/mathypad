@@ -1773,3 +1773,267 @@ fn test_percentage_of_operations_detailed() {
         Some("300 query/s".to_string())
     );
 }
+
+#[test]
+fn test_extended_time_unit_parsing() {
+    use super::parser::parse_unit;
+    use super::types::Unit;
+
+    // Test week parsing
+    assert_eq!(parse_unit("week"), Some(Unit::Week));
+    assert_eq!(parse_unit("weeks"), Some(Unit::Week));
+    assert_eq!(parse_unit("wk"), Some(Unit::Week));
+    assert_eq!(parse_unit("wks"), Some(Unit::Week));
+
+    // Test month parsing
+    assert_eq!(parse_unit("month"), Some(Unit::Month));
+    assert_eq!(parse_unit("months"), Some(Unit::Month));
+    assert_eq!(parse_unit("mo"), Some(Unit::Month));
+    assert_eq!(parse_unit("mos"), Some(Unit::Month));
+
+    // Test year parsing
+    assert_eq!(parse_unit("year"), Some(Unit::Year));
+    assert_eq!(parse_unit("years"), Some(Unit::Year));
+    assert_eq!(parse_unit("yr"), Some(Unit::Year));
+    assert_eq!(parse_unit("yrs"), Some(Unit::Year));
+
+    // Test case insensitivity
+    assert_eq!(parse_unit("WEEK"), Some(Unit::Week));
+    assert_eq!(parse_unit("Month"), Some(Unit::Month));
+    assert_eq!(parse_unit("YEAR"), Some(Unit::Year));
+}
+
+#[test]
+fn test_extended_time_unit_display_names() {
+    // Test display names
+    assert_eq!(Unit::Week.display_name(), "week");
+    assert_eq!(Unit::Month.display_name(), "month");
+    assert_eq!(Unit::Year.display_name(), "year");
+}
+
+#[test]
+fn test_extended_time_unit_type_classification() {
+    use super::types::UnitType;
+
+    // Test that new time units are correctly classified
+    assert_eq!(Unit::Week.unit_type(), UnitType::Time);
+    assert_eq!(Unit::Month.unit_type(), UnitType::Time);
+    assert_eq!(Unit::Year.unit_type(), UnitType::Time);
+}
+
+#[test]
+fn test_extended_time_unit_conversions() {
+    // Test week conversions
+    let result = evaluate_with_unit_info("1 week to days");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 7.0).abs() < 0.001); // 1 week = 7 days
+
+    let result = evaluate_with_unit_info("2 weeks to hours");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 336.0).abs() < 0.001); // 2 weeks = 14 days = 336 hours
+
+    // Test month conversions (using 30.44 days average)
+    let result = evaluate_with_unit_info("1 month to days");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 30.44).abs() < 0.01); // 1 month ≈ 30.44 days
+
+    let result = evaluate_with_unit_info("3 months to weeks");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = (3.0 * 30.44) / 7.0; // 3 months in weeks
+    assert!((unit_val.value - expected).abs() < 0.01);
+
+    // Test year conversions (using 365.25 days)
+    let result = evaluate_with_unit_info("1 year to days");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 365.25).abs() < 0.01); // 1 year = 365.25 days
+
+    let result = evaluate_with_unit_info("1 year to weeks");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 365.25 / 7.0; // 365.25 days / 7 days per week
+    assert!((unit_val.value - expected).abs() < 0.01);
+
+    let result = evaluate_with_unit_info("1 year to months");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 365.25 / 30.44; // 365.25 days / 30.44 days per month
+    assert!((unit_val.value - expected).abs() < 0.01);
+}
+
+#[test]
+fn test_extended_time_arithmetic() {
+    // Test arithmetic with extended time units
+    assert_eq!(
+        evaluate_test_expression("2 weeks + 3 days"),
+        Some("17 day".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 month + 2 weeks"),
+        Some("6.348 week".to_string()) // 30.44 + 14 = 44.44 days ≈ 6.348 weeks
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 year - 1 month"),
+        Some("11 month".to_string()) // 365.25 - 30.44 = 334.81 days ≈ 11 months
+    );
+
+    // Test multiplication and division
+    assert_eq!(
+        evaluate_test_expression("52 weeks"),
+        Some("52 week".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("12 months"),
+        Some("12 month".to_string())
+    );
+
+    // Test with fractional values
+    assert_eq!(
+        evaluate_test_expression("0.5 years"),
+        Some("0.5 year".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1.5 weeks"),
+        Some("1.5 week".to_string())
+    );
+}
+
+#[test]
+fn test_extended_time_rate_units() {
+    // Test rate units with extended time periods
+    assert_eq!(
+        evaluate_test_expression("100 MB / 1 week"),
+        Some("100 MB/week".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 TiB / 1 month"),
+        Some("1 TiB/month".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("10 TB / 1 year"),
+        Some("10 TB/year".to_string())
+    );
+
+    // Test rate calculations
+    assert_eq!(
+        evaluate_test_expression("1 GB/week * 52 weeks"),
+        Some("52 GB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("5 MB/month * 12 months"),
+        Some("60 MB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("100 KB/year * 10 years"),
+        Some("1,000 KB".to_string())
+    );
+}
+
+#[test]
+fn test_extended_time_rate_parsing() {
+    use super::parser::parse_unit;
+
+    // Test parsing of rate units with extended time periods
+    assert_eq!(
+        parse_unit("MB/week"),
+        Some(rate_unit!(Unit::MB, Unit::Week))
+    );
+
+    assert_eq!(
+        parse_unit("GiB/month"),
+        Some(rate_unit!(Unit::GiB, Unit::Month))
+    );
+
+    assert_eq!(
+        parse_unit("TB/year"),
+        Some(rate_unit!(Unit::TB, Unit::Year))
+    );
+
+    // Test case insensitivity
+    assert_eq!(
+        parse_unit("kb/WEEK"),
+        Some(rate_unit!(Unit::KB, Unit::Week))
+    );
+
+    assert_eq!(
+        parse_unit("MB/Month"),
+        Some(rate_unit!(Unit::MB, Unit::Month))
+    );
+}
+
+#[test]
+fn test_extended_time_real_world_scenarios() {
+    // Test realistic scenarios with extended time units
+
+    // Project timeline calculations
+    assert_eq!(
+        evaluate_test_expression("Project duration: 8 weeks + 3 days"),
+        Some("59 day".to_string())
+    );
+
+    // Annual data usage
+    assert_eq!(
+        evaluate_test_expression("Annual backup: 50 GB/month * 12 months"),
+        Some("600 GB".to_string())
+    );
+
+    // Weekly throughput
+    assert_eq!(
+        evaluate_test_expression("Weekly load: 1 TB/week to GB/day"),
+        Some("142.857 GB/day".to_string()) // 1000 GB / 7 days ≈ 142.857
+    );
+
+    // Long-term storage planning
+    assert_eq!(
+        evaluate_test_expression("10 TB/year * 5 years"),
+        Some("50 TB".to_string())
+    );
+
+    // Monthly data allowance
+    assert_eq!(
+        evaluate_test_expression("100 GB/month to GB/week"),
+        Some("22.998 GB/week".to_string()) // 100 GB / (30.44/7) weeks ≈ 22.998
+    );
+}
+
+#[test]
+fn test_extended_time_edge_cases() {
+    // Test edge cases and boundary conditions
+
+    // Very small fractions
+    assert_eq!(
+        evaluate_test_expression("0.1 weeks"),
+        Some("0.1 week".to_string())
+    );
+
+    // Very large numbers
+    assert_eq!(
+        evaluate_test_expression("1000 years"),
+        Some("1,000 year".to_string())
+    );
+
+    // Mixed very different time scales
+    let result = evaluate_with_unit_info("1 year to nanoseconds");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 365.25 * 24.0 * 3600.0 * 1_000_000_000.0; // year to nanoseconds
+    assert!((unit_val.value - expected).abs() < expected * 0.001); // Allow 0.1% error
+
+    // Test precision with month calculations
+    let result = evaluate_with_unit_info("6 months to days");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 182.621).abs() < 0.1); // Allow for floating point precision
+}

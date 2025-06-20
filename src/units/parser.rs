@@ -94,6 +94,9 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "min" | "minute" | "minutes" => Some(Unit::Minute),
         "h" | "hr" | "hour" | "hours" => Some(Unit::Hour),
         "day" | "days" => Some(Unit::Day),
+        "week" | "weeks" | "wk" | "wks" => Some(Unit::Week),
+        "month" | "months" | "mo" | "mos" => Some(Unit::Month),
+        "year" | "years" | "yr" | "yrs" => Some(Unit::Year),
 
         // Case-insensitive parsing (backwards compatibility)
         // For ambiguous lowercase units, follow networking conventions:
