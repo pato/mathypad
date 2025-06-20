@@ -9,6 +9,11 @@
 - `cargo clippy --fix --allow-dirty` - use clippy to try and automatically fix
   lint errors
 
+# Running one shot mode
+
+If you want to test the one shot mode you should use
+commands like: `cargo run -- -- "100 GiB / 10 minutes"` (it's important to have the double escape "-- --").
+
 # General workflow
 
 - Make the changes requested, making sure to always add unit tests for new
