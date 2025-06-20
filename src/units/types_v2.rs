@@ -28,6 +28,56 @@ pub enum Prefix {
     Yocto, // 10^-24
 }
 
+/// Binary prefixes for data units (powers of 1024)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BinaryPrefix {
+    Ki, // 2^10 = 1024
+    Mi, // 2^20 = 1024^2
+    Gi, // 2^30 = 1024^3
+    Ti, // 2^40 = 1024^4
+    Pi, // 2^50 = 1024^5
+    Ei, // 2^60 = 1024^6
+}
+
+impl BinaryPrefix {
+    /// Get the multiplication factor for this binary prefix
+    pub fn factor(&self) -> f64 {
+        match self {
+            BinaryPrefix::Ki => 1024.0,
+            BinaryPrefix::Mi => 1_048_576.0,
+            BinaryPrefix::Gi => 1_073_741_824.0,
+            BinaryPrefix::Ti => 1_099_511_627_776.0,
+            BinaryPrefix::Pi => 1_125_899_906_842_624.0,
+            BinaryPrefix::Ei => 1_152_921_504_606_846_976.0,
+        }
+    }
+
+    /// Get the symbol for this binary prefix
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            BinaryPrefix::Ki => "Ki",
+            BinaryPrefix::Mi => "Mi",
+            BinaryPrefix::Gi => "Gi",
+            BinaryPrefix::Ti => "Ti",
+            BinaryPrefix::Pi => "Pi",
+            BinaryPrefix::Ei => "Ei",
+        }
+    }
+
+    /// Get the full name of this binary prefix
+    pub fn name(&self) -> &'static str {
+        match self {
+            BinaryPrefix::Ki => "kibi",
+            BinaryPrefix::Mi => "mebi",
+            BinaryPrefix::Gi => "gibi",
+            BinaryPrefix::Ti => "tebi",
+            BinaryPrefix::Pi => "pebi",
+            BinaryPrefix::Ei => "exbi",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum TimeWords {
     Minute,
     Hour,
@@ -40,25 +90,30 @@ pub enum TimeWords {
     Millenium,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Time {
     TimeSeconds(Prefix, f64),
     TimeWords(TimeWords, f64),
 }
+#[derive(Debug, Clone, PartialEq)]
 pub enum BaseData {
     Bits,
     Bytes,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Data {
     prefix: Prefix,
     base: BaseData,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Rate {
     base: Box<Unit>,
     per_time: Time,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Unit {
     Time(Time),
     Data(Data),
@@ -239,5 +294,35 @@ mod tests {
         assert_eq!(Prefix::Milli.name(), "milli");
         assert_eq!(Prefix::Micro.name(), "micro");
         assert_eq!(Prefix::Nano.name(), "nano");
+    }
+
+    #[test]
+    fn test_binary_prefix_factors() {
+        assert_eq!(BinaryPrefix::Ki.factor(), 1024.0);
+        assert_eq!(BinaryPrefix::Mi.factor(), 1_048_576.0);
+        assert_eq!(BinaryPrefix::Gi.factor(), 1_073_741_824.0);
+        assert_eq!(BinaryPrefix::Ti.factor(), 1_099_511_627_776.0);
+        assert_eq!(BinaryPrefix::Pi.factor(), 1_125_899_906_842_624.0);
+        assert_eq!(BinaryPrefix::Ei.factor(), 1_152_921_504_606_846_976.0);
+    }
+
+    #[test]
+    fn test_binary_prefix_symbols() {
+        assert_eq!(BinaryPrefix::Ki.symbol(), "Ki");
+        assert_eq!(BinaryPrefix::Mi.symbol(), "Mi");
+        assert_eq!(BinaryPrefix::Gi.symbol(), "Gi");
+        assert_eq!(BinaryPrefix::Ti.symbol(), "Ti");
+        assert_eq!(BinaryPrefix::Pi.symbol(), "Pi");
+        assert_eq!(BinaryPrefix::Ei.symbol(), "Ei");
+    }
+
+    #[test]
+    fn test_binary_prefix_names() {
+        assert_eq!(BinaryPrefix::Ki.name(), "kibi");
+        assert_eq!(BinaryPrefix::Mi.name(), "mebi");
+        assert_eq!(BinaryPrefix::Gi.name(), "gibi");
+        assert_eq!(BinaryPrefix::Ti.name(), "tebi");
+        assert_eq!(BinaryPrefix::Pi.name(), "pebi");
+        assert_eq!(BinaryPrefix::Ei.name(), "exbi");
     }
 }

@@ -15,4 +15,5 @@ mod tests;
 
 pub use parser::parse_unit;
 pub use types::{Unit, UnitConversionError, UnitType};
+pub use types_v2::{BinaryPrefix, Prefix};
 pub use value::UnitValue;

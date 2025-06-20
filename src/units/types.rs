@@ -2,6 +2,8 @@
 
 use std::borrow::Cow;
 
+use crate::units::{BinaryPrefix, Prefix};
+
 /// Error type for unit conversion operations
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnitConversionError;
@@ -387,29 +389,31 @@ impl Unit {
     pub fn is_compatible_for_addition(&self, other: &Unit) -> bool {
         let self_type = self.unit_type();
         let other_type = other.unit_type();
-        
+
         // Direct unit type match (this covers most cases including exact rate matches)
         if self_type == other_type {
             return true;
         }
-        
+
         // Special case for rate units with different time units but same data units
         match (self, other) {
             (Unit::RateUnit(self_data, self_time), Unit::RateUnit(other_data, other_time)) => {
                 // Both must be time denominators
-                if self_time.unit_type() != UnitType::Time || other_time.unit_type() != UnitType::Time {
+                if self_time.unit_type() != UnitType::Time
+                    || other_time.unit_type() != UnitType::Time
+                {
                     return false;
                 }
-                
+
                 // For data rates, we need EXACT data unit type compatibility
                 // This means GiB (base-2) and MB (base-10) are NOT compatible
                 let self_data_type = self_data.unit_type();
                 let other_data_type = other_data.unit_type();
-                
+
                 match (self_data_type, other_data_type) {
                     // Bit rates are only compatible with other bit rates
                     (UnitType::Bit, UnitType::Bit) => true,
-                    // Request rates are only compatible with other request rates  
+                    // Request rates are only compatible with other request rates
                     (UnitType::Request, UnitType::Request) => true,
                     // Data rates are compatible only if from same base system
                     (UnitType::Data, UnitType::Data) => {
@@ -425,6 +429,236 @@ impl Unit {
 
     /// Check if this is a base-2 data unit (KiB, MiB, GiB, etc.)
     fn is_base2_data(&self) -> bool {
-        matches!(self, Unit::KiB | Unit::MiB | Unit::GiB | Unit::TiB | Unit::PiB | Unit::EiB)
+        matches!(
+            self,
+            Unit::KiB | Unit::MiB | Unit::GiB | Unit::TiB | Unit::PiB | Unit::EiB
+        )
+    }
+
+    /// Get the SI prefix info for this unit if applicable
+    pub fn prefix_info(&self) -> Option<(Prefix, BaseUnit)> {
+        match self {
+            // Time units with SI prefixes
+            Unit::Nanosecond => Some((Prefix::Nano, BaseUnit::Second)),
+            Unit::Microsecond => Some((Prefix::Micro, BaseUnit::Second)),
+            Unit::Millisecond => Some((Prefix::Milli, BaseUnit::Second)),
+
+            // Base-10 bit units
+            Unit::Kb => Some((Prefix::Kilo, BaseUnit::Bit)),
+            Unit::Mb => Some((Prefix::Mega, BaseUnit::Bit)),
+            Unit::Gb => Some((Prefix::Giga, BaseUnit::Bit)),
+            Unit::Tb => Some((Prefix::Tera, BaseUnit::Bit)),
+            Unit::Pb => Some((Prefix::Peta, BaseUnit::Bit)),
+            Unit::Eb => Some((Prefix::Exa, BaseUnit::Bit)),
+
+            // Base-10 byte units
+            Unit::KB => Some((Prefix::Kilo, BaseUnit::Byte)),
+            Unit::MB => Some((Prefix::Mega, BaseUnit::Byte)),
+            Unit::GB => Some((Prefix::Giga, BaseUnit::Byte)),
+            Unit::TB => Some((Prefix::Tera, BaseUnit::Byte)),
+            Unit::PB => Some((Prefix::Peta, BaseUnit::Byte)),
+            Unit::EB => Some((Prefix::Exa, BaseUnit::Byte)),
+
+            _ => None,
+        }
+    }
+
+    /// Get the binary prefix info for this unit if applicable
+    pub fn binary_prefix_info(&self) -> Option<(BinaryPrefix, BaseUnit)> {
+        match self {
+            // Base-2 bit units
+            Unit::Kib => Some((BinaryPrefix::Ki, BaseUnit::Bit)),
+            Unit::Mib => Some((BinaryPrefix::Mi, BaseUnit::Bit)),
+            Unit::Gib => Some((BinaryPrefix::Gi, BaseUnit::Bit)),
+            Unit::Tib => Some((BinaryPrefix::Ti, BaseUnit::Bit)),
+            Unit::Pib => Some((BinaryPrefix::Pi, BaseUnit::Bit)),
+            Unit::Eib => Some((BinaryPrefix::Ei, BaseUnit::Bit)),
+
+            // Base-2 byte units
+            Unit::KiB => Some((BinaryPrefix::Ki, BaseUnit::Byte)),
+            Unit::MiB => Some((BinaryPrefix::Mi, BaseUnit::Byte)),
+            Unit::GiB => Some((BinaryPrefix::Gi, BaseUnit::Byte)),
+            Unit::TiB => Some((BinaryPrefix::Ti, BaseUnit::Byte)),
+            Unit::PiB => Some((BinaryPrefix::Pi, BaseUnit::Byte)),
+            Unit::EiB => Some((BinaryPrefix::Ei, BaseUnit::Byte)),
+
+            _ => None,
+        }
+    }
+
+    /// Get the conversion factor for this unit using prefix information
+    pub fn get_conversion_factor(&self) -> f64 {
+        // Try to use prefix-based calculation first
+        if let Some((prefix, base)) = self.prefix_info() {
+            return prefix.factor() * base.factor();
+        }
+
+        if let Some((prefix, base)) = self.binary_prefix_info() {
+            return prefix.factor() * base.factor();
+        }
+
+        // Fall back to existing to_base_value for non-prefixed units
+        self.to_base_value(1.0)
+    }
+}
+
+/// Base units that can have prefixes
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BaseUnit {
+    Second,
+    Bit,
+    Byte,
+}
+
+impl BaseUnit {
+    /// Get the base conversion factor for this unit
+    pub fn factor(&self) -> f64 {
+        match self {
+            BaseUnit::Second => 1.0,
+            BaseUnit::Bit => 1.0,
+            BaseUnit::Byte => 1.0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod prefix_tests {
+    use super::*;
+
+    #[test]
+    fn test_prefix_info_si_units() {
+        assert_eq!(
+            Unit::Nanosecond.prefix_info(),
+            Some((Prefix::Nano, BaseUnit::Second))
+        );
+        assert_eq!(
+            Unit::Microsecond.prefix_info(),
+            Some((Prefix::Micro, BaseUnit::Second))
+        );
+        assert_eq!(
+            Unit::Millisecond.prefix_info(),
+            Some((Prefix::Milli, BaseUnit::Second))
+        );
+
+        assert_eq!(Unit::KB.prefix_info(), Some((Prefix::Kilo, BaseUnit::Byte)));
+        assert_eq!(Unit::MB.prefix_info(), Some((Prefix::Mega, BaseUnit::Byte)));
+        assert_eq!(Unit::GB.prefix_info(), Some((Prefix::Giga, BaseUnit::Byte)));
+
+        assert_eq!(Unit::Kb.prefix_info(), Some((Prefix::Kilo, BaseUnit::Bit)));
+        assert_eq!(Unit::Mb.prefix_info(), Some((Prefix::Mega, BaseUnit::Bit)));
+        assert_eq!(Unit::Gb.prefix_info(), Some((Prefix::Giga, BaseUnit::Bit)));
+    }
+
+    #[test]
+    fn test_binary_prefix_info() {
+        assert_eq!(
+            Unit::KiB.binary_prefix_info(),
+            Some((BinaryPrefix::Ki, BaseUnit::Byte))
+        );
+        assert_eq!(
+            Unit::MiB.binary_prefix_info(),
+            Some((BinaryPrefix::Mi, BaseUnit::Byte))
+        );
+        assert_eq!(
+            Unit::GiB.binary_prefix_info(),
+            Some((BinaryPrefix::Gi, BaseUnit::Byte))
+        );
+
+        assert_eq!(
+            Unit::Kib.binary_prefix_info(),
+            Some((BinaryPrefix::Ki, BaseUnit::Bit))
+        );
+        assert_eq!(
+            Unit::Mib.binary_prefix_info(),
+            Some((BinaryPrefix::Mi, BaseUnit::Bit))
+        );
+        assert_eq!(
+            Unit::Gib.binary_prefix_info(),
+            Some((BinaryPrefix::Gi, BaseUnit::Bit))
+        );
+    }
+
+    #[test]
+    fn test_get_conversion_factor() {
+        // Test SI prefixed units
+        assert_eq!(Unit::KB.get_conversion_factor(), 1000.0);
+        assert_eq!(Unit::MB.get_conversion_factor(), 1_000_000.0);
+        assert_eq!(Unit::Millisecond.get_conversion_factor(), 0.001);
+
+        // Test binary prefixed units
+        assert_eq!(Unit::KiB.get_conversion_factor(), 1024.0);
+        assert_eq!(Unit::MiB.get_conversion_factor(), 1_048_576.0);
+
+        // Test non-prefixed units (should fall back to existing logic)
+        assert_eq!(Unit::Second.get_conversion_factor(), 1.0);
+        assert_eq!(Unit::Minute.get_conversion_factor(), 60.0);
+        assert_eq!(Unit::Byte.get_conversion_factor(), 1.0);
+    }
+
+    #[test]
+    fn test_prefix_vs_existing_conversion() {
+        // Verify that prefix-based calculation matches existing hardcoded values
+        assert_eq!(
+            Unit::KB.get_conversion_factor(),
+            Unit::KB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::MB.get_conversion_factor(),
+            Unit::MB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::GB.get_conversion_factor(),
+            Unit::GB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::TB.get_conversion_factor(),
+            Unit::TB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::PB.get_conversion_factor(),
+            Unit::PB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::EB.get_conversion_factor(),
+            Unit::EB.to_base_value(1.0)
+        );
+
+        assert_eq!(
+            Unit::KiB.get_conversion_factor(),
+            Unit::KiB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::MiB.get_conversion_factor(),
+            Unit::MiB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::GiB.get_conversion_factor(),
+            Unit::GiB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::TiB.get_conversion_factor(),
+            Unit::TiB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::PiB.get_conversion_factor(),
+            Unit::PiB.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::EiB.get_conversion_factor(),
+            Unit::EiB.to_base_value(1.0)
+        );
+
+        assert_eq!(
+            Unit::Millisecond.get_conversion_factor(),
+            Unit::Millisecond.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::Microsecond.get_conversion_factor(),
+            Unit::Microsecond.to_base_value(1.0)
+        );
+        assert_eq!(
+            Unit::Nanosecond.get_conversion_factor(),
+            Unit::Nanosecond.to_base_value(1.0)
+        );
     }
 }

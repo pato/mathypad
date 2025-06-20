@@ -1,11 +1,110 @@
 //! Unit parsing functionality
 
 use super::types::Unit;
+use super::{BinaryPrefix, Prefix};
 use crate::UnitType;
 use crate::rate_unit;
 
+/// Try to parse a unit string using SI prefix + base unit pattern
+fn try_parse_with_si_prefix(text: &str) -> Option<Unit> {
+    // Try to match patterns like "kb", "MB", "Gb", etc.
+    for prefix in [
+        Prefix::Kilo,
+        Prefix::Mega,
+        Prefix::Giga,
+        Prefix::Tera,
+        Prefix::Peta,
+        Prefix::Exa,
+        Prefix::Milli,
+        Prefix::Micro,
+        Prefix::Nano,
+    ] {
+        let prefix_symbols = [prefix.symbol(), prefix.name()];
+
+        for prefix_str in prefix_symbols {
+            // Try bit units (lowercase b)
+            if text == format!("{}b", prefix_str) || text == format!("{}bit", prefix_str) {
+                return match prefix {
+                    Prefix::Kilo => Some(Unit::Kb),
+                    Prefix::Mega => Some(Unit::Mb),
+                    Prefix::Giga => Some(Unit::Gb),
+                    Prefix::Tera => Some(Unit::Tb),
+                    Prefix::Peta => Some(Unit::Pb),
+                    Prefix::Exa => Some(Unit::Eb),
+                    Prefix::Milli => Some(Unit::Millisecond),
+                    Prefix::Micro => Some(Unit::Microsecond),
+                    Prefix::Nano => Some(Unit::Nanosecond),
+                    _ => None,
+                };
+            }
+
+            // Try byte units (uppercase B)
+            if text == format!("{}B", prefix_str) || text == format!("{}byte", prefix_str) {
+                return match prefix {
+                    Prefix::Kilo => Some(Unit::KB),
+                    Prefix::Mega => Some(Unit::MB),
+                    Prefix::Giga => Some(Unit::GB),
+                    Prefix::Tera => Some(Unit::TB),
+                    Prefix::Peta => Some(Unit::PB),
+                    Prefix::Exa => Some(Unit::EB),
+                    _ => None,
+                };
+            }
+        }
+    }
+    None
+}
+
+/// Try to parse a unit string using binary prefix + base unit pattern
+fn try_parse_with_binary_prefix(text: &str) -> Option<Unit> {
+    // Try to match patterns like "KiB", "Mib", etc.
+    for prefix in [
+        BinaryPrefix::Ki,
+        BinaryPrefix::Mi,
+        BinaryPrefix::Gi,
+        BinaryPrefix::Ti,
+        BinaryPrefix::Pi,
+        BinaryPrefix::Ei,
+    ] {
+        let prefix_str = prefix.symbol();
+
+        // Try bit units (lowercase b)
+        if text == format!("{}b", prefix_str) {
+            return match prefix {
+                BinaryPrefix::Ki => Some(Unit::Kib),
+                BinaryPrefix::Mi => Some(Unit::Mib),
+                BinaryPrefix::Gi => Some(Unit::Gib),
+                BinaryPrefix::Ti => Some(Unit::Tib),
+                BinaryPrefix::Pi => Some(Unit::Pib),
+                BinaryPrefix::Ei => Some(Unit::Eib),
+            };
+        }
+
+        // Try byte units (uppercase B)
+        if text == format!("{}B", prefix_str) {
+            return match prefix {
+                BinaryPrefix::Ki => Some(Unit::KiB),
+                BinaryPrefix::Mi => Some(Unit::MiB),
+                BinaryPrefix::Gi => Some(Unit::GiB),
+                BinaryPrefix::Ti => Some(Unit::TiB),
+                BinaryPrefix::Pi => Some(Unit::PiB),
+                BinaryPrefix::Ei => Some(Unit::EiB),
+            };
+        }
+    }
+    None
+}
+
 /// Parse a unit string into a Unit enum variant
 pub fn parse_unit(text: &str) -> Option<Unit> {
+    // Try prefix-based parsing first for common patterns
+    if let Some(unit) = try_parse_with_si_prefix(text) {
+        return Some(unit);
+    }
+    if let Some(unit) = try_parse_with_binary_prefix(text) {
+        return Some(unit);
+    }
+
     // First try case-sensitive matching for bits vs bytes disambiguation
     match text {
         // Bit units (lowercase 'b' for bits)
@@ -156,9 +255,9 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Request),
             Box::new(Unit::Second),
         )),
-        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => Some(
-            rate_unit!(Unit::Request, Unit::Minute),
-        ),
+        "req/min" | "req/minute" | "requests/min" | "requests/minute" | "rpm" => {
+            Some(rate_unit!(Unit::Request, Unit::Minute))
+        }
         "req/h" | "req/hour" | "requests/h" | "requests/hour" | "rph" => Some(Unit::RateUnit(
             Box::new(Unit::Request),
             Box::new(Unit::Hour),
@@ -171,9 +270,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
             Box::new(Unit::Query),
             Box::new(Unit::Minute),
         )),
-        "qph" | "queries/h" | "queries/hour" => {
-            Some(rate_unit!(Unit::Query, Unit::Hour))
-        }
+        "qph" | "queries/h" | "queries/hour" => Some(rate_unit!(Unit::Query, Unit::Hour)),
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
 
@@ -185,13 +282,57 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
                     let right_unit = parse_unit(&text[slash_pos + 1..]);
                     if let (Some(left_unit), Some(right_unit)) = (left_unit, right_unit) {
                         if right_unit.unit_type() == UnitType::Time {
-                            rate_type =
-                                Some(rate_unit!(left_unit, right_unit))
+                            rate_type = Some(rate_unit!(left_unit, right_unit))
                         }
                     }
                 }
             }
             rate_type
         }
+    }
+}
+
+#[cfg(test)]
+mod parser_prefix_tests {
+    use super::*;
+
+    #[test]
+    fn test_prefix_based_parsing() {
+        // Test SI prefix parsing
+        assert_eq!(parse_unit("kB"), Some(Unit::KB));
+        assert_eq!(parse_unit("MB"), Some(Unit::MB));
+        assert_eq!(parse_unit("GB"), Some(Unit::GB));
+        assert_eq!(parse_unit("kb"), Some(Unit::Kb));
+        assert_eq!(parse_unit("Mb"), Some(Unit::Mb));
+        assert_eq!(parse_unit("Gb"), Some(Unit::Gb));
+
+        // Test binary prefix parsing
+        assert_eq!(parse_unit("KiB"), Some(Unit::KiB));
+        assert_eq!(parse_unit("MiB"), Some(Unit::MiB));
+        assert_eq!(parse_unit("GiB"), Some(Unit::GiB));
+        assert_eq!(parse_unit("Kib"), Some(Unit::Kib));
+        assert_eq!(parse_unit("Mib"), Some(Unit::Mib));
+        assert_eq!(parse_unit("Gib"), Some(Unit::Gib));
+
+        // Test time prefix parsing
+        assert_eq!(parse_unit("ns"), Some(Unit::Nanosecond));
+        assert_eq!(parse_unit("µs"), Some(Unit::Microsecond));
+        assert_eq!(parse_unit("ms"), Some(Unit::Millisecond));
+    }
+
+    #[test]
+    fn test_prefix_parsing_precedence() {
+        // Ensure prefix-based parsing works alongside existing explicit patterns
+        // These should still work through the existing explicit match patterns
+        assert_eq!(parse_unit("KB"), Some(Unit::KB));
+        assert_eq!(parse_unit("Kb"), Some(Unit::Kb));
+        assert_eq!(parse_unit("KiB"), Some(Unit::KiB));
+        assert_eq!(parse_unit("Kib"), Some(Unit::Kib));
+
+        // And that we didn't break any existing functionality
+        assert_eq!(parse_unit("bit"), Some(Unit::Bit));
+        assert_eq!(parse_unit("byte"), Some(Unit::Byte));
+        assert_eq!(parse_unit("s"), Some(Unit::Second));
+        assert_eq!(parse_unit("min"), Some(Unit::Minute));
     }
 }
