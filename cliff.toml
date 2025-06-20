@@ -20,9 +20,10 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}
-        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
-            {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+        {%- set clean_message = commit.message | split(pat="\n") | first | trim_start_matches(pat="ai: ") | trim_start_matches(pat="no ai: ") -%}
+        {%- if not clean_message is starting_with("v0.") and not clean_message is starting_with("V0.") and not clean_message is starting_with("version 0.") and not clean_message is starting_with("Version 0.") -%}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{% if commit.breaking %}[**breaking**] {% endif %}{{ clean_message | upper_first }}
+        {%- endif %}
     {% endfor %}
 {% endfor %}\n
 """
@@ -48,7 +49,7 @@ postprocessors = [
 # See https://www.conventionalcommits.org
 conventional_commits = true
 # Exclude commits that do not match the conventional commits specification.
-filter_unconventional = true
+filter_unconventional = false
 # Require all commits to be conventional.
 # Takes precedence over filter_unconventional.
 require_conventional = false
@@ -68,21 +69,32 @@ protect_breaking_commits = false
 # Assigns commits to groups.
 # Optionally sets the commit's scope and can decide to exclude commits from further processing.
 commit_parsers = [
-    { message = "^feat", group = "<!-- 0 -->🚀 Features" },
-    { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^doc", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^ai:", group = "<!-- 0 -->🤖 AI Generated" },
+    { message = "^no ai:", group = "<!-- 1 -->👤 Human Generated" },
+    { message = "^feat", group = "<!-- 2 -->🚀 Features" },
+    { message = "^fix", group = "<!-- 3 -->🐛 Bug Fixes" },
+    { message = "^doc", group = "<!-- 5 -->📚 Documentation" },
+    { message = "^perf", group = "<!-- 6 -->⚡ Performance" },
+    { message = "^refactor", group = "<!-- 4 -->🚜 Refactor" },
+    { message = "^style", group = "<!-- 7 -->🎨 Styling" },
+    { message = "^test", group = "<!-- 8 -->🧪 Testing" },
     { message = "^chore\\(release\\): prepare for", skip = true },
     { message = "^chore\\(deps.*\\)", skip = true },
     { message = "^chore\\(pr\\)", skip = true },
     { message = "^chore\\(pull\\)", skip = true },
-    { message = "^chore|^ci", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
-    { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
-    { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
-    { message = ".*", group = "<!-- 10 -->Changes" },
+    { message = "^[vV][0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^V[0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^no ai: [vV][0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^ai: [vV][0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^[Vv]ersion [0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^no ai: [Vv]ersion [0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^ai: [Vv]ersion [0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^no ai: version [0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^ai: version [0-9]+\\.[0-9]+\\.[0-9]+", skip = true },
+    { message = "^chore|^ci", group = "<!-- 9 -->⚙️ Miscellaneous Tasks" },
+    { body = ".*security", group = "<!-- 10 -->🛡️ Security" },
+    { message = "^revert", group = "<!-- 11 -->◀️ Revert" },
+    { message = ".*", group = "<!-- 12 -->Changes" },
 ]
 # Exclude commits that are not matched by any commit parser.
 filter_commits = false
