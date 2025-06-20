@@ -499,6 +499,42 @@ fn handle_insert_mode(app: &mut App, key: KeyCode) {
 
 /// Handle key events in normal mode (vim-like)
 fn handle_normal_mode(app: &mut App, key: KeyCode) {
+    // Check if we have a pending command
+    if let Some(pending_cmd) = app.pending_normal_command {
+        app.pending_normal_command = None; // Clear pending command
+
+        match (pending_cmd, key) {
+            // 'dd' - delete line
+            ('d', KeyCode::Char('d')) => {
+                app.delete_line();
+                return;
+            }
+            // 'dw' - delete word forward
+            ('d', KeyCode::Char('w')) => {
+                app.delete_word_forward();
+                return;
+            }
+            // 'db' - delete word backward
+            ('d', KeyCode::Char('b')) => {
+                app.delete_word_backward();
+                return;
+            }
+            // 'dW' - delete WORD forward
+            ('d', KeyCode::Char('W')) => {
+                app.delete_word_forward_big();
+                return;
+            }
+            // 'dB' - delete WORD backward
+            ('d', KeyCode::Char('B')) => {
+                app.delete_word_backward_big();
+                return;
+            }
+            _ => {
+                // Invalid command sequence, ignore and process the key normally
+            }
+        }
+    }
+
     match key {
         KeyCode::Char('h') => {
             app.move_cursor_left();
@@ -511,6 +547,25 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
         }
         KeyCode::Char('l') => {
             app.move_cursor_right();
+        }
+        KeyCode::Char('w') => {
+            app.move_word_forward();
+        }
+        KeyCode::Char('b') => {
+            app.move_word_backward();
+        }
+        KeyCode::Char('W') => {
+            app.move_word_forward_big();
+        }
+        KeyCode::Char('B') => {
+            app.move_word_backward_big();
+        }
+        KeyCode::Char('x') => {
+            app.delete_char_at_cursor();
+        }
+        KeyCode::Char('d') => {
+            // Start a delete command
+            app.pending_normal_command = Some('d');
         }
         KeyCode::Char('i') => {
             app.mode = Mode::Insert;

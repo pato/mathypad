@@ -1,8 +1,8 @@
 //! UI snapshot tests using insta and ratatui TestBackend
 
 use super::*;
-use crate::{App, Mode};
 use crate::ui::render::render_welcome_dialog_with_content;
+use crate::{App, Mode};
 use insta::assert_snapshot;
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -321,12 +321,21 @@ fn render_welcome_dialog_to_string(
     app: &App,
     changelog_content: &str,
     current_version: &str,
-    stored_version: Option<&str>
+    stored_version: Option<&str>,
 ) -> String {
     let mut terminal = create_test_terminal();
-    terminal.draw(|frame| {
-        render_welcome_dialog_with_content(frame, app, frame.area(), changelog_content, current_version, stored_version)
-    }).unwrap();
+    terminal
+        .draw(|frame| {
+            render_welcome_dialog_with_content(
+                frame,
+                app,
+                frame.area(),
+                changelog_content,
+                current_version,
+                stored_version,
+            )
+        })
+        .unwrap();
     format!("{}", terminal.backend())
 }
 
@@ -337,7 +346,7 @@ fn test_welcome_dialog_first_run() {
     app.welcome_scroll_offset = 0;
 
     let mock_changelog = "## [1.0.0] - 2024-01-01\n\n### 🤖 AI Assisted\n\n- Add welcome screen for new versions\n- Implement scrollable changelog display\n- Add version tracking functionality\n\n### 👤 Artisanally Crafted\n\n- Fix UI layout bugs\n- Improve error handling\n- Update documentation";
-    
+
     let output = render_welcome_dialog_to_string(&app, mock_changelog, "1.0.0", None);
     assert_snapshot!("welcome_dialog_first_run", output);
 }
@@ -349,7 +358,7 @@ fn test_welcome_dialog_upgrade() {
     app.welcome_scroll_offset = 0;
 
     let mock_changelog = "## [1.1.0] - 2024-02-01\n\n### 🤖 AI Assisted\n\n- Add new calculation features\n- Improve unit conversion accuracy\n- Enhanced TUI responsiveness\n\n### 👤 Artisanally Crafted\n\n- Performance optimizations\n- Bug fixes in expression parser\n- Updated dependencies\n\n## [1.0.0] - 2024-01-01\n\n### 🤖 AI Assisted\n\n- Initial release\n- Basic calculator functionality";
-    
+
     let output = render_welcome_dialog_to_string(&app, mock_changelog, "1.1.0", Some("1.0.0"));
     assert_snapshot!("welcome_dialog_upgrade", output);
 }
@@ -361,7 +370,7 @@ fn test_welcome_dialog_with_scrolling() {
     app.welcome_scroll_offset = 3; // Scroll down a bit
 
     let mock_changelog = "## [1.2.0] - 2024-03-01\n\n### 🤖 AI Assisted\n\n- Major UI overhaul with new themes\n- Advanced calculation engine\n- Smart auto-completion\n- Real-time result preview\n- Enhanced error messages\n- Improved keyboard shortcuts\n- Better file handling\n- Performance monitoring\n- Extended unit support\n- Advanced graphing features\n\n### 👤 Artisanally Crafted\n\n- Critical security fixes\n- Memory usage optimizations\n- Cross-platform compatibility\n- Accessibility improvements\n- Test coverage expansion";
-    
+
     let output = render_welcome_dialog_to_string(&app, mock_changelog, "1.2.0", Some("1.1.0"));
     assert_snapshot!("welcome_dialog_with_scrolling", output);
 }
@@ -373,7 +382,7 @@ fn test_welcome_dialog_minimal_content() {
     app.welcome_scroll_offset = 0;
 
     let mock_changelog = "## [1.0.1] - 2024-01-02\n\n- Quick bug fix";
-    
+
     let output = render_welcome_dialog_to_string(&app, mock_changelog, "1.0.1", Some("1.0.0"));
     assert_snapshot!("welcome_dialog_minimal_content", output);
 }
