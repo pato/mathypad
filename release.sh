@@ -2,11 +2,44 @@
 
 set -e  # Exit on any error
 
-echo
-echo "========================================"
-echo "         Mathypad Release Script"
-echo "========================================"
-echo
+# Show usage if help requested
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Mathypad Release Script"
+    echo
+    echo "Usage:"
+    echo "  ./release.sh           Run the full release process"
+    echo "  ./release.sh --dry-run Preview what the release would do without making changes"
+    echo "  ./release.sh --help    Show this help message"
+    echo
+    echo "The script will:"
+    echo "  1. Generate a changelog preview and show upcoming changes"
+    echo "  2. Ask for confirmation before proceeding"
+    echo "  3. Update CHANGELOG.md and Cargo.toml version"
+    echo "  4. Build the project with embedded changelog"
+    echo "  5. Create a git commit and tag"
+    echo "  6. Push to remote repository"
+    echo "  7. Publish to crates.io"
+    echo
+    exit 0
+fi
+
+# Check for dry run mode
+DRY_RUN=false
+if [[ "$1" == "--dry-run" ]]; then
+    DRY_RUN=true
+    echo
+    echo "========================================"
+    echo "    Mathypad Release Script (DRY RUN)"
+    echo "========================================"
+    echo "🔍 This is a dry run - no changes will be made"
+    echo
+else
+    echo
+    echo "========================================"
+    echo "         Mathypad Release Script"
+    echo "========================================"
+    echo
+fi
 
 # Step 1: Generate changelog preview
 echo "[1/9] Generating changelog preview..."
@@ -61,37 +94,97 @@ echo
 
 # Step 4: Write the changelog file
 echo "[3/9] Writing changelog file..."
-if ! git cliff --bump -o CHANGELOG.md; then
-    echo "ERROR: Failed to write changelog file"
-    rm -f temp_changelog.md
-    exit 1
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would write changelog to CHANGELOG.md using: git cliff --bump -o CHANGELOG.md"
+else
+    if ! git cliff --bump -o CHANGELOG.md; then
+        echo "ERROR: Failed to write changelog file"
+        rm -f temp_changelog.md
+        exit 1
+    fi
 fi
 
 # Step 5: Update Cargo.toml version
 echo "[4/9] Updating Cargo.toml version to $NEW_VERSION..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would update Cargo.toml version to $NEW_VERSION"
+    echo "🔍 DRY RUN: Current version line: $(grep '^version = ' Cargo.toml)"
+    echo "🔍 DRY RUN: Would become: version = \"$NEW_VERSION\""
 else
-    # Linux
-    sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+    else
+        # Linux
+        sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+    fi
 fi
 
-# Step 6: Run cargo check to update lock file
-echo "[5/9] Running cargo check to update lock file..."
-if ! cargo check; then
-    echo "ERROR: cargo check failed"
-    rm -f temp_changelog.md
-    exit 1
+# Step 6: Build project to ensure changelog is embedded and update lock file
+echo "[5/9] Building project with updated changelog..."
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would run: cargo build"
+    echo "🔍 DRY RUN: This would embed the updated changelog in the binary"
+else
+    if ! cargo build; then
+        echo "ERROR: cargo build failed"
+        rm -f temp_changelog.md
+        exit 1
+    fi
+fi
+
+# Verify the changelog is embedded correctly
+echo "Verifying changelog is embedded in binary..."
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would verify that ./target/debug/mathypad --changelog contains version $NEW_VERSION"
+    echo "🔍 DRY RUN: Current embedded changelog shows:"
+    if [ -f "./target/debug/mathypad" ]; then
+        ./target/debug/mathypad --changelog | head -10
+    else
+        echo "🔍 DRY RUN: No existing binary found at ./target/debug/mathypad"
+    fi
+else
+    if ! ./target/debug/mathypad --changelog | grep -q "## \[$NEW_VERSION\]"; then
+        echo
+        echo "⚠️  WARNING: Changelog verification failed!"
+        echo "The binary doesn't seem to contain version $NEW_VERSION in its embedded changelog."
+        echo
+        echo "This could mean:"
+        echo "  - The changelog wasn't properly embedded during build"
+        echo "  - There's a caching issue with the build"
+        echo "  - The include_str! macro isn't working as expected"
+        echo
+        echo "Current embedded changelog shows:"
+        ./target/debug/mathypad --changelog | head -10
+        echo
+        read -p "Do you want to continue with the release anyway? (y/N): " confirm_changelog
+        if [[ ! "$confirm_changelog" =~ ^[Yy]$ ]]; then
+            echo "Release cancelled due to changelog verification failure."
+            rm -f temp_changelog.md
+            exit 1
+        fi
+        echo "Continuing with release despite changelog verification failure..."
+    else
+        echo "✅ Changelog verification passed - version $NEW_VERSION found in binary"
+    fi
 fi
 
 # Step 7: Git commit
 echo "[6/9] Creating git commit..."
-git add CHANGELOG.md Cargo.toml Cargo.lock
-if ! git commit -m "no ai: v$NEW_VERSION"; then
-    echo "ERROR: Git commit failed"
-    rm -f temp_changelog.md
-    exit 1
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would run: git add CHANGELOG.md Cargo.toml Cargo.lock"
+    echo "🔍 DRY RUN: Would commit with message: 'no ai: v$NEW_VERSION'"
+    echo "🔍 DRY RUN: Files that would be staged:"
+    echo "  - CHANGELOG.md"
+    echo "  - Cargo.toml" 
+    echo "  - Cargo.lock"
+else
+    git add CHANGELOG.md Cargo.toml Cargo.lock
+    if ! git commit -m "no ai: v$NEW_VERSION"; then
+        echo "ERROR: Git commit failed"
+        rm -f temp_changelog.md
+        exit 1
+    fi
 fi
 
 # Step 8: Create git tag with changelog content
@@ -108,18 +201,31 @@ found && /^## / { exit }
 found && NF > 0 { print }
 ' temp_changelog.md > tag_message.tmp
 
-if ! git tag -a "v$NEW_VERSION" -F tag_message.tmp; then
-    echo "ERROR: Git tag creation failed"
-    rm -f temp_changelog.md tag_message.tmp
-    exit 1
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would create tag v$NEW_VERSION with the following message:"
+    echo "---"
+    cat tag_message.tmp
+    echo "---"
+    echo "🔍 DRY RUN: Command would be: git tag -a \"v$NEW_VERSION\" -F tag_message.tmp"
+else
+    if ! git tag -a "v$NEW_VERSION" -F tag_message.tmp; then
+        echo "ERROR: Git tag creation failed"
+        rm -f temp_changelog.md tag_message.tmp
+        exit 1
+    fi
 fi
 
 # Step 9: Push to remote with tags
 echo "[8/9] Pushing to remote repository..."
-if ! git push origin main --tags; then
-    echo "ERROR: Git push failed"
-    rm -f temp_changelog.md tag_message.tmp
-    exit 1
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would run: git push origin main --tags"
+    echo "🔍 DRY RUN: This would push the commit and tag v$NEW_VERSION to origin/main"
+else
+    if ! git push origin main --tags; then
+        echo "ERROR: Git push failed"
+        rm -f temp_changelog.md tag_message.tmp
+        exit 1
+    fi
 fi
 
 # Step 9.5: Clean up temporary files before cargo publish
@@ -128,26 +234,49 @@ rm -f temp_changelog.md tag_message.tmp
 
 # Step 10: Publish to crates.io
 echo "[9/9] Publishing to crates.io..."
-if ! cargo publish; then
-    echo "ERROR: cargo publish failed"
-    echo "The commit and tag have been pushed, but crates.io publish failed."
-    echo "You may need to run 'cargo publish' manually."
-    exit 1
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would run: cargo publish"
+    echo "🔍 DRY RUN: This would publish version $NEW_VERSION to crates.io"
+else
+    if ! cargo publish; then
+        echo "ERROR: cargo publish failed"
+        echo "The commit and tag have been pushed, but crates.io publish failed."
+        echo "You may need to run 'cargo publish' manually."
+        exit 1
+    fi
 fi
 
 echo
-echo "========================================"
-echo "    Release v$NEW_VERSION completed successfully!"
-echo "========================================"
-echo
-echo "✅ Changelog updated"
-echo "✅ Version bumped in Cargo.toml"
-echo "✅ Git commit created"
-echo "✅ Git tag created"
-echo "✅ Pushed to remote repository"
-echo "✅ Published to crates.io"
-echo
-echo "Your release is now live!"
-echo "  📦 crates.io: https://crates.io/crates/mathypad"
-echo "  🏷️ GitHub: https://github.com/pato/mathypad/releases/tag/v$NEW_VERSION"
+if [ "$DRY_RUN" = true ]; then
+    echo "========================================"
+    echo "  Dry Run Complete - v$NEW_VERSION"
+    echo "========================================"
+    echo
+    echo "🔍 The following actions would be performed:"
+    echo "✅ Update CHANGELOG.md with new changes"
+    echo "✅ Bump version to $NEW_VERSION in Cargo.toml"
+    echo "✅ Build project with embedded changelog"
+    echo "✅ Create git commit: 'no ai: v$NEW_VERSION'"
+    echo "✅ Create git tag: v$NEW_VERSION"
+    echo "✅ Push commit and tag to origin/main"
+    echo "✅ Publish v$NEW_VERSION to crates.io"
+    echo
+    echo "To perform the actual release, run:"
+    echo "  ./release.sh"
+else
+    echo "========================================"
+    echo "    Release v$NEW_VERSION completed successfully!"
+    echo "========================================"
+    echo
+    echo "✅ Changelog updated"
+    echo "✅ Version bumped in Cargo.toml"
+    echo "✅ Git commit created"
+    echo "✅ Git tag created"
+    echo "✅ Pushed to remote repository"
+    echo "✅ Published to crates.io"
+    echo
+    echo "Your release is now live!"
+    echo "  📦 crates.io: https://crates.io/crates/mathypad"
+    echo "  🏷️ GitHub: https://github.com/pato/mathypad/releases/tag/v$NEW_VERSION"
+fi
 echo
