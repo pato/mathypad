@@ -17,6 +17,7 @@ chumsky = "0.10.1"
 arboard = "3.4"
 
 [dev-dependencies]
+insta = "1.43.1"
 tempfile = "3.8"
 
 [profile.release]
