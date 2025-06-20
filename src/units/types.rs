@@ -24,6 +24,9 @@ pub enum Unit {
     Minute,
     Hour,
     Day,
+    Week,
+    Month,
+    Year,
 
     // Bit units (base 10)
     Bit,
@@ -102,6 +105,9 @@ impl Unit {
             Unit::Minute => value * 60.0,
             Unit::Hour => value * 3600.0,
             Unit::Day => value * 86400.0,
+            Unit::Week => value * 604800.0, // 7 days * 86400 seconds/day
+            Unit::Month => value * 2629746.0, // 30.44 days * 86400 seconds/day (average month)
+            Unit::Year => value * 31557600.0, // 365.25 days * 86400 seconds/day (accounting for leap years)
 
             // Bit units base 10 (convert to bits)
             Unit::Bit => value,
@@ -166,6 +172,9 @@ impl Unit {
             Unit::Minute => base_value / 60.0,
             Unit::Hour => base_value / 3600.0,
             Unit::Day => base_value / 86400.0,
+            Unit::Week => base_value / 604800.0,
+            Unit::Month => base_value / 2629746.0,
+            Unit::Year => base_value / 31557600.0,
 
             // Bit units base 10 (from bits)
             Unit::Bit => base_value,
@@ -229,7 +238,10 @@ impl Unit {
             | Unit::Second
             | Unit::Minute
             | Unit::Hour
-            | Unit::Day => UnitType::Time,
+            | Unit::Day
+            | Unit::Week
+            | Unit::Month
+            | Unit::Year => UnitType::Time,
             Unit::Bit
             | Unit::Kb
             | Unit::Mb
@@ -282,6 +294,9 @@ impl Unit {
             Unit::Minute => Cow::Borrowed("min"),
             Unit::Hour => Cow::Borrowed("h"),
             Unit::Day => Cow::Borrowed("day"),
+            Unit::Week => Cow::Borrowed("week"),
+            Unit::Month => Cow::Borrowed("month"),
+            Unit::Year => Cow::Borrowed("year"),
             Unit::Bit => Cow::Borrowed("bit"),
             Unit::Kb => Cow::Borrowed("Kb"),
             Unit::Mb => Cow::Borrowed("Mb"),
