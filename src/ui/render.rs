@@ -240,7 +240,7 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
 
             let word_text: String = chars[start_pos..current_pos].iter().collect();
 
-            // Check if it's a valid unit, keyword, line reference, or variable
+            // Check if it's a valid unit, keyword, line reference, function, or variable
             if parse_line_reference(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
             } else if word_text.to_lowercase() == "to"
@@ -248,6 +248,9 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
                 || word_text.to_lowercase() == "of"
             {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Yellow)));
+            } else if word_text.to_lowercase() == "sqrt" {
+                // Highlight function names like operators
+                spans.push(Span::styled(word_text, Style::default().fg(Color::Cyan)));
             } else if parse_unit(&word_text).is_some() {
                 spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
             } else if variables.contains_key(&word_text) {
@@ -297,8 +300,8 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
                 Style::default().fg(Color::Green),
             ));
             current_pos += 1;
-        } else if "+-*/()=".contains(chars[current_pos]) {
-            // Handle operators (including assignment)
+        } else if "+-*/()=^".contains(chars[current_pos]) {
+            // Handle operators (including assignment and exponentiation)
             spans.push(Span::styled(
                 chars[current_pos].to_string(),
                 Style::default().fg(Color::Cyan),
@@ -350,6 +353,9 @@ pub fn parse_colors_with_cursor<'a>(
                 || word_text.to_lowercase() == "of"
             {
                 Style::default().fg(Color::Yellow)
+            } else if word_text.to_lowercase() == "sqrt" {
+                // Highlight function names like operators
+                Style::default().fg(Color::Cyan)
             } else if parse_unit(&word_text).is_some() {
                 Style::default().fg(Color::Green)
             } else if variables.contains_key(&word_text) {
@@ -452,7 +458,7 @@ pub fn parse_colors_with_cursor<'a>(
             let ch = chars[current_pos];
             let style = if ch == '%' {
                 Style::default().fg(Color::Green)
-            } else if "+-*/()=".contains(ch) {
+            } else if "+-*/()=^".contains(ch) {
                 Style::default().fg(Color::Cyan)
             } else {
                 Style::default()
