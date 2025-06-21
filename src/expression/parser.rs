@@ -159,7 +159,7 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
                     }
                 }
             }
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power => {
                 consecutive_operators += 1;
                 consecutive_values = 0;
 

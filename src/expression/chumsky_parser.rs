@@ -36,11 +36,11 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
 
                 let is_current_op = matches!(
                     current,
-                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power
                 );
                 let is_next_op = matches!(
                     next,
-                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+                    Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power
                 );
 
                 if is_current_op && is_next_op {
@@ -137,6 +137,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('-').to(Token::Minus),
         just('*').to(Token::Multiply),
         just('/').to(Token::Divide),
+        just('^').to(Token::Power),
         just('(').to(Token::LeftParen),
         just(')').to(Token::RightParen),
         just('=').to(Token::Assign),
@@ -210,7 +211,6 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('#'),
         just('@'),
         just('$'),
-        just('^'),
         just('~'),
         just('['),
         just(']'),
@@ -606,6 +606,34 @@ mod tests {
         // Test no spaces around operators
         let result = parse_expression_chumsky("1+2*3");
         assert!(result.is_ok(), "Parsing no spaces failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 5);
+    }
+
+    #[test]
+    fn test_exponentiation_parsing() {
+        // Test basic exponentiation
+        let result = parse_expression_chumsky("2^3");
+        assert!(result.is_ok(), "Parsing '2^3' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3);
+        assert!(matches!(tokens[0], Token::Number(2.0)));
+        assert!(matches!(tokens[1], Token::Power));
+        assert!(matches!(tokens[2], Token::Number(3.0)));
+
+        // Test with spaces
+        let result = parse_expression_chumsky("2 ^ 3");
+        assert!(
+            result.is_ok(),
+            "Parsing '2 ^ 3' with spaces failed: {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3);
+
+        // Test chained exponentiation
+        let result = parse_expression_chumsky("2^3^2");
+        assert!(result.is_ok(), "Parsing '2^3^2' failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 5);
     }

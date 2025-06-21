@@ -11,6 +11,7 @@ pub enum Token {
     Minus,
     Multiply,
     Divide,
+    Power,
     LeftParen,
     RightParen,
     To,                   // for conversions like "to KiB"
