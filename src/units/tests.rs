@@ -150,13 +150,28 @@ fn test_generic_rate_edge_cases() {
 
     // Test rate unit type classification
     let rate = rate_unit!(Unit::GiB, Unit::Minute);
-    assert_eq!(rate.unit_type(), UnitType::DataRate(60.0)); // 60 seconds per minute
+    assert_eq!(
+        rate.unit_type(),
+        UnitType::DataRate {
+            time_multiplier: 60.0
+        }
+    ); // 60 seconds per minute
 
     let rate = rate_unit!(Unit::MB, Unit::Hour);
-    assert_eq!(rate.unit_type(), UnitType::DataRate(3600.0)); // 3600 seconds per hour
+    assert_eq!(
+        rate.unit_type(),
+        UnitType::DataRate {
+            time_multiplier: 3600.0
+        }
+    ); // 3600 seconds per hour
 
     let rate = rate_unit!(Unit::KB, Unit::Day);
-    assert_eq!(rate.unit_type(), UnitType::DataRate(86400.0)); // 86400 seconds per day
+    assert_eq!(
+        rate.unit_type(),
+        UnitType::DataRate {
+            time_multiplier: 86400.0
+        }
+    ); // 86400 seconds per day
 }
 
 #[test]
@@ -229,26 +244,26 @@ fn test_rate_unit_addition() {
         evaluate_test_expression("1 GiB/hour + 1 GiB/minute"),
         Some("61 GiB/h".to_string()) // 1 + (1 * 60) = 61 GiB/hour
     );
-    
+
     // Test addition of same rate units
     assert_eq!(
         evaluate_test_expression("100 MB/s + 50 MB/s"),
         Some("150 MB/s".to_string())
     );
-    
+
     // Test bit rate addition
     assert_eq!(
         evaluate_test_expression("1 Gb/s + 500 Mb/s"),
         Some("1,500 Mb/s".to_string()) // Result in smaller unit (Mb)
     );
-    
+
     // Test request rate addition
     assert_eq!(
         evaluate_test_expression("100 req/s + 200 req/s"),
         Some("300 req/s".to_string())
     );
 
-    // Test subtraction of rate units  
+    // Test subtraction of rate units
     assert_eq!(
         evaluate_test_expression("2 GiB/hour - 1 GiB/minute"),
         Some("-58 GiB/h".to_string()) // 2 - (1 * 60) = -58 GiB/hour
@@ -1227,19 +1242,27 @@ fn test_large_data_unit_type_classification() {
     // Test that large rate units are properly classified
     assert_eq!(
         rate_unit!(Unit::PB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::EB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::PiB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::EiB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
 }
 
@@ -1629,31 +1652,45 @@ fn test_bit_byte_unit_type_classification() {
     // Test that byte rate units are still classified as DataRate type
     assert_eq!(
         rate_unit!(Unit::Byte, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::KB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::MB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::GB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::KiB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::MiB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
     assert_eq!(
         rate_unit!(Unit::GiB, Unit::Second).unit_type(),
-        UnitType::DataRate(1.0)
+        UnitType::DataRate {
+            time_multiplier: 1.0
+        }
     );
 }
 
