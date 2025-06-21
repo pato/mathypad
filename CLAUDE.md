@@ -26,6 +26,17 @@ commands like: `cargo run -- -- "100 GiB / 10 minutes"` (it's important to have 
   ask the human for verification if you are going to have to change an existing
   test in a non-trivial way
 
+## Important notes
+
+- Mathypad runs in raw mode, so if we ever need to exit it cannot be through
+  'std::process::exit(0)' without first reseting raw mode, otherwise it will
+  mess up the terminal
+- Because Mathypad runs in a TUI, we cannot print text in the UI mode otherwise
+  it will not render properly and mess up the TUI
+- You cannot run mathypad in TUI mode directly (i.e., 'cargo run' will not work
+  unless you are using one-shot mode). So do not try to run it in TUI mode.
+  Instead you can rely on the UI snapshot tests
+
 ## Testing
 
 Since the main application is a TUI that requires interactive tty, you will not
