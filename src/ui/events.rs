@@ -187,6 +187,11 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
                                     Mode::Normal => {
                                         handle_normal_mode(&mut app, key.code);
                                     }
+                                    Mode::Command => {
+                                        if handle_command_mode(&mut app, key.code) {
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -390,6 +395,11 @@ pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), 
                                     Mode::Normal => {
                                         handle_normal_mode(&mut app, key.code);
                                     }
+                                    Mode::Command => {
+                                        if handle_command_mode(&mut app, key.code) {
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -492,6 +502,10 @@ fn handle_insert_mode(app: &mut App, key: KeyCode) {
         }
         KeyCode::Right => {
             app.move_cursor_right();
+        }
+        KeyCode::Esc => {
+            // Switch to normal mode
+            app.mode = Mode::Normal;
         }
         _ => {}
     }
@@ -600,6 +614,12 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
             app.cursor_col = 0;
             app.mode = Mode::Insert;
         }
+        KeyCode::Char(':') => {
+            // Enter command mode
+            app.mode = Mode::Command;
+            app.command_line = ":".to_string();
+            app.command_cursor = 1;
+        }
         // Allow arrow keys in normal mode too
         KeyCode::Up => {
             app.move_cursor_up();
@@ -616,6 +636,173 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
         _ => {}
     }
 }
+
+/// Handle key events in command mode (vim-like)
+/// Returns true if the application should quit
+pub fn handle_command_mode(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Char(c) => {
+            // Insert character at cursor position
+            let mut chars: Vec<char> = app.command_line.chars().collect();
+            chars.insert(app.command_cursor, c);
+            app.command_line = chars.into_iter().collect();
+            app.command_cursor += 1;
+        }
+        KeyCode::Backspace => {
+            if app.command_cursor > 0 {
+                let mut chars: Vec<char> = app.command_line.chars().collect();
+                chars.remove(app.command_cursor - 1);
+                app.command_line = chars.into_iter().collect();
+                app.command_cursor -= 1;
+            }
+        }
+        KeyCode::Left => {
+            if app.command_cursor > 0 {
+                app.command_cursor -= 1;
+            }
+        }
+        KeyCode::Right => {
+            if app.command_cursor < app.command_line.len() {
+                app.command_cursor += 1;
+            }
+        }
+        KeyCode::Home => {
+            app.command_cursor = 0;
+        }
+        KeyCode::End => {
+            app.command_cursor = app.command_line.len();
+        }
+        KeyCode::Enter => {
+            // Execute command and exit command mode
+            if execute_command(app) {
+                // Command requested quit
+                return true;
+            }
+            app.mode = Mode::Normal;
+            app.command_line.clear();
+            app.command_cursor = 0;
+        }
+        KeyCode::Esc => {
+            // Cancel command and return to normal mode
+            app.mode = Mode::Normal;
+            app.command_line.clear();
+            app.command_cursor = 0;
+        }
+        _ => {}
+    }
+    false // Default: don't quit
+}
+
+/// Execute a vim-like command
+/// Returns true if the application should quit
+fn execute_command(app: &mut App) -> bool {
+    let command = app.command_line.trim();
+
+    // Commands must start with ':'
+    if !command.starts_with(':') {
+        return false;
+    }
+
+    let command = &command[1..]; // Remove the ':' prefix
+    let parts: Vec<&str> = command.split_whitespace().collect();
+
+    if parts.is_empty() {
+        return false;
+    }
+
+    match parts[0] {
+        "q" | "quit" => {
+            // Quit command
+            if app.has_unsaved_changes {
+                app.show_unsaved_dialog = true;
+                return false; // Don't quit yet, show dialog
+            } else {
+                return true; // Signal to quit
+            }
+        }
+        "q!" | "quit!" => {
+            // Force quit command - exit without saving, no confirmation
+            return true; // Signal to quit immediately
+        }
+        "cq" => {
+            // Quit with error code - exit without saving, no confirmation
+            return true; // Signal to quit immediately
+        }
+        "w" | "write" => {
+            // Write/save command
+            if parts.len() > 1 {
+                // Save to specific file: :w filename.pad
+                let filename = parts[1..].join(" ");
+                let filename = if filename.ends_with(".pad") {
+                    filename
+                } else {
+                    format!("{}.pad", filename)
+                };
+
+                match app.save_as(PathBuf::from(filename)) {
+                    Ok(_) => {} // Successfully saved
+                    Err(e) => {
+                        eprintln!("Save failed: {}", e);
+                    }
+                }
+            } else {
+                // Save to current file or show save as dialog
+                if app.file_path.is_some() {
+                    match app.save() {
+                        Ok(_) => {} // Successfully saved
+                        Err(e) => {
+                            eprintln!("Save failed: {}", e);
+                        }
+                    }
+                } else {
+                    // No file path, show save as dialog
+                    app.show_save_as_dialog = true;
+                    app.save_as_input = ".pad".to_string();
+                }
+            }
+        }
+        "wq" => {
+            // Save and quit
+            if parts.len() > 1 {
+                // Save to specific file and quit: :wq filename.pad
+                let filename = parts[1..].join(" ");
+                let filename = if filename.ends_with(".pad") {
+                    filename
+                } else {
+                    format!("{}.pad", filename)
+                };
+
+                match app.save_as(PathBuf::from(filename)) {
+                    Ok(_) => return true, // Signal to quit
+                    Err(e) => {
+                        eprintln!("Save failed: {}", e);
+                    }
+                }
+            } else {
+                // Save to current file and quit
+                if app.file_path.is_some() {
+                    match app.save() {
+                        Ok(_) => return true, // Signal to quit
+                        Err(e) => {
+                            eprintln!("Save failed: {}", e);
+                        }
+                    }
+                } else {
+                    // No file path, show save as dialog and set quit flag
+                    app.show_save_as_dialog = true;
+                    app.save_as_input = ".pad".to_string();
+                    app.save_as_and_quit = true;
+                }
+            }
+        }
+        _ => {
+            // Unknown command, ignore
+        }
+    }
+
+    false // Default: don't quit
+}
+
 /// Handle mouse events for dragging the separator and copying content
 fn handle_mouse_event(app: &mut App, mouse: MouseEvent, terminal_width: u16) {
     match mouse.kind {

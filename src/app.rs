@@ -94,6 +94,8 @@ pub struct App {
     pub show_welcome_dialog: bool,       // Show the welcome screen for new versions
     pub welcome_scroll_offset: usize,    // Scroll position for welcome screen changelog
     pub pending_normal_command: Option<char>, // For multi-character vim commands like 'dd'
+    pub command_line: String,            // Current command line input (starts with ':')
+    pub command_cursor: usize,           // Cursor position in command line
 }
 
 impl Default for App {
@@ -123,6 +125,8 @@ impl Default for App {
             show_welcome_dialog: false,        // Start without showing welcome dialog
             welcome_scroll_offset: 0,          // Start at top of welcome content
             pending_normal_command: None,      // No pending vim command
+            command_line: String::new(),       // Start with empty command line
+            command_cursor: 0,                 // Start cursor at beginning of command line
         }
     }
 }
@@ -1531,5 +1535,63 @@ mod app_tests {
         // Clear it
         app.pending_normal_command = None;
         assert_eq!(app.pending_normal_command, None);
+    }
+
+    #[test]
+    fn test_command_mode_initialization() {
+        let mut app = App::default();
+
+        // Initially not in command mode
+        assert_eq!(app.mode, Mode::Insert);
+        assert_eq!(app.command_line, "");
+        assert_eq!(app.command_cursor, 0);
+
+        // Enter command mode
+        app.mode = Mode::Command;
+        app.command_line = ":".to_string();
+        app.command_cursor = 1;
+
+        assert_eq!(app.mode, Mode::Command);
+        assert_eq!(app.command_line, ":");
+        assert_eq!(app.command_cursor, 1);
+    }
+
+    #[test]
+    fn test_command_line_editing() {
+        let mut app = App {
+            mode: Mode::Command,
+            command_line: ":w".to_string(),
+            command_cursor: 2,
+            ..Default::default()
+        };
+
+        // Test cursor movement
+        assert_eq!(app.command_cursor, 2);
+
+        // Test that command line can be modified
+        app.command_line = ":wq".to_string();
+        app.command_cursor = 3;
+
+        assert_eq!(app.command_line, ":wq");
+        assert_eq!(app.command_cursor, 3);
+    }
+
+    #[test]
+    fn test_command_mode_toggle() {
+        let mut app = App {
+            mode: Mode::Normal,
+            ..Default::default()
+        };
+
+        // Start in normal mode
+        assert_eq!(app.mode, Mode::Normal);
+
+        // Switch to command mode
+        app.mode = Mode::Command;
+        assert_eq!(app.mode, Mode::Command);
+
+        // Switch back to normal mode
+        app.mode = Mode::Normal;
+        assert_eq!(app.mode, Mode::Normal);
     }
 }
