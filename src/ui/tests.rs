@@ -432,3 +432,20 @@ fn test_welcome_dialog_minimal_content() {
     let output = render_welcome_dialog_to_string(&app, mock_changelog, "1.0.1", Some("1.0.0"));
     assert_snapshot!("welcome_dialog_minimal_content", output);
 }
+
+#[test]
+fn test_command_mode_rendering() {
+    let app = App {
+        text_lines: vec!["5 + 3".to_string(), "sqrt(16)".to_string()],
+        results: vec![Some("8".to_string()), Some("4".to_string())],
+        mode: Mode::Command,
+        command_line: ":w test-file".to_string(),
+        command_cursor: 11,
+        cursor_line: 0,
+        cursor_col: 3,
+        ..Default::default()
+    };
+
+    let output = render_app_to_string(&app);
+    assert_snapshot!("command_mode_rendering", output);
+}

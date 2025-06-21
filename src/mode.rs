@@ -7,4 +7,6 @@ pub enum Mode {
     Insert,
     /// Normal mode - vim-like navigation
     Normal,
+    /// Command mode - vim-like command line
+    Command,
 }
