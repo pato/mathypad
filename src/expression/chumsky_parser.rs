@@ -182,6 +182,15 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         }
     });
 
+    // Parser for function calls (known function names followed by '(')
+    let function = identifier
+        .then_ignore(just(' ').repeated())
+        .then_ignore(just('(').rewind())
+        .try_map(|name: String, span| match name.to_lowercase().as_str() {
+            "sqrt" => Ok(Token::Function(name)),
+            _ => Err(Rich::custom(span, "Unknown function")),
+        });
+
     // Parser for variables (catch-all for any identifier not handled above)
     let variable = identifier.map(|word: String| Token::Variable(word));
 
@@ -191,6 +200,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         keyword,          // "to" and "in" keywords
         number_with_unit, // Numbers with optional units
         operator,         // Mathematical operators
+        function,         // Function calls (must come before variable)
         standalone_unit,  // Standalone units for conversions
         variable,         // Variables (identifiers that aren't units/keywords/line refs)
     ));
@@ -636,6 +646,40 @@ mod tests {
         assert!(result.is_ok(), "Parsing '2^3^2' failed: {:?}", result);
         let tokens = result.unwrap();
         assert_eq!(tokens.len(), 5);
+    }
+
+    #[test]
+    fn test_function_parsing() {
+        // Test sqrt function
+        let result = parse_expression_chumsky("sqrt(4)");
+        assert!(result.is_ok(), "Parsing 'sqrt(4)' failed: {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 4);
+        assert!(matches!(tokens[0], Token::Function(ref name) if name == "sqrt"));
+        assert!(matches!(tokens[1], Token::LeftParen));
+        assert!(matches!(tokens[2], Token::Number(4.0)));
+        assert!(matches!(tokens[3], Token::RightParen));
+
+        // Test function with spaces
+        let result = parse_expression_chumsky("sqrt (9)");
+        assert!(
+            result.is_ok(),
+            "Parsing 'sqrt (9)' with space failed: {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 4);
+        assert!(matches!(tokens[0], Token::Function(ref name) if name == "sqrt"));
+
+        // Test function in expression
+        let result = parse_expression_chumsky("2 + sqrt(16)");
+        assert!(
+            result.is_ok(),
+            "Parsing '2 + sqrt(16)' failed: {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 6); // 2, +, sqrt, (, 16, )
     }
 
     #[test]

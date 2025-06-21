@@ -90,6 +90,79 @@ fn test_exponentiation() {
 }
 
 #[test]
+fn test_sqrt_function() {
+    // Basic square roots
+    assert_eq!(evaluate_test_expression("sqrt(4)"), Some("2".to_string()));
+    assert_eq!(evaluate_test_expression("sqrt(9)"), Some("3".to_string()));
+    assert_eq!(evaluate_test_expression("sqrt(16)"), Some("4".to_string()));
+    assert_eq!(evaluate_test_expression("sqrt(25)"), Some("5".to_string()));
+    assert_eq!(
+        evaluate_test_expression("sqrt(100)"),
+        Some("10".to_string())
+    );
+
+    // Decimal results
+    assert_eq!(
+        evaluate_test_expression("sqrt(2)"),
+        Some("1.414".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(3)"),
+        Some("1.732".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(5)"),
+        Some("2.236".to_string())
+    );
+
+    // With expressions inside
+    assert_eq!(
+        evaluate_test_expression("sqrt(2 + 2)"),
+        Some("2".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(3 * 3)"),
+        Some("3".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(10 - 1)"),
+        Some("3".to_string())
+    );
+
+    // Combined with other operations
+    assert_eq!(
+        evaluate_test_expression("sqrt(16) + 1"),
+        Some("5".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("2 * sqrt(9)"),
+        Some("6".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(25) - 2"),
+        Some("3".to_string())
+    );
+
+    // Nested functions (once we add more functions)
+    // TODO: Support nested functions
+    // assert_eq!(evaluate_test_expression("sqrt(sqrt(16))"), Some("2".to_string()));
+
+    // Edge cases
+    assert_eq!(evaluate_test_expression("sqrt(0)"), Some("0".to_string()));
+    assert_eq!(evaluate_test_expression("sqrt(1)"), Some("1".to_string()));
+
+    // With parentheses and complex expressions
+    assert_eq!(
+        evaluate_test_expression("(sqrt(9) + 1) * 2"),
+        Some("8".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("sqrt(4 + 5)"),
+        Some("3".to_string())
+    );
+}
+
+#[test]
 fn test_inline_expressions() {
     // Test expressions within text
     assert_eq!(

@@ -156,6 +156,22 @@ fn test_syntax_highlighting_operators() {
 }
 
 #[test]
+fn test_syntax_highlighting_functions() {
+    let app = App {
+        text_lines: vec![
+            "sqrt(16) + 1".to_string(),
+            "2^3 + sqrt(9)".to_string(),
+            "sqrt(2 + 2) * 3".to_string(),
+        ],
+        results: vec![None, None, None],
+        ..Default::default()
+    };
+
+    let output = render_app_to_string(&app);
+    assert_snapshot!("syntax_highlighting_functions", output);
+}
+
+#[test]
 fn test_syntax_highlighting_units() {
     let app = App {
         text_lines: vec![

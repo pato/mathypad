@@ -185,6 +185,11 @@ pub fn is_valid_mathematical_expression(tokens: &[Token]) -> bool {
                 consecutive_operators = 0;
                 consecutive_values = 0;
             }
+            Token::Function(_) => {
+                // Functions act like operators in terms of resetting counters
+                consecutive_operators = 0;
+                consecutive_values = 0;
+            }
         }
     }
 

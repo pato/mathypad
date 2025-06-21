@@ -77,7 +77,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         return false;
     }
 
-    // Must have at least one number, unit, line reference, or variable
+    // Must have at least one number, unit, line reference, variable, or function
     let has_value = tokens.iter().any(|t| {
         matches!(
             t,
@@ -85,6 +85,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
                 | Token::NumberWithUnit(_, _)
                 | Token::LineReference(_)
                 | Token::Variable(_)
+                | Token::Function(_)
         )
     });
 
@@ -136,7 +137,25 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         }
     }
 
-    // Pattern 3: Binary operations (value op value)
+    // Pattern 3: Function calls (function ( value ))
+    if tokens.len() == 4 {
+        if let (Token::Function(_), Token::LeftParen, _, Token::RightParen) =
+            (&tokens[0], &tokens[1], &tokens[2], &tokens[3])
+        {
+            // Check if the middle token is a value
+            if matches!(
+                tokens[2],
+                Token::Number(_)
+                    | Token::NumberWithUnit(_, _)
+                    | Token::LineReference(_)
+                    | Token::Variable(_)
+            ) {
+                return true;
+            }
+        }
+    }
+
+    // Pattern 4: Binary operations (value op value)
     if tokens.len() == 3 {
         let is_value = |t: &Token| {
             matches!(
@@ -314,6 +333,7 @@ fn is_math_token(token: &Token) -> bool {
             | Token::RightParen
             | Token::To
             | Token::In
+            | Token::Function(_)
     )
 }
 
@@ -451,14 +471,26 @@ pub fn evaluate_tokens_with_units_and_context(
                 operator_stack.push(token.clone());
             }
             Token::RightParen => {
+                // Process operators until we find a left paren or function
                 while let Some(op) = operator_stack.pop() {
                     if matches!(op, Token::LeftParen) {
+                        // Check if there's a function waiting
+                        if let Some(Token::Function(func_name)) = operator_stack.last().cloned() {
+                            operator_stack.pop(); // Remove the function
+                            if !apply_function(&mut value_stack, &func_name) {
+                                return None;
+                            }
+                        }
                         break;
                     }
                     if !apply_operator_with_units(&mut value_stack, &op) {
                         return None;
                     }
                 }
+            }
+            Token::Function(_) => {
+                // Functions are pushed to operator stack
+                operator_stack.push(token.clone());
             }
             _ => {}
         }
@@ -608,14 +640,26 @@ fn evaluate_tokens_with_units_and_context_and_variables(
                 operator_stack.push(token.clone());
             }
             Token::RightParen => {
+                // Process operators until we find a left paren or function
                 while let Some(op) = operator_stack.pop() {
                     if matches!(op, Token::LeftParen) {
+                        // Check if there's a function waiting
+                        if let Some(Token::Function(func_name)) = operator_stack.last().cloned() {
+                            operator_stack.pop(); // Remove the function
+                            if !apply_function(&mut value_stack, &func_name) {
+                                return None;
+                            }
+                        }
                         break;
                     }
                     if !apply_operator_with_units(&mut value_stack, &op) {
                         return None;
                     }
                 }
+            }
+            Token::Function(_) => {
+                // Functions are pushed to operator stack
+                operator_stack.push(token.clone());
             }
             _ => {}
         }
@@ -1108,6 +1152,38 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
             }
         }
         _ => return false,
+    };
+
+    stack.push(result);
+    true
+}
+
+/// Apply a function to the top value on the stack
+fn apply_function(stack: &mut Vec<UnitValue>, func_name: &str) -> bool {
+    if stack.is_empty() {
+        return false;
+    }
+
+    let arg = stack.pop().unwrap();
+
+    let result = match func_name {
+        "sqrt" => {
+            // Only allow sqrt for dimensionless values
+            match &arg.unit {
+                None => {
+                    if arg.value < 0.0 {
+                        return false; // Can't take square root of negative number
+                    }
+                    UnitValue::new(arg.value.sqrt(), None)
+                }
+                Some(_) => {
+                    // For now, don't allow sqrt of values with units
+                    // Future: could support area -> length conversions
+                    return false;
+                }
+            }
+        }
+        _ => return false, // Unknown function
     };
 
     stack.push(result);
