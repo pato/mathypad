@@ -20,13 +20,17 @@ use std::{
 
 /// Run the interactive TUI mode
 pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
+    let app = App::default();
+    run_event_loop(app)
+}
+
+/// Run the main event loop with the given app
+fn run_event_loop(mut app: App) -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
-    let mut app = App::default();
 
     // Check if this is a newer version and show welcome screen if needed
     if crate::version::is_newer_version() {
@@ -224,210 +228,12 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
 
 /// Run the interactive TUI mode with an optional file to load
 pub fn run_interactive_mode_with_file(file_path: Option<PathBuf>) -> Result<(), Box<dyn Error>> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let mut app = if let Some(path) = file_path {
+    let app = if let Some(path) = file_path {
         load_app_from_file(path)?
     } else {
         App::default()
     };
-
-    // Check if this is a newer version and show welcome screen if needed
-    if crate::version::is_newer_version() {
-        app.show_welcome_dialog = true;
-    }
-
-    let mut last_tick = Instant::now();
-    let tick_rate = Duration::from_millis(TICK_RATE_MS);
-
-    loop {
-        terminal.draw(|f| ui(f, &app))?;
-
-        // Check if we have active animations to determine timeout
-        let has_active_animations = app
-            .result_animations
-            .iter()
-            .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()))
-            || app
-                .copy_flash_animations
-                .iter()
-                .any(|anim| anim.as_ref().is_some_and(|a| !a.is_complete()));
-
-        let timeout = if has_active_animations {
-            // Use a shorter timeout during animations for smooth rendering
-            Duration::from_millis(16) // ~60 FPS
-        } else {
-            // Use normal timeout when no animations are running
-            tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0))
-        };
-
-        if crossterm::event::poll(timeout)? {
-            match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    match key.code {
-                        KeyCode::Char('q')
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-                        {
-                            // Check if we're showing the unsaved dialog
-                            if app.show_unsaved_dialog {
-                                // In dialog: Ctrl+Q means quit without saving
-                                break;
-                            } else if app.has_unsaved_changes {
-                                // Show unsaved changes dialog
-                                app.show_unsaved_dialog = true;
-                            } else {
-                                // No unsaved changes, exit immediately
-                                break;
-                            }
-                        }
-                        KeyCode::Char('c')
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-                        {
-                            // Check if we're showing the unsaved dialog
-                            if app.show_unsaved_dialog {
-                                // In dialog: Ctrl+C means quit without saving
-                                break;
-                            } else if app.has_unsaved_changes {
-                                // Show unsaved changes dialog
-                                app.show_unsaved_dialog = true;
-                            } else {
-                                // No unsaved changes, exit immediately
-                                break;
-                            }
-                        }
-                        KeyCode::Char('w')
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-                        {
-                            if app.mode == Mode::Insert {
-                                app.delete_word();
-                            }
-                        }
-                        KeyCode::Char('s')
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
-                        {
-                            if app.show_save_as_dialog {
-                                // In save as dialog: Ctrl+S means confirm save
-                                match app.save_as_from_dialog() {
-                                    Ok(should_quit) => {
-                                        if should_quit {
-                                            break;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Save failed: {}", e);
-                                    }
-                                }
-                            } else if app.show_unsaved_dialog {
-                                // In unsaved dialog: Ctrl+S means save and quit
-                                if app.file_path.is_some() {
-                                    if let Err(e) = app.save() {
-                                        eprintln!("Save failed: {}", e);
-                                    } else {
-                                        // Save succeeded, exit
-                                        break;
-                                    }
-                                } else {
-                                    // No filename, show save as dialog
-                                    app.show_unsaved_dialog = false;
-                                    app.show_save_as_dialog(true);
-                                }
-                            } else {
-                                // Normal save operation
-                                if app.file_path.is_some() {
-                                    if let Err(e) = app.save() {
-                                        eprintln!("Save failed: {}", e);
-                                    }
-                                } else {
-                                    // No filename, show save as dialog
-                                    app.show_save_as_dialog(false);
-                                }
-                            }
-                        }
-                        KeyCode::Esc => {
-                            if app.show_save_as_dialog {
-                                // Dismiss the save as dialog
-                                app.show_save_as_dialog = false;
-                                app.save_as_and_quit = false;
-                            } else if app.show_unsaved_dialog {
-                                // Dismiss the unsaved changes dialog
-                                app.show_unsaved_dialog = false;
-                            } else if app.show_welcome_dialog {
-                                // Dismiss the welcome dialog and update stored version
-                                app.show_welcome_dialog = false;
-                                app.welcome_scroll_offset = 0;
-                                // Update the stored version now that user has seen the welcome screen
-                                if let Err(e) = crate::version::update_stored_version() {
-                                    eprintln!("Warning: Could not update stored version: {}", e);
-                                }
-                            } else {
-                                app.mode = Mode::Normal;
-                            }
-                        }
-                        _ => {
-                            if app.show_save_as_dialog {
-                                // Handle text input for save as dialog
-                                if handle_save_as_input(&mut app, key.code) {
-                                    break;
-                                }
-                            } else if app.show_welcome_dialog {
-                                // Handle welcome dialog input (scrolling)
-                                handle_welcome_dialog_input(&mut app, key.code);
-                            } else if !app.show_unsaved_dialog {
-                                // Only handle normal input if we're not showing any dialog
-                                match app.mode {
-                                    Mode::Insert => {
-                                        handle_insert_mode(&mut app, key.code);
-                                    }
-                                    Mode::Normal => {
-                                        handle_normal_mode(&mut app, key.code);
-                                    }
-                                    Mode::Command => {
-                                        if handle_command_mode(&mut app, key.code) {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Event::Mouse(mouse) => {
-                    handle_mouse_event(&mut app, mouse, terminal.size()?.width);
-                }
-                _ => {}
-            }
-        }
-
-        if last_tick.elapsed() >= tick_rate || has_active_animations {
-            // Update animations on each tick or when animations are active
-            app.update_animations();
-            last_tick = Instant::now();
-        }
-    }
-
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    Ok(())
+    run_event_loop(app)
 }
 
 /// Load an App from a file, creating the file if it doesn't exist
@@ -512,7 +318,7 @@ fn handle_insert_mode(app: &mut App, key: KeyCode) {
 }
 
 /// Handle key events in normal mode (vim-like)
-fn handle_normal_mode(app: &mut App, key: KeyCode) {
+pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
     // Check if we have a pending command
     if let Some(pending_cmd) = app.pending_normal_command {
         app.pending_normal_command = None; // Clear pending command
@@ -521,6 +327,13 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
             // 'dd' - delete line
             ('d', KeyCode::Char('d')) => {
                 app.delete_line();
+                return;
+            }
+            // 'gg' - go to beginning of file
+            ('g', KeyCode::Char('g')) => {
+                app.cursor_line = 0;
+                app.cursor_col = 0;
+                app.scroll_offset = 0;
                 return;
             }
             // 'dw' - delete word forward
@@ -580,6 +393,30 @@ fn handle_normal_mode(app: &mut App, key: KeyCode) {
         KeyCode::Char('d') => {
             // Start a delete command
             app.pending_normal_command = Some('d');
+        }
+        KeyCode::Char('g') => {
+            // Start a 'g' command (for 'gg')
+            app.pending_normal_command = Some('g');
+        }
+        KeyCode::Char('0') => {
+            // Go to beginning of line
+            app.cursor_col = 0;
+        }
+        KeyCode::Char('$') => {
+            // Go to end of line
+            if app.cursor_line < app.text_lines.len() {
+                app.cursor_col = app.text_lines[app.cursor_line].len();
+            }
+        }
+        KeyCode::Char('G') => {
+            // Go to end of file
+            app.cursor_line = app.text_lines.len().saturating_sub(1);
+            app.cursor_col = 0;
+            // Adjust scroll to show the last line
+            let visible_height = 25; // Approximate, this could be made dynamic
+            if app.cursor_line >= app.scroll_offset + visible_height {
+                app.scroll_offset = app.cursor_line.saturating_sub(visible_height - 1);
+            }
         }
         KeyCode::Char('i') => {
             app.mode = Mode::Insert;
