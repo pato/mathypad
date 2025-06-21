@@ -66,7 +66,7 @@ fn has_mathematical_operators(tokens: &[Token]) -> bool {
     tokens.iter().any(|t| {
         matches!(
             t,
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power
         )
     })
 }
@@ -150,7 +150,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         let is_op = |t: &Token| {
             matches!(
                 t,
-                Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+                Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power
             )
         };
 
@@ -165,7 +165,7 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
     let has_operator = tokens.iter().any(|t| {
         matches!(
             t,
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power
         )
     });
 
@@ -309,6 +309,7 @@ fn is_math_token(token: &Token) -> bool {
             | Token::Minus
             | Token::Multiply
             | Token::Divide
+            | Token::Power
             | Token::LeftParen
             | Token::RightParen
             | Token::To
@@ -424,9 +425,18 @@ pub fn evaluate_tokens_with_units_and_context(
                     return None; // Invalid or circular reference
                 }
             }
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power => {
                 while let Some(top_op) = operator_stack.last() {
-                    if precedence_unit(token) <= precedence_unit(top_op) {
+                    // Power is right-associative, others are left-associative
+                    let should_pop = if matches!(token, Token::Power) {
+                        // For right-associative operators, pop only if top has higher precedence
+                        precedence_unit(token) < precedence_unit(top_op)
+                    } else {
+                        // For left-associative operators, pop if top has same or higher precedence
+                        precedence_unit(token) <= precedence_unit(top_op)
+                    };
+
+                    if should_pop {
                         let op = operator_stack.pop().unwrap();
                         if !apply_operator_with_units(&mut value_stack, &op) {
                             return None;
@@ -572,9 +582,18 @@ fn evaluate_tokens_with_units_and_context_and_variables(
                     return None; // Undefined variable
                 }
             }
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide => {
+            Token::Plus | Token::Minus | Token::Multiply | Token::Divide | Token::Power => {
                 while let Some(top_op) = operator_stack.last() {
-                    if precedence_unit(token) <= precedence_unit(top_op) {
+                    // Power is right-associative, others are left-associative
+                    let should_pop = if matches!(token, Token::Power) {
+                        // For right-associative operators, pop only if top has higher precedence
+                        precedence_unit(token) < precedence_unit(top_op)
+                    } else {
+                        // For left-associative operators, pop if top has same or higher precedence
+                        precedence_unit(token) <= precedence_unit(top_op)
+                    };
+
+                    if should_pop {
                         let op = operator_stack.pop().unwrap();
                         if !apply_operator_with_units(&mut value_stack, &op) {
                             return None;
@@ -687,6 +706,7 @@ fn precedence_unit(token: &Token) -> i32 {
     match token {
         Token::Plus | Token::Minus => 1,
         Token::Multiply | Token::Divide => 2,
+        Token::Power => 3, // Highest precedence
         _ => 0,
     }
 }
@@ -1064,6 +1084,27 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     UnitValue::new(a.value / b.value, None)
                 }
                 _ => return false,
+            }
+        }
+        Token::Power => {
+            // Exponentiation: only allowed for dimensionless values
+            match (&a.unit, &b.unit) {
+                (None, None) => {
+                    // Both dimensionless - standard exponentiation
+                    UnitValue::new(a.value.powf(b.value), None)
+                }
+                (Some(_unit), None) => {
+                    // Base has unit, exponent is dimensionless
+                    // Only allowed for certain cases (like square/cube)
+                    if b.value == 2.0 || b.value == 3.0 {
+                        // For now, disallow units with exponentiation
+                        // Future: could support area/volume units
+                        return false;
+                    } else {
+                        return false;
+                    }
+                }
+                _ => return false, // Can't raise units to powers or use units as exponents
             }
         }
         _ => return false,

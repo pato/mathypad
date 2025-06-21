@@ -45,6 +45,51 @@ fn test_basic_arithmetic() {
 }
 
 #[test]
+fn test_exponentiation() {
+    // Basic exponentiation
+    assert_eq!(evaluate_test_expression("2^2"), Some("4".to_string()));
+    assert_eq!(evaluate_test_expression("2^3"), Some("8".to_string()));
+    assert_eq!(evaluate_test_expression("5^2"), Some("25".to_string()));
+    assert_eq!(evaluate_test_expression("10^3"), Some("1,000".to_string()));
+    assert_eq!(evaluate_test_expression("2^10"), Some("1,024".to_string()));
+
+    // Decimal exponents
+    assert_eq!(evaluate_test_expression("4^0.5"), Some("2".to_string()));
+    assert_eq!(evaluate_test_expression("9^0.5"), Some("3".to_string()));
+    assert_eq!(evaluate_test_expression("8^(1/3)"), Some("2".to_string()));
+
+    // Zero and one exponents
+    assert_eq!(evaluate_test_expression("5^0"), Some("1".to_string()));
+    assert_eq!(evaluate_test_expression("5^1"), Some("5".to_string()));
+    assert_eq!(evaluate_test_expression("0^5"), Some("0".to_string()));
+
+    // Negative bases - TODO: support negative numbers in parentheses
+    // assert_eq!(evaluate_test_expression("(-2)^2"), Some("4".to_string()));
+    // assert_eq!(evaluate_test_expression("(-2)^3"), Some("-8".to_string()));
+
+    // Order of operations - exponentiation has higher precedence than multiplication
+    assert_eq!(evaluate_test_expression("2 * 3^2"), Some("18".to_string()));
+    assert_eq!(evaluate_test_expression("2^3 * 3"), Some("24".to_string()));
+    assert_eq!(evaluate_test_expression("2 + 3^2"), Some("11".to_string()));
+    assert_eq!(evaluate_test_expression("2^3 + 1"), Some("9".to_string()));
+
+    // Right associativity
+    assert_eq!(evaluate_test_expression("2^3^2"), Some("512".to_string())); // 2^(3^2) = 2^9 = 512
+    assert_eq!(
+        evaluate_test_expression("4^3^2"),
+        Some("262,144".to_string())
+    ); // 4^(3^2) = 4^9
+
+    // With parentheses
+    assert_eq!(
+        evaluate_test_expression("(2 + 3)^2"),
+        Some("25".to_string())
+    );
+    assert_eq!(evaluate_test_expression("2^(2 + 1)"), Some("8".to_string()));
+    assert_eq!(evaluate_test_expression("(2^3)^2"), Some("64".to_string())); // (2^3)^2 = 8^2 = 64
+}
+
+#[test]
 fn test_inline_expressions() {
     // Test expressions within text
     assert_eq!(
