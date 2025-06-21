@@ -915,4 +915,67 @@ mod tests {
 
         assert_eq!(app.save_as_input, "myfile.pad");
     }
+
+    #[test]
+    fn test_force_quit_commands() {
+        use crate::ui::handle_command_mode;
+        use crate::{App, Mode};
+        use crossterm::event::KeyCode;
+
+        // Test :q! command - should quit immediately even with unsaved changes
+        let mut app = App {
+            mode: Mode::Command,
+            command_line: ":q!".to_string(),
+            command_cursor: 3,
+            has_unsaved_changes: true, // Has unsaved changes
+            ..Default::default()
+        };
+
+        // Simulate pressing Enter in command mode
+        let should_quit = handle_command_mode(&mut app, KeyCode::Enter);
+        assert!(should_quit); // Should quit immediately
+        assert!(!app.show_unsaved_dialog); // No dialog should be shown
+
+        // Test :cq command - should quit immediately even with unsaved changes
+        let mut app = App {
+            mode: Mode::Command,
+            command_line: ":cq".to_string(),
+            command_cursor: 3,
+            has_unsaved_changes: true, // Has unsaved changes
+            ..Default::default()
+        };
+
+        // Simulate pressing Enter in command mode
+        let should_quit = handle_command_mode(&mut app, KeyCode::Enter);
+        assert!(should_quit); // Should quit immediately
+        assert!(!app.show_unsaved_dialog); // No dialog should be shown
+
+        // Test :quit! command - should quit immediately even with unsaved changes
+        let mut app = App {
+            mode: Mode::Command,
+            command_line: ":quit!".to_string(),
+            command_cursor: 6,
+            has_unsaved_changes: true, // Has unsaved changes
+            ..Default::default()
+        };
+
+        // Simulate pressing Enter in command mode
+        let should_quit = handle_command_mode(&mut app, KeyCode::Enter);
+        assert!(should_quit); // Should quit immediately
+        assert!(!app.show_unsaved_dialog); // No dialog should be shown
+
+        // Compare with regular :q command which should show dialog
+        let mut app = App {
+            mode: Mode::Command,
+            command_line: ":q".to_string(),
+            command_cursor: 2,
+            has_unsaved_changes: true, // Has unsaved changes
+            ..Default::default()
+        };
+
+        // Simulate pressing Enter in command mode
+        let should_quit = handle_command_mode(&mut app, KeyCode::Enter);
+        assert!(!should_quit); // Should NOT quit yet
+        assert!(app.show_unsaved_dialog); // Dialog should be shown
+    }
 }

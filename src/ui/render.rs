@@ -53,6 +53,25 @@ fn create_flash_color(opacity: f32) -> Color {
 
 /// Main UI layout and rendering
 pub fn ui(f: &mut Frame, app: &App) {
+    // Check if we need to reserve space for command line
+    let main_area = if app.mode == Mode::Command {
+        // Reserve one line at the bottom for command line
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),    // Main content area
+                Constraint::Length(1), // Command line
+            ])
+            .split(f.area());
+
+        // Render command line first
+        render_command_line(f, app, vertical_chunks[1]);
+
+        vertical_chunks[0] // Use the main content area
+    } else {
+        f.area() // Use the full area
+    };
+
     let text_percentage = app.separator_position;
     let results_percentage = 100 - app.separator_position;
 
@@ -62,7 +81,7 @@ pub fn ui(f: &mut Frame, app: &App) {
             Constraint::Percentage(text_percentage),
             Constraint::Percentage(results_percentage),
         ])
-        .split(f.area());
+        .split(main_area);
 
     render_text_area(f, app, chunks[0]);
     render_results_panel(f, app, chunks[1]);
@@ -95,6 +114,10 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
             .title(title)
             .borders(Borders::ALL)
             .title_bottom(" NORMAL "),
+        Mode::Command => Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .title_bottom(" COMMAND "),
     };
 
     let inner_area = block.inner(area);
@@ -916,4 +939,43 @@ fn render_scrollbar(
         let scrollbar_widget = Paragraph::new(track_char).style(Style::default().fg(track_color));
         f.render_widget(scrollbar_widget, track_area);
     }
+}
+
+/// Render the command line at the bottom of the screen
+pub fn render_command_line(f: &mut Frame, app: &App, area: Rect) {
+    // Create spans for the command line with cursor highlighting
+    let mut spans = Vec::new();
+
+    // Add the command line text with cursor highlighting
+    let chars: Vec<char> = app.command_line.chars().collect();
+
+    for (i, ch) in chars.iter().enumerate() {
+        if i == app.command_cursor {
+            // Highlight cursor position
+            spans.push(Span::styled(
+                ch.to_string(),
+                Style::default().bg(Color::White).fg(Color::Black),
+            ));
+        } else {
+            // Normal character
+            spans.push(Span::styled(
+                ch.to_string(),
+                Style::default().fg(Color::White),
+            ));
+        }
+    }
+
+    // If cursor is at the end, add a space with cursor highlighting
+    if app.command_cursor >= chars.len() {
+        spans.push(Span::styled(
+            " ",
+            Style::default().bg(Color::White).fg(Color::Black),
+        ));
+    }
+
+    // Create the command line paragraph
+    let command_line =
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(Color::Black).fg(Color::White));
+
+    f.render_widget(command_line, area);
 }
