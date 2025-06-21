@@ -88,7 +88,7 @@ pub enum UnitType {
     Data,
     Request,
     BitRate,
-    DataRate(f64),
+    DataRate { time_multiplier: f64 },
     RequestRate,
     Percentage,
 }
@@ -276,7 +276,9 @@ impl Unit {
                 }
                 match b1.unit_type() {
                     UnitType::Bit => UnitType::BitRate,
-                    UnitType::Data => UnitType::DataRate(b2.to_base_value(1.0)),
+                    UnitType::Data => UnitType::DataRate {
+                        time_multiplier: b2.to_base_value(1.0),
+                    },
                     UnitType::Request => UnitType::RequestRate,
                     _ => panic!("Rate unknown"),
                 }
