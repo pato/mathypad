@@ -978,4 +978,49 @@ mod tests {
         assert!(!should_quit); // Should NOT quit yet
         assert!(app.show_unsaved_dialog); // Dialog should be shown
     }
+
+    #[test]
+    fn test_additional_vim_commands() {
+        use crate::{App, Mode};
+        use crossterm::event::KeyCode;
+
+        // Test basic movement commands
+        let mut app = App {
+            text_lines: vec![
+                "first line".to_string(),
+                "second line".to_string(),
+                "third line".to_string(),
+            ],
+            results: vec![None, None, None],
+            mode: Mode::Normal,
+            cursor_line: 1,
+            cursor_col: 5,
+            ..Default::default()
+        };
+
+        // Test '0' - go to beginning of line
+        crate::ui::handle_normal_mode(&mut app, KeyCode::Char('0'));
+        assert_eq!(app.cursor_col, 0);
+
+        // Test '$' - go to end of line
+        crate::ui::handle_normal_mode(&mut app, KeyCode::Char('$'));
+        assert_eq!(app.cursor_col, 11); // "second line" length
+
+        // Test 'G' - go to end of file
+        crate::ui::handle_normal_mode(&mut app, KeyCode::Char('G'));
+        assert_eq!(app.cursor_line, 2); // Last line (0-indexed)
+        assert_eq!(app.cursor_col, 0);
+
+        // Test 'gg' - go to beginning of file
+        // First 'g' sets pending command
+        crate::ui::handle_normal_mode(&mut app, KeyCode::Char('g'));
+        assert_eq!(app.pending_normal_command, Some('g'));
+
+        // Second 'g' executes the command
+        crate::ui::handle_normal_mode(&mut app, KeyCode::Char('g'));
+        assert_eq!(app.cursor_line, 0);
+        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.scroll_offset, 0);
+        assert_eq!(app.pending_normal_command, None);
+    }
 }
