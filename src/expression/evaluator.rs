@@ -916,6 +916,35 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     };
                     UnitValue::new(rate_value * time_in_seconds, Some(request_unit))
                 }
+                // Time * Generic Rate = Base Unit (for currency rates, etc.)
+                (Some(time_unit), Some(rate_unit)) | (Some(rate_unit), Some(time_unit))
+                    if time_unit.unit_type() == UnitType::Time =>
+                {
+                    // Check if this is a generic rate unit
+                    if let Unit::RateUnit(rate_data, rate_time) = rate_unit {
+                        let (time_value, rate_value) = if time_unit.unit_type() == UnitType::Time {
+                            (a.value, b.value)
+                        } else {
+                            (b.value, a.value)
+                        };
+
+                        // Convert time units to match
+                        let time_in_rate_units = if time_unit == rate_time.as_ref() {
+                            time_value
+                        } else {
+                            // Convert time to the rate's time unit
+                            let time_in_seconds = time_unit.to_base_value(time_value);
+                            rate_time.clone().from_base_value(time_in_seconds)
+                        };
+
+                        UnitValue::new(
+                            rate_value * time_in_rate_units,
+                            Some(rate_data.as_ref().clone()),
+                        )
+                    } else {
+                        return false; // Not a generic rate
+                    }
+                }
                 // Data * Time = Data (total transferred) - for specific data units
                 (Some(data_unit), Some(time_unit)) | (Some(time_unit), Some(data_unit))
                     if data_unit.unit_type() == UnitType::Data
@@ -993,6 +1022,18 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                         Err(_) => return false,
                     };
                     UnitValue::new(a.value / time_in_seconds, Some(rate_unit))
+                }
+                // Currency / Time = Currency Rate (generic rate)
+                (Some(currency_unit), Some(time_unit))
+                    if currency_unit.unit_type() == UnitType::Currency
+                        && time_unit.unit_type() == UnitType::Time =>
+                {
+                    // Currency / time = currency rate
+                    let rate_unit = Unit::RateUnit(
+                        Box::new(currency_unit.clone()),
+                        Box::new(time_unit.clone()),
+                    );
+                    UnitValue::new(a.value / b.value, Some(rate_unit))
                 }
                 // Data / DataRate = Time
                 (Some(data_unit), Some(rate_unit))
