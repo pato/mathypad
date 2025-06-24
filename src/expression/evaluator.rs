@@ -49,10 +49,31 @@ pub fn evaluate_tokens_stream_with_context(
                 {
                     return Some(result);
                 }
-                // If this subsequence failed to evaluate and it spans the entire input with operators,
-                // don't try shorter subsequences (this prevents "5 / 0" from evaluating as "5")
-                if has_mathematical_operators(subseq) && start == 0 && end == tokens.len() {
-                    return None; // Fail entirely for the full expression
+                // If this subsequence failed to evaluate and it spans the entire input,
+                // don't try shorter subsequences for certain cases:
+                // 1. Pure mathematical expressions (prevents "5 / 0" from evaluating as "5")
+                // 2. Pure conversion expressions (prevents "5 MB to QPS" from evaluating as "5 MB")
+                // 3. Mixed expressions with conversion at the end (prevents "5 GiB + 10 in seconds" fallback)
+                if start == 0 && end == tokens.len() {
+                    let has_math = has_mathematical_operators(subseq);
+                    let has_conversion = subseq.iter().any(|t| matches!(t, Token::To | Token::In));
+
+                    // Check if this is an expression with conversion at the end (like "A + B in C")
+                    // These should fail entirely if conversion is impossible, not fall back
+                    let has_conversion_at_end = tokens.len() >= 2
+                        && matches!(tokens[tokens.len() - 2], Token::To | Token::In);
+
+                    // Prevent fallback for:
+                    // 1. Pure math expressions: has_math && !has_conversion
+                    // 2. Pure conversion expressions: has_conversion && !has_math  
+                    // 3. Mixed expressions with conversion at the end: has_math && has_conversion && has_conversion_at_end
+                    #[allow(clippy::nonminimal_bool)]
+                    if !has_math && has_conversion 
+                        || has_math && !has_conversion 
+                        || has_math && has_conversion_at_end {
+                        return None; // Fail entirely for these cases
+                    }
+                    // For other mixed expressions, allow fallback
                 }
             }
         }
@@ -283,10 +304,20 @@ fn evaluate_tokens_stream_with_variables(
                 ) {
                     return Some(result);
                 }
-                // If this subsequence failed to evaluate and it spans the entire input with operators,
-                // don't try shorter subsequences (this prevents "5 / 0" from evaluating as "5")
-                if has_mathematical_operators(subseq) && start == 0 && end == tokens.len() {
-                    return None; // Fail entirely for the full expression
+                // If this subsequence failed to evaluate and it spans the entire input,
+                // don't try shorter subsequences for certain cases:
+                // 1. Pure mathematical expressions (prevents "5 / 0" from evaluating as "5")
+                // 2. Pure conversion expressions (prevents "5 MB to QPS" from evaluating as "5 MB")
+                // Note: Mixed expressions (both math and conversion) allow fallback for partial evaluation
+                if start == 0 && end == tokens.len() {
+                    let has_math = has_mathematical_operators(subseq);
+                    let has_conversion = subseq.iter().any(|t| matches!(t, Token::To | Token::In));
+
+                    // Prevent fallback only for pure expressions that fail
+                    if (has_math && !has_conversion) || (has_conversion && !has_math) {
+                        return None; // Fail entirely for pure expressions
+                    }
+                    // For mixed expressions (has_math && has_conversion), allow fallback
                 }
             }
         }
@@ -380,7 +411,6 @@ pub fn evaluate_tokens_with_units_and_context(
             let unit_value = UnitValue::new(*value, Some(from_unit.clone()));
             return unit_value.to_unit(to_unit);
         }
-
         // Handle percentage of value expressions like "10% of 50"
         if let (Token::NumberWithUnit(percentage, Unit::Percent), Token::Of, value_token) =
             (&tokens[0], &tokens[1], &tokens[2])
@@ -509,6 +539,8 @@ pub fn evaluate_tokens_with_units_and_context(
         if let Some(target_unit) = target_unit_for_conversion {
             if let Some(converted) = result.to_unit(&target_unit) {
                 result = converted;
+            } else {
+                return None; // Explicit conversion failed, fail the entire expression
             }
         }
 
@@ -678,6 +710,8 @@ fn evaluate_tokens_with_units_and_context_and_variables(
         if let Some(target_unit) = target_unit_for_conversion {
             if let Some(converted) = result.to_unit(&target_unit) {
                 result = converted;
+            } else {
+                return None; // Explicit conversion failed, fail the entire expression
             }
         }
 
@@ -917,7 +951,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     UnitValue::new(rate_value * time_in_seconds, Some(request_unit))
                 }
                 // Data * Currency/Data Rate = Currency (e.g., 1 TiB * $5/GiB = $5120)
-                (Some(data_unit), Some(Unit::RateUnit(rate_numerator, rate_denominator))) 
+                (Some(data_unit), Some(Unit::RateUnit(rate_numerator, rate_denominator)))
                     if data_unit.unit_type() == UnitType::Data
                         && rate_numerator.unit_type() == UnitType::Currency
                         && rate_denominator.unit_type() == UnitType::Data =>
@@ -937,7 +971,7 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                     )
                 }
                 // Currency/Data Rate * Data = Currency (reverse order)
-                (Some(Unit::RateUnit(rate_numerator, rate_denominator)), Some(data_unit)) 
+                (Some(Unit::RateUnit(rate_numerator, rate_denominator)), Some(data_unit))
                     if data_unit.unit_type() == UnitType::Data
                         && rate_numerator.unit_type() == UnitType::Currency
                         && rate_denominator.unit_type() == UnitType::Data =>

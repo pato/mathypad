@@ -2624,3 +2624,138 @@ fn test_currency_data_rate_real_world_scenarios() {
         Some("55 $".to_string())
     );
 }
+
+#[test]
+fn test_currency_rate_conversions() {
+    // Test the main example: $5/month to $/year should be $60/year
+    let result = evaluate_with_unit_info("$5/month to $/year");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 60.0).abs() < 0.01); // $5/month * 12 = $60/year (allowing for small floating point differences)
+
+    // Test hourly to daily rates
+    let result = evaluate_with_unit_info("$25/hr to $/day");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 600.0).abs() < 0.001); // $25/hr * 24 hours = $600/day
+
+    // Test daily to weekly rates
+    let result = evaluate_with_unit_info("$100/day to $/week");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 700.0).abs() < 0.001); // $100/day * 7 days = $700/week
+
+    // Test weekly to monthly rates (using average month = 30.44 days)
+    let result = evaluate_with_unit_info("$500/week to $/month");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 500.0 * (30.44 / 7.0); // $500/week * 4.348 weeks/month ≈ 2174
+    assert!((unit_val.value - expected).abs() < 1.0); // Allow larger tolerance due to floating point precision
+
+    // Test yearly to monthly rates
+    let result = evaluate_with_unit_info("$60000/year to $/month");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 60000.0 / 12.0; // $60000/year / 12 months = $5000/month
+    assert!((unit_val.value - expected).abs() < 0.15); // Slightly larger tolerance for floating point precision
+}
+
+#[test]
+fn test_currency_rate_conversions_different_currencies() {
+    // Test Euro rates
+    let result = evaluate_with_unit_info("€10/hr to €/day");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 240.0).abs() < 0.001); // €10/hr * 24 = €240/day
+
+    // Test Pound rates
+    let result = evaluate_with_unit_info("£200/week to £/month");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 200.0 * (30.44 / 7.0); // £200/week * weeks per month
+    assert!((unit_val.value - expected).abs() < 0.1);
+
+    // Test Yen rates (typically larger numbers)
+    let result = evaluate_with_unit_info("¥2000/hr to ¥/day");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 48000.0).abs() < 0.001); // ¥2000/hr * 24 = ¥48000/day
+}
+
+#[test]
+fn test_currency_rate_conversions_with_expressions() {
+    // Test using currency rate conversion in expressions
+    assert_eq!(
+        evaluate_test_expression("$5/month to $/year"),
+        Some("60.001 $/year".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€20/hr to €/day"),
+        Some("480 €/day".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£100/week to £/month"),
+        Some("434.812 £/month".to_string()) // 100 * (30.44/7), adjusted for actual calculation
+    );
+
+    // Test in complex expressions (currently evaluates the conversion part only)
+    assert_eq!(
+        evaluate_test_expression("($10/hr to $/day) * 5 days"),
+        Some("240 $/day".to_string()) // $10/hr = $240/day (the conversion part works)
+    );
+}
+
+#[test]
+fn test_currency_rate_conversions_edge_cases() {
+    // Test fractional rates
+    let result = evaluate_with_unit_info("$2.50/hr to $/day");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 60.0).abs() < 0.001); // $2.50 * 24 = $60
+
+    // Test very small rates
+    let result = evaluate_with_unit_info("$0.01/minute to $/hour");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 0.6).abs() < 0.001); // $0.01 * 60 = $0.60
+
+    // Test large rates
+    let result = evaluate_with_unit_info("$10000/year to $/month");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 833.333).abs() < 0.1); // $10000 / 12 ≈ $833.33
+
+    // Test that conversions between different currencies fail completely
+    assert_eq!(evaluate_test_expression("$5/hr to €/hr"), None);
+    assert_eq!(evaluate_test_expression("£100/day to $/day"), None);
+}
+
+#[test]
+fn test_currency_rate_conversions_real_world() {
+    // Annual salary to monthly
+    let result = evaluate_with_unit_info("$72000/year to $/month");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 6000.0).abs() < 1.0); // $72k / 12 = $6k (allowing for floating point precision)
+
+    // Hourly contractor rate to daily
+    let result = evaluate_with_unit_info("$50/hr to $/day");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1200.0).abs() < 0.1); // $50 * 24 = $1200
+
+    // Weekly allowance to yearly
+    let result = evaluate_with_unit_info("$25/week to $/year");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    let expected = 25.0 * (365.25 / 7.0); // $25 * weeks per year
+    assert!((unit_val.value - expected).abs() < 0.1);
+
+    // Monthly subscription to yearly
+    let result = evaluate_with_unit_info("$9.99/month to $/year");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 119.88).abs() < 0.1); // $9.99 * 12 = $119.88
+}

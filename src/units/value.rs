@@ -1,6 +1,6 @@
 //! Unit value representation and operations
 
-use super::types::Unit;
+use super::types::{Unit, UnitType};
 use crate::{FLOAT_EPSILON, MAX_INTEGER_FOR_FORMATTING};
 
 /// Represents a numeric value with an optional unit
@@ -20,6 +20,33 @@ impl UnitValue {
     pub fn to_unit(&self, target_unit: &Unit) -> Option<UnitValue> {
         match &self.unit {
             Some(current_unit) => {
+                // Special handling for rate unit conversions first
+                if let (
+                    Unit::RateUnit(curr_num, curr_denom),
+                    Unit::RateUnit(targ_num, targ_denom),
+                ) = (current_unit, target_unit)
+                {
+                    // Check if numerators are compatible (same currency/unit type)
+                    if curr_num.unit_type() == targ_num.unit_type() && curr_num == targ_num {
+                        // Convert the denominator to match the target
+                        let curr_denom_base = curr_denom.to_base_value(1.0);
+                        let targ_denom_base = targ_denom.to_base_value(1.0);
+
+                        // Rate conversion: if we have $/month and want $/year,
+                        // we need to multiply by how many current periods fit in target period
+                        // For $/month to $/year: $5/month * 12 months/year = $60/year
+                        let conversion_factor = targ_denom_base / curr_denom_base;
+                        let converted_value = self.value * conversion_factor;
+
+                        return Some(UnitValue::new(converted_value, Some(target_unit.clone())));
+                    } else if curr_num.unit_type() == UnitType::Currency
+                        && targ_num.unit_type() == UnitType::Currency
+                    {
+                        // Different currencies - not convertible
+                        return None;
+                    }
+                }
+
                 // Check if units are the same type or compatible data rates
                 if current_unit.unit_type() == target_unit.unit_type()
                     || self.can_convert_between_data_rates(current_unit, target_unit)
