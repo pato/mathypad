@@ -69,6 +69,18 @@ pub enum Unit {
     // Percentage unit (base: decimal value 0.0-1.0)
     Percent,
 
+    // Currency units (no conversion between different currencies)
+    USD, // US Dollar
+    EUR, // Euro
+    GBP, // British Pound Sterling
+    JPY, // Japanese Yen
+    CNY, // Chinese Yuan
+    CAD, // Canadian Dollar
+    AUD, // Australian Dollar
+    CHF, // Swiss Franc
+    INR, // Indian Rupee
+    KRW, // South Korean Won
+
     //  Generic rates
     RateUnit(Box<Unit>, Box<Unit>),
 }
@@ -91,6 +103,7 @@ pub enum UnitType {
     DataRate { time_multiplier: f64 },
     RequestRate,
     Percentage,
+    Currency,
 }
 
 impl Unit {
@@ -149,6 +162,18 @@ impl Unit {
 
             // Percentage unit (convert to decimal 0.0-1.0)
             Unit::Percent => value / 100.0,
+
+            // Currency units (no conversion, base value is the same)
+            Unit::USD
+            | Unit::EUR
+            | Unit::GBP
+            | Unit::JPY
+            | Unit::CNY
+            | Unit::CAD
+            | Unit::AUD
+            | Unit::CHF
+            | Unit::INR
+            | Unit::KRW => value,
 
             Unit::RateUnit(v1, v2) => {
                 // Convert to base units per second: (data_value * data_base) / (time_value * time_base)
@@ -217,6 +242,18 @@ impl Unit {
             // Percentage unit (from decimal 0.0-1.0)
             Unit::Percent => base_value * 100.0,
 
+            // Currency units (no conversion, value is the same)
+            Unit::USD
+            | Unit::EUR
+            | Unit::GBP
+            | Unit::JPY
+            | Unit::CNY
+            | Unit::CAD
+            | Unit::AUD
+            | Unit::CHF
+            | Unit::INR
+            | Unit::KRW => base_value,
+
             // Rate unit
             Unit::RateUnit(v1, v2) => {
                 // Convert from base units per second to target rate
@@ -270,6 +307,16 @@ impl Unit {
             | Unit::EiB => UnitType::Data,
             Unit::Request | Unit::Query => UnitType::Request,
             Unit::Percent => UnitType::Percentage,
+            Unit::USD
+            | Unit::EUR
+            | Unit::GBP
+            | Unit::JPY
+            | Unit::CNY
+            | Unit::CAD
+            | Unit::AUD
+            | Unit::CHF
+            | Unit::INR
+            | Unit::KRW => UnitType::Currency,
             Unit::RateUnit(b1, b2) => {
                 if b2.unit_type() != UnitType::Time {
                     panic!("We handle only rates")
@@ -328,6 +375,16 @@ impl Unit {
             Unit::Request => Cow::Borrowed("req"),
             Unit::Query => Cow::Borrowed("query"),
             Unit::Percent => Cow::Borrowed("%"),
+            Unit::USD => Cow::Borrowed("$"),
+            Unit::EUR => Cow::Borrowed("€"),
+            Unit::GBP => Cow::Borrowed("£"),
+            Unit::JPY => Cow::Borrowed("¥"),
+            Unit::CNY => Cow::Borrowed("¥"),
+            Unit::CAD => Cow::Borrowed("C$"),
+            Unit::AUD => Cow::Borrowed("A$"),
+            Unit::CHF => Cow::Borrowed("CHF"),
+            Unit::INR => Cow::Borrowed("₹"),
+            Unit::KRW => Cow::Borrowed("₩"),
             Unit::RateUnit(b1, b2) => {
                 // Dynamically construct the display name for generic rates (only allocates when needed)
                 Cow::Owned(format!("{}/{}", b1.display_name(), b2.display_name()))
@@ -404,6 +461,11 @@ impl Unit {
     pub fn is_compatible_for_addition(&self, other: &Unit) -> bool {
         let self_type = self.unit_type();
         let other_type = other.unit_type();
+
+        // For currencies, only allow addition of the exact same currency
+        if self_type == UnitType::Currency && other_type == UnitType::Currency {
+            return self == other;
+        }
 
         // Direct unit type match (this covers most cases including exact rate matches)
         if self_type == other_type {

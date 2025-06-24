@@ -171,7 +171,7 @@ fn test_inline_expressions() {
     );
     assert_eq!(
         evaluate_test_expression("Cost: 100 * 12 dollars"),
-        Some("1,200".to_string())
+        Some("1,200 $".to_string()) // "dollars" is now parsed as currency unit
     );
     assert_eq!(
         evaluate_test_expression("Total (10 + 20) items"),
