@@ -327,6 +327,9 @@ impl Unit {
                         time_multiplier: b2.to_base_value(1.0),
                     },
                     UnitType::Request => UnitType::RequestRate,
+                    UnitType::Currency => UnitType::DataRate {
+                        time_multiplier: b2.to_base_value(1.0),
+                    }, // Currency rates behave like data rates for arithmetic
                     _ => panic!("Rate unknown"),
                 }
             }
