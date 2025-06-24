@@ -323,6 +323,13 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
                 Style::default().fg(Color::Green),
             ));
             current_pos += 1;
+        } else if "$€£¥₹₩".contains(chars[current_pos]) {
+            // Handle currency symbols as units
+            spans.push(Span::styled(
+                chars[current_pos].to_string(),
+                Style::default().fg(Color::Green),
+            ));
+            current_pos += 1;
         } else if "+-*/()=^".contains(chars[current_pos]) {
             // Handle operators (including assignment and exponentiation)
             spans.push(Span::styled(
@@ -479,7 +486,7 @@ pub fn parse_colors_with_cursor<'a>(
         } else {
             // Handle single characters (operators, punctuation, etc.)
             let ch = chars[current_pos];
-            let style = if ch == '%' {
+            let style = if ch == '%' || "$€£¥₹₩".contains(ch) {
                 Style::default().fg(Color::Green)
             } else if "+-*/()=^".contains(ch) {
                 Style::default().fg(Color::Cyan)

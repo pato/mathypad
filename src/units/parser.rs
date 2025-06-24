@@ -178,6 +178,18 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
 
         "%" | "percent" | "percentage" => Some(Unit::Percent),
 
+        // Currency symbols and codes
+        "$" | "usd" | "dollar" | "dollars" => Some(Unit::USD),
+        "€" | "eur" | "euro" | "euros" => Some(Unit::EUR),
+        "£" | "gbp" | "pound" | "pounds" | "sterling" => Some(Unit::GBP),
+        "¥" | "jpy" | "yen" => Some(Unit::JPY),
+        "cny" | "yuan" | "rmb" => Some(Unit::CNY),
+        "c$" | "cad" | "canadian" => Some(Unit::CAD),
+        "a$" | "aud" | "australian" => Some(Unit::AUD),
+        "chf" | "franc" => Some(Unit::CHF),
+        "₹" | "inr" | "rupee" | "rupees" => Some(Unit::INR),
+        "₩" | "krw" | "won" => Some(Unit::KRW),
+
         _ => {
             let mut rate_type = None;
             if let Some(slash_pos) = text.find('/') {
