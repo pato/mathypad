@@ -2466,3 +2466,161 @@ fn test_currency_rate_real_world_scenarios() {
         Some("9,000 €".to_string())
     );
 }
+
+#[test]
+fn test_currency_data_rate_creation() {
+    // Test creating currency/data rates by dividing currency by data units
+    assert_eq!(
+        evaluate_test_expression("$100 / 50 GiB"),
+        Some("2 $/GiB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€5 / 1 TB"),
+        Some("5 €/TB".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£10 / 2 GB"),
+        Some("5 £/GB".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_multiplication() {
+    // Test the main use case: currency/data rate * data = total currency
+    assert_eq!(
+        evaluate_test_expression("$5/GiB * 1 TiB"),
+        Some("5,120 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€2/MB * 500 MB"),
+        Some("1,000 €".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£0.50/GB * 2 TB"),
+        Some("1,000 £".to_string())
+    );
+
+    // Test with smaller units to larger units
+    assert_eq!(
+        evaluate_test_expression("$0.005/MiB * 1 GiB"),
+        Some("5.12 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_mixed_units() {
+    // Test calculations with different base systems (binary vs decimal)
+    assert_eq!(
+        evaluate_test_expression("$10/GiB * 1 GB"),
+        Some("9.313 $".to_string())
+    );
+
+    // Test large data units
+    assert_eq!(
+        evaluate_test_expression("€0.001/MB * 1 PB"),
+        Some("1,000,000 €".to_string())
+    );
+
+    // Test binary data rates
+    assert_eq!(
+        evaluate_test_expression("$100/TiB * 512 GiB"),
+        Some("50 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_with_fractions() {
+    // Test with fractional rates
+    assert_eq!(
+        evaluate_test_expression("$0.01/MB * 2048 MB"),
+        Some("20.48 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€7.5/GiB * 0.5 GiB"),
+        Some("3.75 €".to_string())
+    );
+
+    // Test with fractional data amounts
+    assert_eq!(
+        evaluate_test_expression("£20/TB * 1.5 TB"),
+        Some("30 £".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_complex_calculations() {
+    // Test combining multiple currency/data rates
+    assert_eq!(
+        evaluate_test_expression("($5/GiB + $3/GiB) * 100 GiB"),
+        Some("800 $".to_string())
+    );
+
+    // Test rate calculations with parentheses
+    assert_eq!(
+        evaluate_test_expression("$10/TB * (1 TB + 500 GB)"),
+        Some("15 $".to_string())
+    );
+
+    // Test tiered pricing calculation
+    assert_eq!(
+        evaluate_test_expression("$5/TB * 10 TB + $3/TB * 40 TB"),
+        Some("170 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_different_currencies() {
+    // Test that different currency/data rates work independently
+    assert_eq!(
+        evaluate_test_expression("¥100/GiB * 10 GiB"),
+        Some("1,000 ¥".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("₹50/TB * 2 TB"),
+        Some("100 ₹".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("₩1000/GB * 5 GB"),
+        Some("5,000 ₩".to_string())
+    );
+}
+
+#[test]
+fn test_currency_data_rate_real_world_scenarios() {
+    // Cloud storage pricing
+    assert_eq!(
+        evaluate_test_expression("$0.023/GB * 1 TB"),
+        Some("23 $".to_string())
+    );
+
+    // Backup service pricing
+    assert_eq!(
+        evaluate_test_expression("€0.05/GiB * 500 GiB"),
+        Some("25 €".to_string())
+    );
+
+    // Data transfer costs
+    assert_eq!(
+        evaluate_test_expression("$0.12/GB * 10 TB"),
+        Some("1,200 $".to_string())
+    );
+
+    // Bulk storage discount calculation
+    assert_eq!(
+        evaluate_test_expression("$0.01/GB * 100 TB"),
+        Some("1,000 $".to_string())
+    );
+
+    // Mixed storage tiers
+    assert_eq!(
+        evaluate_test_expression("$0.10/GB * 100 GB + $0.05/GB * 900 GB"),
+        Some("55 $".to_string())
+    );
+}
