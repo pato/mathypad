@@ -89,6 +89,17 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     // Parser for the percent symbol
     let percent_symbol = just('%').map(|_| "%".to_string());
 
+    // Parser for currency symbols
+    let currency_symbol = choice((
+        just('$').to("$"),
+        just('€').to("€"),
+        just('£').to("£"),
+        just('¥').to("¥"),
+        just('₹').to("₹"),
+        just('₩').to("₩"),
+    ))
+    .map(|s: &str| s.to_string());
+
     // Parser for compound identifiers (like "GiB/s") - only for valid units
     let compound_identifier = text::ascii::ident()
         .then(
@@ -143,8 +154,13 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('=').to(Token::Assign),
     ));
 
-    // Combined unit parser (tries compound units first, then simple identifiers, then percent)
-    let unit_identifier = choice((compound_identifier, identifier, percent_symbol));
+    // Combined unit parser (tries compound units first, then simple identifiers, then percent, then currency)
+    let unit_identifier = choice((
+        compound_identifier,
+        identifier,
+        percent_symbol,
+        currency_symbol,
+    ));
 
     // Parser for numbers with optional units
     let number_with_unit = number
@@ -169,6 +185,18 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
                 Token::NumberWithUnit(num, unit)
             } else {
                 Token::Number(num)
+            }
+        });
+
+    // Parser for currency amounts (currency symbol followed by number)
+    let currency_amount = currency_symbol
+        .then(just(' ').repeated()) // Optional spaces
+        .then(number)
+        .map(|((currency_str, _), amount)| {
+            if let Some(unit) = parse_unit(&currency_str) {
+                Token::NumberWithUnit(amount, unit)
+            } else {
+                Token::Number(amount) // Fallback, should not happen
             }
         });
 
@@ -198,11 +226,12 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
     let token = choice((
         line_ref,         // Must come first to catch "line1" before "line" is treated as unit
         keyword,          // "to" and "in" keywords
+        currency_amount, // Currency symbols followed by numbers (must come before number_with_unit)
         number_with_unit, // Numbers with optional units
-        operator,         // Mathematical operators
-        function,         // Function calls (must come before variable)
-        standalone_unit,  // Standalone units for conversions
-        variable,         // Variables (identifiers that aren't units/keywords/line refs)
+        operator,        // Mathematical operators
+        function,        // Function calls (must come before variable)
+        standalone_unit, // Standalone units for conversions
+        variable,        // Variables (identifiers that aren't units/keywords/line refs)
     ));
 
     // Parser for punctuation/separators to skip
@@ -220,7 +249,6 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('&'),
         just('#'),
         just('@'),
-        just('$'),
         just('~'),
         just('['),
         just(']'),

@@ -2074,3 +2074,248 @@ fn test_extended_time_edge_cases() {
     let unit_val = result.unwrap();
     assert!((unit_val.value - 182.621).abs() < 0.1); // Allow for floating point precision
 }
+
+#[test]
+fn test_currency_unit_parsing() {
+    // Test currency symbol parsing
+    assert_eq!(parse_unit("$"), Some(Unit::USD));
+    assert_eq!(parse_unit("€"), Some(Unit::EUR));
+    assert_eq!(parse_unit("£"), Some(Unit::GBP));
+    assert_eq!(parse_unit("¥"), Some(Unit::JPY));
+    assert_eq!(parse_unit("₹"), Some(Unit::INR));
+    assert_eq!(parse_unit("₩"), Some(Unit::KRW));
+
+    // Test currency code parsing (case insensitive)
+    assert_eq!(parse_unit("usd"), Some(Unit::USD));
+    assert_eq!(parse_unit("USD"), Some(Unit::USD));
+    assert_eq!(parse_unit("eur"), Some(Unit::EUR));
+    assert_eq!(parse_unit("gbp"), Some(Unit::GBP));
+    assert_eq!(parse_unit("jpy"), Some(Unit::JPY));
+    assert_eq!(parse_unit("cny"), Some(Unit::CNY));
+    assert_eq!(parse_unit("cad"), Some(Unit::CAD));
+    assert_eq!(parse_unit("aud"), Some(Unit::AUD));
+    assert_eq!(parse_unit("chf"), Some(Unit::CHF));
+    assert_eq!(parse_unit("inr"), Some(Unit::INR));
+    assert_eq!(parse_unit("krw"), Some(Unit::KRW));
+
+    // Test currency word parsing
+    assert_eq!(parse_unit("dollar"), Some(Unit::USD));
+    assert_eq!(parse_unit("dollars"), Some(Unit::USD));
+    assert_eq!(parse_unit("euro"), Some(Unit::EUR));
+    assert_eq!(parse_unit("euros"), Some(Unit::EUR));
+    assert_eq!(parse_unit("pound"), Some(Unit::GBP));
+    assert_eq!(parse_unit("pounds"), Some(Unit::GBP));
+    assert_eq!(parse_unit("sterling"), Some(Unit::GBP));
+    assert_eq!(parse_unit("yen"), Some(Unit::JPY));
+    assert_eq!(parse_unit("yuan"), Some(Unit::CNY));
+    assert_eq!(parse_unit("rmb"), Some(Unit::CNY));
+    assert_eq!(parse_unit("canadian"), Some(Unit::CAD));
+    assert_eq!(parse_unit("australian"), Some(Unit::AUD));
+    assert_eq!(parse_unit("franc"), Some(Unit::CHF));
+    assert_eq!(parse_unit("rupee"), Some(Unit::INR));
+    assert_eq!(parse_unit("rupees"), Some(Unit::INR));
+    assert_eq!(parse_unit("won"), Some(Unit::KRW));
+}
+
+#[test]
+fn test_currency_display_names() {
+    // Test currency symbol display
+    assert_eq!(Unit::USD.display_name(), "$");
+    assert_eq!(Unit::EUR.display_name(), "€");
+    assert_eq!(Unit::GBP.display_name(), "£");
+    assert_eq!(Unit::JPY.display_name(), "¥");
+    assert_eq!(Unit::CNY.display_name(), "¥");
+    assert_eq!(Unit::CAD.display_name(), "C$");
+    assert_eq!(Unit::AUD.display_name(), "A$");
+    assert_eq!(Unit::CHF.display_name(), "CHF");
+    assert_eq!(Unit::INR.display_name(), "₹");
+    assert_eq!(Unit::KRW.display_name(), "₩");
+}
+
+#[test]
+fn test_currency_unit_types() {
+    // Test that all currencies have Currency unit type
+    assert_eq!(Unit::USD.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::EUR.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::GBP.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::JPY.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::CNY.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::CAD.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::AUD.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::CHF.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::INR.unit_type(), UnitType::Currency);
+    assert_eq!(Unit::KRW.unit_type(), UnitType::Currency);
+}
+
+#[test]
+fn test_currency_addition() {
+    // Test same currency addition
+    assert_eq!(
+        evaluate_test_expression("$100 + $50"),
+        Some("150 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€200 + €75"),
+        Some("275 €".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("£50 + £25"),
+        Some("75 £".to_string())
+    );
+
+    // Test same currency subtraction
+    assert_eq!(
+        evaluate_test_expression("$100 - $30"),
+        Some("70 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€500 - €125"),
+        Some("375 €".to_string())
+    );
+}
+
+#[test]
+fn test_currency_different_currencies_not_addable() {
+    // Test that different currencies cannot be added
+    assert_eq!(evaluate_test_expression("$100 + €50"), None);
+    assert_eq!(evaluate_test_expression("£100 + $50"), None);
+    assert_eq!(evaluate_test_expression("¥1000 + $10"), None);
+    assert_eq!(evaluate_test_expression("₹500 + €20"), None);
+
+    // Test that different currencies cannot be subtracted
+    assert_eq!(evaluate_test_expression("$100 - €50"), None);
+    assert_eq!(evaluate_test_expression("£100 - ¥1000"), None);
+}
+
+#[test]
+fn test_currency_multiplication() {
+    // Test currency multiplication by numbers
+    assert_eq!(
+        evaluate_test_expression("$24 * 3"),
+        Some("72 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("3 * $24"),
+        Some("72 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€50 * 2.5"),
+        Some("125 €".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("£100 * 0.5"),
+        Some("50 £".to_string())
+    );
+
+    // Test complex expressions
+    assert_eq!(
+        evaluate_test_expression("($20 + $30) * 2"),
+        Some("100 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_division() {
+    // Test currency division by numbers
+    assert_eq!(
+        evaluate_test_expression("$100 / 4"),
+        Some("25 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€150 / 3"),
+        Some("50 €".to_string())
+    );
+
+    // Test currency division by currency (should give dimensionless ratio)
+    assert_eq!(
+        evaluate_test_expression("$100 / $25"),
+        Some("4".to_string())
+    );
+    assert_eq!(evaluate_test_expression("€90 / €30"), Some("3".to_string()));
+
+    // Test that division of different currencies fails (no exchange rates)
+    assert_eq!(evaluate_test_expression("$100 / €25"), None);
+}
+
+#[test]
+fn test_currency_complex_expressions() {
+    // Test more complex currency calculations
+    assert_eq!(
+        evaluate_test_expression("$50 * 3 + $25"),
+        Some("175 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€100 - €20 * 2"),
+        Some("60 €".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("($100 + $50) / 3"),
+        Some("50 $".to_string())
+    );
+
+    // Test precedence with currencies
+    assert_eq!(
+        evaluate_test_expression("$20 + $30 * 2"),
+        Some("80 $".to_string()) // Should be $20 + ($30 * 2) = $20 + $60 = $80
+    );
+}
+
+#[test]
+fn test_currency_edge_cases() {
+    // Test zero currency amounts
+    assert_eq!(
+        evaluate_test_expression("$0 + $100"),
+        Some("100 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("$50 - $50"),
+        Some("0 $".to_string())
+    );
+
+    // Test decimal currency amounts
+    assert_eq!(
+        evaluate_test_expression("$10.50 + $5.25"),
+        Some("15.75 $".to_string())
+    );
+
+    // Test large currency amounts with commas
+    assert_eq!(
+        evaluate_test_expression("$1,000 + $500"),
+        Some("1,500 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_real_world_scenarios() {
+    // Test realistic currency calculations
+
+    // Shopping total
+    assert_eq!(
+        evaluate_test_expression("$12.99 + $8.50 + $3.25"),
+        Some("24.74 $".to_string())
+    );
+
+    // Tip calculation (20% tip)
+    assert_eq!(
+        evaluate_test_expression("$50 * 1.20"),
+        Some("60 $".to_string())
+    );
+
+    // Split bill among friends
+    assert_eq!(
+        evaluate_test_expression("$120 / 4"),
+        Some("30 $".to_string())
+    );
+
+    // Currency exchange rate calculation (as ratio)
+    assert_eq!(
+        evaluate_test_expression("$100 / $1"),
+        Some("100".to_string())
+    );
+
+    // Bulk purchase discount
+    assert_eq!(
+        evaluate_test_expression("$25 * 10 * 0.9"), // 10% discount on 10 items
+        Some("225 $".to_string())
+    );
+}

@@ -1082,6 +1082,11 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
                 }
                 // Compatible units divided = dimensionless ratio
                 (Some(unit_a), Some(unit_b)) => {
+                    // For currencies, only allow division of the exact same currency
+                    if unit_a.unit_type() == UnitType::Currency && unit_a != unit_b {
+                        return false; // Cannot divide different currencies without exchange rates
+                    }
+
                     // Check if units are compatible (same unit type or bit/data conversion)
                     let compatible = unit_a.unit_type() == unit_b.unit_type()
                         || (unit_a.unit_type() == UnitType::Bit
