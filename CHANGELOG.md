@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.12] - 2025-06-24
+
+### 🤖 AI Assisted
+- Stricter clippy
+- Refactor: change DataRate variant to use named field (#3)
+- Add support for exponents (i.e., 2^10)
+- Add sqrt() support (with syntax highlighting)
+- Add support for vim command mode (e.g., :w, :wq, :cq)
+- Clean up code and add more vim motions (0, $, G, gg)
+- Add support for currencies (e.g., $42 * 3)
+- Add support for currency rates (e.g., $5/day * 3 months)
+- Add support for currency / data rates (e.g., $5/GiB * 12 TiB)
+- Fix currrency rate conversions (e.g., $500 / year to $/month)
+
+
+### 👤 Artisanally Crafted
+- Update CLAUDE.md and todo
+- Update todos
+
+
 ## [0.1.11] - 2025-06-20
 
 ### 🤖 AI Assisted
@@ -16,6 +36,7 @@ All notable changes to this project will be documented in this file.
 ### 👤 Artisanally Crafted
 - Minor website tweaks
 - Update readme ai section
+
 
 
 ## [0.1.10] - 2025-06-20
