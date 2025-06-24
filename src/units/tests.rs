@@ -2319,3 +2319,150 @@ fn test_currency_real_world_scenarios() {
         Some("225 $".to_string())
     );
 }
+
+#[test]
+fn test_currency_rate_creation() {
+    // Test creating currency rates by dividing currency by time
+    assert_eq!(
+        evaluate_test_expression("$100 / 1 hour"),
+        Some("100 $/h".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€50 / 1 day"),
+        Some("50 €/day".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£25 / 30 minutes"),
+        Some("0.833 £/min".to_string())
+    );
+}
+
+#[test]
+fn test_currency_rate_multiplication() {
+    // Test the main use case: currency rate * time = total currency
+    assert_eq!(
+        evaluate_test_expression("$5/hr * 1 day"),
+        Some("120 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€10/hour * 8 hours"),
+        Some("80 €".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£25/day * 30 days"),
+        Some("750 £".to_string())
+    );
+
+    // Test with different time units
+    assert_eq!(
+        evaluate_test_expression("$20/hr * 30 minutes"),
+        Some("10 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€15/day * 2 weeks"),
+        Some("210 €".to_string())
+    );
+}
+
+#[test]
+fn test_currency_rate_with_fractions() {
+    // Test with fractional rates
+    assert_eq!(
+        evaluate_test_expression("$12.50/hr * 4 hours"),
+        Some("50 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€7.5/hour * 8 hours"),
+        Some("60 €".to_string())
+    );
+
+    // Test with fractional time
+    assert_eq!(
+        evaluate_test_expression("$40/hr * 0.5 hours"),
+        Some("20 $".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("£100/day * 1.5 days"),
+        Some("150 £".to_string())
+    );
+}
+
+#[test]
+fn test_currency_rate_complex_calculations() {
+    // Test combining multiple currency rates
+    assert_eq!(
+        evaluate_test_expression("($15/hr + $5/hr) * 8 hours"),
+        Some("160 $".to_string())
+    );
+
+    // Test rate calculations with parentheses
+    assert_eq!(
+        evaluate_test_expression("$10/hr * (40 hours + 8 hours)"),
+        Some("480 $".to_string())
+    );
+
+    // Test overtime calculation (1.5x rate for overtime)
+    assert_eq!(
+        evaluate_test_expression("$20/hr * 40 hours + $20/hr * 1.5 * 10 hours"),
+        Some("1,100 $".to_string())
+    );
+}
+
+#[test]
+fn test_currency_rate_different_currencies() {
+    // Test that different currency rates work independently
+    assert_eq!(
+        evaluate_test_expression("¥1000/hr * 8 hours"),
+        Some("8,000 ¥".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("₹500/day * 7 days"),
+        Some("3,500 ₹".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("₩50000/hour * 4 hours"),
+        Some("200,000 ₩".to_string())
+    );
+}
+
+#[test]
+fn test_currency_rate_real_world_scenarios() {
+    // Hourly worker scenarios
+    assert_eq!(
+        evaluate_test_expression("$15/hr * 40 hours"),
+        Some("600 $".to_string())
+    );
+
+    // Weekly salary calculation
+    assert_eq!(
+        evaluate_test_expression("$1000/week * 4 weeks"),
+        Some("4,000 $".to_string())
+    );
+
+    // Daily rate contractor
+    assert_eq!(
+        evaluate_test_expression("£400/day * 22 days"),
+        Some("8,800 £".to_string())
+    );
+
+    // Part-time worker
+    assert_eq!(
+        evaluate_test_expression("$12/hr * 20 hours"),
+        Some("240 $".to_string())
+    );
+
+    // Freelancer monthly calculation
+    assert_eq!(
+        evaluate_test_expression("€3000/month * 3 months"),
+        Some("9,000 €".to_string())
+    );
+}
