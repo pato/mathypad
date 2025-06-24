@@ -106,7 +106,7 @@ found { print }
 echo "========================================"
 echo
 
-# Step 3: Ask for confirmation
+# Step 3: Ask for confirmation and editorial content
 read -p "Do you want to proceed with release $NEW_VERSION? (y/N): " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Release cancelled."
@@ -118,16 +118,82 @@ echo
 echo "Proceeding with release $NEW_VERSION..."
 echo
 
-# Step 4: Write the changelog file
-echo "[3/10] Writing changelog file..."
+# Step 3.5: Collect editorial content for the release
+echo "[2.5/10] Adding editorial content for users..."
+echo "========================================"
+echo "This is your chance to add user-friendly descriptions of the changes."
+echo "This editorial content will appear in:"
+echo "  - The welcome screen when users update"
+echo "  - The GitHub release notes"
+echo "  - The changelog as a special 'User Notes' section"
+echo ""
+echo "Please describe the key changes in this release in a way that"
+echo "end users will understand (or press Enter to skip):"
+echo ""
+
+# Create a temporary file for editorial content
+EDITORIAL_FILE="editorial_$NEW_VERSION.tmp"
+echo "# Editorial content for version $NEW_VERSION" > "$EDITORIAL_FILE"
+echo "# Lines starting with # are comments and will be ignored" >> "$EDITORIAL_FILE"
+echo "# Please write user-friendly descriptions of the key changes below:" >> "$EDITORIAL_FILE"
+echo "" >> "$EDITORIAL_FILE"
+
 if [ "$DRY_RUN" = true ]; then
-    echo "🔍 DRY RUN: Would write changelog to CHANGELOG.md using: git cliff --bump -o CHANGELOG.md"
+    echo "🔍 DRY RUN: Would open editor for editorial content"
+    echo "🔍 DRY RUN: Example editorial content:"
+    echo "    - New currency rate calculations (e.g., \$5/GiB * 1 TiB = \$5,120)"
+    echo "    - Enhanced storage cost calculations for cloud pricing"
+    echo "    - Improved data unit conversions between binary and decimal"
+    echo ""
+    # For dry run, add some dummy content
+    echo "- New currency rate calculations (e.g., \$5/GiB * 1 TiB = \$5,120)" >> "$EDITORIAL_FILE"
+    echo "- Enhanced storage cost calculations for cloud pricing" >> "$EDITORIAL_FILE"
+    echo "- Improved data unit conversions between binary and decimal" >> "$EDITORIAL_FILE"
 else
-    if ! git cliff --bump -o CHANGELOG.md; then
-        echo "ERROR: Failed to write changelog file"
-        rm -f temp_changelog.md
+    # Open editor for user to add editorial content
+    ${EDITOR:-nano} "$EDITORIAL_FILE"
+fi
+
+# Extract editorial content (remove comments and empty lines)
+EDITORIAL_CONTENT=$(grep -v '^#' "$EDITORIAL_FILE" | grep -v '^[[:space:]]*$' | head -20)
+
+if [ -n "$EDITORIAL_CONTENT" ]; then
+    echo "Editorial content added:"
+    echo "========================================"
+    echo "$EDITORIAL_CONTENT"
+    echo "========================================"
+else
+    echo "No editorial content provided - using auto-generated changelog only."
+fi
+
+echo
+
+# Step 4: Write the changelog file with editorial content
+echo "[3/10] Writing changelog file with editorial content..."
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Would generate changelog with editorial content"
+    echo "🔍 DRY RUN: Steps would be:"
+    echo "  1. Generate base changelog with: git cliff --bump -o temp_base_changelog.md"
+    echo "  2. Inject editorial content into the latest version section"
+    echo "  3. Preserve any existing editorial content from previous versions"
+    echo "  4. Write final result to CHANGELOG.md"
+else
+    # Generate base changelog first
+    if ! git cliff --bump -o temp_base_changelog.md; then
+        echo "ERROR: Failed to generate base changelog"
+        rm -f temp_changelog.md "$EDITORIAL_FILE"
         exit 1
     fi
+    
+    # Create enhanced changelog with editorial content
+    if ! ./inject_editorial_content.sh "$NEW_VERSION" "$EDITORIAL_CONTENT" temp_base_changelog.md CHANGELOG.md; then
+        echo "ERROR: Failed to inject editorial content into changelog"
+        rm -f temp_changelog.md temp_base_changelog.md "$EDITORIAL_FILE"
+        exit 1
+    fi
+    
+    # Clean up temporary files
+    rm -f temp_base_changelog.md
 fi
 
 # Step 5: Update Cargo.toml version
@@ -213,10 +279,11 @@ else
     fi
 fi
 
-# Step 8: Create git tag with changelog content
+# Step 8: Create git tag with changelog content including editorial
 echo "[7/10] Creating git tag v$NEW_VERSION..."
 
 # Extract just the changes for this version (without the version header)
+# This will include both editorial content and auto-generated changelog
 awk '
 /^## \[/ { 
     if (found) exit
@@ -256,7 +323,7 @@ fi
 
 # Step 9.5: Clean up temporary files before cargo publish
 echo "Cleaning up temporary files..."
-rm -f temp_changelog.md tag_message.tmp
+rm -f temp_changelog.md tag_message.tmp "$EDITORIAL_FILE"
 
 # Step 10: Publish to crates.io
 echo "[10/10] Publishing to crates.io..."

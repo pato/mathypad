@@ -369,6 +369,7 @@ fn render_welcome_dialog_to_string(
                 app,
                 frame.area(),
                 changelog_content,
+                None, // No editorial content for this test
                 current_version,
                 stored_version,
             )

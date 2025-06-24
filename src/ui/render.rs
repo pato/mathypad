@@ -702,7 +702,10 @@ pub fn render_save_as_dialog(f: &mut Frame, app: &App, area: Rect) {
 
 /// Render the welcome screen dialog showing changelog for new version
 pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
-    // Get the actual version information
+    // Get editorial content first (user-friendly descriptions)
+    let editorial_content = crate::version::get_editorial_content();
+    
+    // Get the full changelog content as fallback
     let changelog_content = crate::version::get_changelog_since_version().unwrap_or_else(|| {
         "Welcome to mathypad!\n\nThis appears to be your first time running this version."
             .to_string()
@@ -716,6 +719,7 @@ pub fn render_welcome_dialog(f: &mut Frame, app: &App, area: Rect) {
         app,
         area,
         &changelog_content,
+        editorial_content.as_deref(),
         current_version,
         stored_version.as_deref(),
     )
@@ -727,6 +731,7 @@ pub fn render_welcome_dialog_with_content(
     app: &App,
     area: Rect,
     changelog_content: &str,
+    editorial_content: Option<&str>,
     current_version: &str,
     stored_version: Option<&str>,
 ) {
@@ -792,29 +797,64 @@ pub fn render_welcome_dialog_with_content(
         ]
     };
 
-    // Split changelog into lines and apply scroll offset
+    // Prepare content lines - prioritize editorial content if available
+    let mut content_lines = Vec::new();
+    
+    // Add editorial content first if available
+    if let Some(editorial) = editorial_content {
+        if !editorial.trim().is_empty() {
+            content_lines.push(Line::from(Span::styled(
+                "🌟 Key highlights:", 
+                Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD)
+            )));
+            content_lines.push(Line::from(""));
+            
+            for line in editorial.lines() {
+                if !line.trim().is_empty() {
+                    content_lines.push(Line::from(Span::styled(
+                        line, 
+                        Style::default().fg(Color::Green)
+                    )));
+                }
+            }
+            
+            content_lines.push(Line::from(""));
+            content_lines.push(Line::from(Span::styled(
+                "For technical details, see the full changelog below:",
+                Style::default().fg(Color::Gray)
+            )));
+            content_lines.push(Line::from(""));
+        }
+    }
+    
+    // Add full changelog content
     let changelog_lines: Vec<Line> = changelog_content
         .lines()
         .map(|line| {
             if line.starts_with("## ") {
                 // Version headers in bright yellow
                 Line::from(Span::styled(line, Style::default().fg(Color::Yellow)))
+            } else if line.starts_with("### 🌟 User Notes") {
+                // Skip the User Notes header since we already showed editorial content above
+                return Line::from("");
             } else if line.starts_with("### ") {
                 // Section headers in cyan
                 Line::from(Span::styled(line, Style::default().fg(Color::Cyan)))
             } else if line.starts_with("- ") {
-                // Bullet points in green
-                Line::from(Span::styled(line, Style::default().fg(Color::Green)))
+                // Bullet points in light green (dimmer than editorial content)
+                Line::from(Span::styled(line, Style::default().fg(Color::Rgb(100, 150, 100))))
             } else {
                 // Regular text
-                Line::from(Span::styled(line, Style::default().fg(Color::White)))
+                Line::from(Span::styled(line, Style::default().fg(Color::Gray)))
             }
         })
         .collect();
 
-    // Combine header and changelog lines
+    content_lines.extend(changelog_lines);
+
+    // Combine header and content lines
     let mut all_lines = header_lines;
-    all_lines.extend(changelog_lines);
+    all_lines.extend(content_lines);
 
     // Calculate layout: reserve space for footer (3 lines: empty, instructions, scroll indicator)
     let inner_area = block.inner(dialog_area);
