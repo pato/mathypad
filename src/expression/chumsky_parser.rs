@@ -120,6 +120,22 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
             }
         });
 
+    // Parser for currency rate units (like "$/year", "€/month") - currency symbol followed by /time
+    let currency_rate = currency_symbol
+        .then(just('/'))
+        .then(text::ascii::ident())
+        .try_map(
+            |((currency_str, _), time_str): ((String, char), &str), span| {
+                let compound = format!("{}/{}", currency_str, time_str);
+                // Only allow if it forms a valid rate unit
+                if parse_unit(&compound).is_some() {
+                    Ok(compound)
+                } else {
+                    Err(Rich::custom(span, "Invalid currency rate unit"))
+                }
+            },
+        );
+
     // Parser for line references (like "line1", "line2", etc.)
     let line_ref = just("line")
         .then(text::int(10))
@@ -154,8 +170,9 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         just('=').to(Token::Assign),
     ));
 
-    // Combined unit parser (tries compound units first, then simple identifiers, then percent, then currency)
+    // Combined unit parser (tries currency rates first, then compound units, then simple identifiers, then percent, then currency)
     let unit_identifier = choice((
+        currency_rate, // Must come first to match $/year before $ is parsed separately
         compound_identifier,
         identifier,
         percent_symbol,
@@ -187,6 +204,26 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
                 Token::Number(num)
             }
         });
+
+    // Parser for currency rate amounts (like "$5/hr", "€10/day")
+    #[allow(clippy::type_complexity)]
+    let currency_rate_amount = currency_symbol
+        .then(just(' ').repeated()) // Optional spaces
+        .then(number)
+        .then(just('/'))
+        .then(text::ascii::ident())
+        .try_map(
+            |parsed: ((((String, ()), f64), char), &str), span| {
+                let ((((currency_str, _), amount), _), time_str) = parsed;
+                let compound = format!("{}/{}", currency_str, time_str);
+                // Only allow if it forms a valid rate unit
+                if let Some(unit) = parse_unit(&compound) {
+                    Ok(Token::NumberWithUnit(amount, unit))
+                } else {
+                    Err(Rich::custom(span, "Invalid currency rate unit"))
+                }
+            },
+        );
 
     // Parser for currency amounts (currency symbol followed by number)
     let currency_amount = currency_symbol
@@ -224,8 +261,9 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
 
     // Main token parser - try each option in order (most specific first)
     let token = choice((
-        line_ref,         // Must come first to catch "line1" before "line" is treated as unit
-        keyword,          // "to" and "in" keywords
+        line_ref,             // Must come first to catch "line1" before "line" is treated as unit
+        keyword,              // "to" and "in" keywords
+        currency_rate_amount, // Currency rate amounts like "$5/hr" (must come before currency_amount)
         currency_amount, // Currency symbols followed by numbers (must come before number_with_unit)
         number_with_unit, // Numbers with optional units
         operator,        // Mathematical operators
