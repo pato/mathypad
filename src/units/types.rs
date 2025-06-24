@@ -318,19 +318,27 @@ impl Unit {
             | Unit::INR
             | Unit::KRW => UnitType::Currency,
             Unit::RateUnit(b1, b2) => {
-                if b2.unit_type() != UnitType::Time {
-                    panic!("We handle only rates")
-                }
-                match b1.unit_type() {
-                    UnitType::Bit => UnitType::BitRate,
-                    UnitType::Data => UnitType::DataRate {
+                match (b1.unit_type(), b2.unit_type()) {
+                    // Traditional rates with time denominators
+                    (UnitType::Bit, UnitType::Time) => UnitType::BitRate,
+                    (UnitType::Data, UnitType::Time) => UnitType::DataRate {
                         time_multiplier: b2.to_base_value(1.0),
                     },
-                    UnitType::Request => UnitType::RequestRate,
-                    UnitType::Currency => UnitType::DataRate {
+                    (UnitType::Request, UnitType::Time) => UnitType::RequestRate,
+                    (UnitType::Currency, UnitType::Time) => UnitType::DataRate {
                         time_multiplier: b2.to_base_value(1.0),
-                    }, // Currency rates behave like data rates for arithmetic
-                    _ => panic!("Rate unknown"),
+                    }, // Currency/time rates behave like data rates for arithmetic
+
+                    // Currency rates with data denominators (e.g., $/GiB)
+                    (UnitType::Currency, UnitType::Data) => UnitType::DataRate {
+                        time_multiplier: 1.0, // No time component for currency/data rates
+                    },
+
+                    _ => panic!(
+                        "Rate type not supported: {:?}/{:?}",
+                        b1.unit_type(),
+                        b2.unit_type()
+                    ),
                 }
             }
         }
