@@ -1,8 +1,8 @@
 # Todo 
 
-- [ ] Doesn't handle currency (at the very least preserving unit, not including currency conversion)
 - [ ] Add "12 as % of 60" support
 - [ ] Add support for comments after expressions
+- [x] Doesn't handle currency (at the very least preserving unit, not including currency conversion)
 - [x] Update the readme.md with all the latest functionality
 - [x] Add support for sqrt()
 - [x] Update the website with all the latest functionality
