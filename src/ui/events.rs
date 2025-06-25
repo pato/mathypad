@@ -13,10 +13,156 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{
     error::Error,
-    fs, io,
+    fs,
+    io::{self, Write},
     path::PathBuf,
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
+
+// Global storage for the current text lines for panic recovery
+static PANIC_RECOVERY_TEXT: OnceLock<Arc<Mutex<Vec<String>>>> = OnceLock::new();
+
+/// Initialize the panic recovery system
+fn init_panic_recovery() {
+    let _ = PANIC_RECOVERY_TEXT.set(Arc::new(Mutex::new(Vec::new())));
+}
+
+/// Update the text lines for panic recovery
+fn update_panic_recovery_text(text_lines: &[String]) {
+    if let Some(recovery_text) = PANIC_RECOVERY_TEXT.get() {
+        if let Ok(mut stored_text) = recovery_text.lock() {
+            stored_text.clear();
+            stored_text.extend_from_slice(text_lines);
+        }
+    }
+}
+
+/// Save the current text to recovery file during panic
+fn save_recovery_file() -> Result<(), Box<dyn Error>> {
+    let recovery_text = PANIC_RECOVERY_TEXT
+        .get()
+        .ok_or("Panic recovery not initialized")?;
+
+    let text_lines = recovery_text
+        .lock()
+        .map_err(|_| "Failed to lock recovery text")?;
+
+    if text_lines.is_empty() {
+        return Ok(()); // Nothing to save
+    }
+
+    // Create ~/.mathypad directory if it doesn't exist
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let mathypad_dir = home_dir.join(".mathypad");
+    fs::create_dir_all(&mathypad_dir)?;
+
+    // Save to recovery file
+    let recovery_path = mathypad_dir.join("recovered.pad");
+    let mut file = fs::File::create(recovery_path)?;
+
+    for line in text_lines.iter() {
+        writeln!(file, "{}", line)?;
+    }
+
+    file.flush()?;
+    Ok(())
+}
+
+/// Cleanup function to restore terminal state
+fn cleanup_terminal() {
+    let _ = disable_raw_mode();
+    let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+    let _ = io::stdout().flush();
+}
+
+/// Set up panic hook to ensure terminal cleanup and error logging
+fn setup_panic_hook() {
+    // Get the original panic hook
+    let original_hook = std::panic::take_hook();
+
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // Clean up the terminal first
+        cleanup_terminal();
+
+        // Try to save recovery file
+        let recovery_saved = save_recovery_file().is_ok();
+
+        // Write panic info to error log file
+        if let Err(e) = write_panic_to_log(panic_info) {
+            eprintln!("Failed to write panic log: {}", e);
+        }
+
+        // Print a user-friendly message
+        eprintln!("\n💀 Mathypad encountered an unexpected error and had to exit.");
+        eprintln!("📄 Error details have been saved to: ~/.mathypad/error.log");
+        if recovery_saved {
+            eprintln!("💾 Your work has been saved to: ~/.mathypad/recovered.pad");
+        }
+        eprintln!(
+            "🐛 Please consider reporting this issue at: https://github.com/pato/mathypad/issues"
+        );
+        eprintln!();
+
+        // Call the original hook for any additional handling
+        original_hook(panic_info);
+    }));
+}
+
+/// Write panic information to error log file
+fn write_panic_to_log(panic_info: &std::panic::PanicHookInfo) -> Result<(), Box<dyn Error>> {
+    // Create ~/.mathypad directory if it doesn't exist
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let mathypad_dir = home_dir.join(".mathypad");
+    fs::create_dir_all(&mathypad_dir)?;
+
+    // Create or append to error log
+    let error_log_path = mathypad_dir.join("error.log");
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(error_log_path)?;
+
+    // Write timestamp and panic info
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    writeln!(file, "\n=== PANIC AT {} (Unix timestamp) ===", timestamp)?;
+    writeln!(file, "{}", panic_info)?;
+
+    // Add some system info
+    writeln!(file, "\nSystem Info:")?;
+    writeln!(file, "  OS: {}", std::env::consts::OS)?;
+    writeln!(file, "  Arch: {}", std::env::consts::ARCH)?;
+    if let Ok(version) = std::env::var("CARGO_PKG_VERSION") {
+        writeln!(file, "  Mathypad Version: {}", version)?;
+    }
+
+    // Add backtrace if available
+    if let Some(location) = panic_info.location() {
+        writeln!(
+            file,
+            "  Location: {}:{}:{}",
+            location.file(),
+            location.line(),
+            location.column()
+        )?;
+    }
+
+    writeln!(file, "=== END PANIC ===\n")?;
+    file.flush()?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+#[allow(dead_code)]
+/// Test function to simulate a panic (for testing panic handling)
+pub fn test_panic_handling() {
+    setup_panic_hook();
+    panic!("This is a test panic to verify error handling works correctly");
+}
 
 /// Run the interactive TUI mode
 pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
@@ -26,6 +172,15 @@ pub fn run_interactive_mode() -> Result<(), Box<dyn Error>> {
 
 /// Run the main event loop with the given app
 fn run_event_loop(mut app: App) -> Result<(), Box<dyn Error>> {
+    // Initialize panic recovery system
+    init_panic_recovery();
+
+    // Set up panic hook to ensure terminal cleanup
+    setup_panic_hook();
+
+    // Initialize recovery state with current app
+    update_panic_recovery_text(&app.text_lines);
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -211,6 +366,10 @@ fn run_event_loop(mut app: App) -> Result<(), Box<dyn Error>> {
         if last_tick.elapsed() >= tick_rate || has_active_animations {
             // Update animations on each tick or when animations are active
             app.update_animations();
+
+            // Update panic recovery with current text state
+            update_panic_recovery_text(&app.text_lines);
+
             last_tick = Instant::now();
         }
     }
