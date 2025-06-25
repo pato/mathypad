@@ -405,7 +405,7 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
         KeyCode::Char('$') => {
             // Go to end of line
             if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].len();
+                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
             }
         }
         KeyCode::Char('G') => {
@@ -428,7 +428,7 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
         KeyCode::Char('A') => {
             // Move to end of line
             if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].len();
+                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
             }
             app.mode = Mode::Insert;
         }
@@ -439,7 +439,7 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
         KeyCode::Char('o') => {
             // Insert new line below and enter insert mode
             if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].len();
+                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
             }
             app.new_line();
             app.mode = Mode::Insert;
@@ -499,7 +499,7 @@ pub fn handle_command_mode(app: &mut App, key: KeyCode) -> bool {
             }
         }
         KeyCode::Right => {
-            if app.command_cursor < app.command_line.len() {
+            if app.command_cursor < app.command_line.chars().count() {
                 app.command_cursor += 1;
             }
         }
@@ -507,7 +507,7 @@ pub fn handle_command_mode(app: &mut App, key: KeyCode) -> bool {
             app.command_cursor = 0;
         }
         KeyCode::End => {
-            app.command_cursor = app.command_line.len();
+            app.command_cursor = app.command_line.chars().count();
         }
         KeyCode::Enter => {
             // Execute command and exit command mode
@@ -540,7 +540,12 @@ fn execute_command(app: &mut App) -> bool {
         return false;
     }
 
-    let command = &command[1..]; // Remove the ':' prefix
+    // Safely remove the ':' prefix using char boundary
+    let command = if let Some(stripped) = command.strip_prefix(':') {
+        stripped
+    } else {
+        return false;
+    };
     let parts: Vec<&str> = command.split_whitespace().collect();
 
     if parts.is_empty() {
@@ -758,7 +763,10 @@ fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
             } else {
                 // Insert character before the ".pad" extension
                 if app.save_as_input.ends_with(".pad") {
-                    let base = &app.save_as_input[..app.save_as_input.len() - 4];
+                    let base = app
+                        .save_as_input
+                        .strip_suffix(".pad")
+                        .unwrap_or(&app.save_as_input);
                     app.save_as_input = format!("{}{}.pad", base, c);
                 } else {
                     // Fallback: just append the character
@@ -770,11 +778,18 @@ fn handle_save_as_input(app: &mut App, key: KeyCode) -> bool {
         KeyCode::Backspace => {
             if app.save_as_input.ends_with(".pad") && app.save_as_input.len() > 4 {
                 // Remove character before the ".pad" extension
-                let base = &app.save_as_input[..app.save_as_input.len() - 4];
+                // Use strip_suffix to safely remove the ".pad" extension
+                let base = app
+                    .save_as_input
+                    .strip_suffix(".pad")
+                    .unwrap_or(&app.save_as_input);
                 if base.is_empty() {
                     app.save_as_input = ".pad".to_string();
                 } else {
-                    let new_base = &base[..base.len() - 1];
+                    // Safely remove the last character using char boundaries
+                    let mut chars = base.chars();
+                    chars.next_back(); // Remove last char
+                    let new_base: String = chars.collect();
                     app.save_as_input = if new_base.is_empty() {
                         ".pad".to_string()
                     } else {
