@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.13] - 2025-06-25
+
+### 🤖 AI Assisted
+- Fix utf-8 character bug (deleting with utf8 characters was a mess)
+- Add panic handler in case mathypad crashes (will save error logs and
+- Add support for "quarter" as a time unit (e.g., 1 year - 1 quarter =
+- Fixed syntax highltighting on line1/month
+
+
 ## [0.1.12] - 2025-06-24
 
 ### 🤖 AI Assisted
@@ -20,6 +29,7 @@ All notable changes to this project will be documented in this file.
 ### 👤 Artisanally Crafted
 - Update CLAUDE.md and todo
 - Update todos
+
 
 
 ## [0.1.11] - 2025-06-20
