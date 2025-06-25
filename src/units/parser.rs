@@ -96,6 +96,7 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         "day" | "days" => Some(Unit::Day),
         "week" | "weeks" | "wk" | "wks" => Some(Unit::Week),
         "month" | "months" | "mo" | "mos" => Some(Unit::Month),
+        "quarter" | "quarters" | "qtr" | "qtrs" => Some(Unit::Quarter),
         "year" | "years" | "yr" | "yrs" => Some(Unit::Year),
 
         // Case-insensitive parsing (backwards compatibility)
