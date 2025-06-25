@@ -162,7 +162,26 @@ impl App {
     /// Insert a character at the current cursor position
     pub fn insert_char(&mut self, c: char) {
         if self.cursor_line < self.text_lines.len() {
-            self.text_lines[self.cursor_line].insert(self.cursor_col, c);
+            // Convert cursor position from character index to byte index for insertion
+            let line = &self.text_lines[self.cursor_line];
+            let char_count = line.chars().count();
+
+            // Ensure cursor position is within bounds
+            let safe_cursor_col = self.cursor_col.min(char_count);
+
+            // Find the byte position for character insertion
+            let byte_index = if safe_cursor_col == 0 {
+                0
+            } else if safe_cursor_col >= char_count {
+                line.len()
+            } else {
+                line.char_indices()
+                    .nth(safe_cursor_col)
+                    .map(|(i, _)| i)
+                    .unwrap_or(line.len())
+            };
+
+            self.text_lines[self.cursor_line].insert(byte_index, c);
             self.cursor_col += 1;
             self.update_result(self.cursor_line);
             self.has_unsaved_changes = true;
@@ -174,10 +193,28 @@ impl App {
         if self.cursor_line < self.text_lines.len() {
             if self.cursor_col > 0 {
                 // Delete character within the current line
-                self.text_lines[self.cursor_line].remove(self.cursor_col - 1);
-                self.cursor_col -= 1;
-                self.update_result(self.cursor_line);
-                self.has_unsaved_changes = true;
+                let line = &mut self.text_lines[self.cursor_line];
+
+                // Find the byte index of the character to delete
+                let char_indices: Vec<_> = line.char_indices().collect();
+                if self.cursor_col > 0 && self.cursor_col <= char_indices.len() {
+                    // We want to delete the character before the cursor (at cursor_col - 1)
+                    let char_to_delete_idx = self.cursor_col - 1;
+
+                    // Get the byte range of this character
+                    let start_byte = char_indices[char_to_delete_idx].0;
+                    let end_byte = if char_to_delete_idx + 1 < char_indices.len() {
+                        char_indices[char_to_delete_idx + 1].0
+                    } else {
+                        line.len()
+                    };
+
+                    // Remove the character using drain
+                    line.drain(start_byte..end_byte);
+                    self.cursor_col -= 1;
+                    self.update_result(self.cursor_line);
+                    self.has_unsaved_changes = true;
+                }
             } else if self.cursor_line > 0 {
                 // Cursor is at beginning of line - merge with previous line
                 let current_line = self.text_lines.remove(self.cursor_line);
@@ -211,7 +248,7 @@ impl App {
                     // Normal case: merge current line into previous line
                     self.update_line_references_for_deletion(self.cursor_line);
                     self.cursor_line -= 1;
-                    self.cursor_col = self.text_lines[self.cursor_line].len();
+                    self.cursor_col = self.text_lines[self.cursor_line].chars().count();
                     self.text_lines[self.cursor_line].push_str(&current_line);
                 }
 
@@ -259,7 +296,27 @@ impl App {
 
             // Delete the characters from new_col to cursor_col
             if new_col < self.cursor_col {
-                self.text_lines[self.cursor_line].drain(new_col..self.cursor_col);
+                let line = &self.text_lines[self.cursor_line];
+                let char_indices: Vec<_> = line.char_indices().collect();
+
+                if !char_indices.is_empty() {
+                    let start_byte = if new_col < char_indices.len() {
+                        char_indices[new_col].0
+                    } else {
+                        line.len()
+                    };
+
+                    let end_byte = if self.cursor_col < char_indices.len() {
+                        char_indices[self.cursor_col].0
+                    } else {
+                        line.len()
+                    };
+
+                    if start_byte < end_byte {
+                        self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                    }
+                }
+
                 self.cursor_col = new_col;
                 self.update_result(self.cursor_line);
                 self.has_unsaved_changes = true;
@@ -271,10 +328,31 @@ impl App {
     pub fn new_line(&mut self) {
         if self.cursor_line < self.text_lines.len() {
             let current_line = self.text_lines[self.cursor_line].clone();
-            let (left, right) = current_line.split_at(self.cursor_col);
-            self.text_lines[self.cursor_line] = left.to_string();
-            self.text_lines
-                .insert(self.cursor_line + 1, right.to_string());
+            let char_count = current_line.chars().count();
+            let safe_cursor_col = self.cursor_col.min(char_count);
+
+            // Split the line at character boundary, not byte boundary
+            let (left, right) = if safe_cursor_col == 0 {
+                ("".to_string(), current_line)
+            } else if safe_cursor_col >= char_count {
+                (current_line, "".to_string())
+            } else {
+                let split_byte_idx = current_line
+                    .char_indices()
+                    .nth(safe_cursor_col)
+                    .map(|(i, _)| i)
+                    .unwrap_or(current_line.len());
+                let left = current_line[..split_byte_idx].to_string();
+                let right = current_line[split_byte_idx..].to_string();
+                (left, right)
+            };
+
+            // Check emptiness before moving the strings
+            let left_empty = left.trim().is_empty();
+            let right_empty = right.trim().is_empty();
+
+            self.text_lines[self.cursor_line] = left;
+            self.text_lines.insert(self.cursor_line + 1, right);
             self.results.insert(self.cursor_line + 1, None);
 
             // Insert corresponding empty animation slot
@@ -302,11 +380,6 @@ impl App {
 
             // Handle line reference updates for insertion
             let insertion_point = self.cursor_line + 1; // 0-based index of newly inserted line
-
-            // Handle line reference updates for line splitting
-            // When splitting, we need to consider where content ends up
-            let left_empty = left.trim().is_empty();
-            let right_empty = right.trim().is_empty();
 
             if left_empty && !right_empty {
                 // Content moved from cursor_line to insertion_point
@@ -411,16 +484,29 @@ impl App {
     /// Delete character at cursor position (vim 'x' command)
     pub fn delete_char_at_cursor(&mut self) {
         if self.cursor_line < self.text_lines.len() {
-            let line_len = self.text_lines[self.cursor_line].len();
-            if self.cursor_col < line_len {
-                self.text_lines[self.cursor_line].remove(self.cursor_col);
-                // Adjust cursor if at end of line after deletion
-                if self.cursor_col >= self.text_lines[self.cursor_line].len() && self.cursor_col > 0
-                {
-                    self.cursor_col = self.text_lines[self.cursor_line].len();
+            let line = &self.text_lines[self.cursor_line];
+            let char_count = line.chars().count();
+
+            if self.cursor_col < char_count {
+                let char_indices: Vec<_> = line.char_indices().collect();
+                if self.cursor_col < char_indices.len() {
+                    let byte_start = char_indices[self.cursor_col].0;
+                    let byte_end = if self.cursor_col + 1 < char_indices.len() {
+                        char_indices[self.cursor_col + 1].0
+                    } else {
+                        line.len()
+                    };
+
+                    self.text_lines[self.cursor_line].drain(byte_start..byte_end);
+
+                    // Adjust cursor if at end of line after deletion
+                    let new_char_count = self.text_lines[self.cursor_line].chars().count();
+                    if self.cursor_col >= new_char_count && self.cursor_col > 0 {
+                        self.cursor_col = new_char_count;
+                    }
+                    self.update_result(self.cursor_line);
+                    self.has_unsaved_changes = true;
                 }
-                self.update_result(self.cursor_line);
-                self.has_unsaved_changes = true;
             }
         }
     }
@@ -469,7 +555,7 @@ impl App {
             // If at start of line, move to end of previous line
             if self.cursor_line > 0 {
                 self.cursor_line -= 1;
-                self.cursor_col = self.text_lines[self.cursor_line].len();
+                self.cursor_col = self.text_lines[self.cursor_line].chars().count();
             }
             return;
         }
@@ -533,7 +619,7 @@ impl App {
             // If at start of line, move to end of previous line
             if self.cursor_line > 0 {
                 self.cursor_line -= 1;
-                self.cursor_col = self.text_lines[self.cursor_line].len();
+                self.cursor_col = self.text_lines[self.cursor_line].chars().count();
             }
             return;
         }
@@ -578,7 +664,27 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            let line = &self.text_lines[self.cursor_line];
+            let char_indices: Vec<_> = line.char_indices().collect();
+
+            if !char_indices.is_empty() {
+                let start_byte = if start_col < char_indices.len() {
+                    char_indices[start_col].0
+                } else {
+                    line.len()
+                };
+
+                let end_byte = if end_col < char_indices.len() {
+                    char_indices[end_col].0
+                } else {
+                    line.len()
+                };
+
+                if start_byte < end_byte {
+                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                }
+            }
+
             self.update_result(self.cursor_line);
             self.has_unsaved_changes = true;
         }
@@ -611,7 +717,27 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            let line = &self.text_lines[self.cursor_line];
+            let char_indices: Vec<_> = line.char_indices().collect();
+
+            if !char_indices.is_empty() {
+                let start_byte = if start_col < char_indices.len() {
+                    char_indices[start_col].0
+                } else {
+                    line.len()
+                };
+
+                let end_byte = if end_col < char_indices.len() {
+                    char_indices[end_col].0
+                } else {
+                    line.len()
+                };
+
+                if start_byte < end_byte {
+                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                }
+            }
+
             self.cursor_col = start_col;
             self.update_result(self.cursor_line);
             self.has_unsaved_changes = true;
@@ -641,7 +767,27 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            let line = &self.text_lines[self.cursor_line];
+            let char_indices: Vec<_> = line.char_indices().collect();
+
+            if !char_indices.is_empty() {
+                let start_byte = if start_col < char_indices.len() {
+                    char_indices[start_col].0
+                } else {
+                    line.len()
+                };
+
+                let end_byte = if end_col < char_indices.len() {
+                    char_indices[end_col].0
+                } else {
+                    line.len()
+                };
+
+                if start_byte < end_byte {
+                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                }
+            }
+
             self.update_result(self.cursor_line);
             self.has_unsaved_changes = true;
         }
@@ -672,7 +818,27 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            self.text_lines[self.cursor_line].drain(start_col..end_col);
+            let line = &self.text_lines[self.cursor_line];
+            let char_indices: Vec<_> = line.char_indices().collect();
+
+            if !char_indices.is_empty() {
+                let start_byte = if start_col < char_indices.len() {
+                    char_indices[start_col].0
+                } else {
+                    line.len()
+                };
+
+                let end_byte = if end_col < char_indices.len() {
+                    char_indices[end_col].0
+                } else {
+                    line.len()
+                };
+
+                if start_byte < end_byte {
+                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                }
+            }
+
             self.cursor_col = start_col;
             self.update_result(self.cursor_line);
             self.has_unsaved_changes = true;
@@ -1593,5 +1759,51 @@ mod app_tests {
         // Switch back to normal mode
         app.mode = Mode::Normal;
         assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn test_delete_char_utf8() {
+        let mut app = App::default();
+
+        // Test deleting multi-byte characters
+        app.insert_char('€');
+        assert_eq!(app.cursor_col, 1);
+        app.insert_char(' ');
+        assert_eq!(app.cursor_col, 2);
+        app.insert_char('5');
+        assert_eq!(app.cursor_col, 3);
+        assert_eq!(app.text_lines[0], "€ 5");
+
+        // Delete '5'
+        app.delete_char();
+        assert_eq!(app.text_lines[0], "€ ");
+        assert_eq!(app.cursor_col, 2);
+
+        // Delete space
+        app.delete_char();
+        assert_eq!(app.text_lines[0], "€");
+        assert_eq!(app.cursor_col, 1);
+
+        // Delete euro sign
+        app.delete_char();
+        assert_eq!(app.text_lines[0], "");
+        assert_eq!(app.cursor_col, 0);
+
+        // Test with emoji
+        app.insert_char('🚀');
+        app.insert_char('€');
+        app.insert_char('¥');
+        assert_eq!(app.text_lines[0], "🚀€¥");
+        assert_eq!(app.cursor_col, 3);
+
+        // Delete yen
+        app.delete_char();
+        assert_eq!(app.text_lines[0], "🚀€");
+        assert_eq!(app.cursor_col, 2);
+
+        // Delete euro
+        app.delete_char();
+        assert_eq!(app.text_lines[0], "🚀");
+        assert_eq!(app.cursor_col, 1);
     }
 }

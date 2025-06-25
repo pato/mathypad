@@ -193,9 +193,12 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
         _ => {
             let mut rate_type = None;
             if let Some(slash_pos) = text.find('/') {
-                if slash_pos < text.len() - 1 {
-                    let left_unit = parse_unit(&text[0..slash_pos]);
-                    let right_unit = parse_unit(&text[slash_pos + 1..]);
+                // Use split_at which ensures we split at a valid char boundary
+                let (left_part, right_part) = text.split_at(slash_pos);
+                // Skip the '/' character safely
+                if let Some(right_part) = right_part.strip_prefix('/') {
+                    let left_unit = parse_unit(left_part);
+                    let right_unit = parse_unit(right_part);
                     if let (Some(left_unit), Some(right_unit)) = (left_unit, right_unit) {
                         if right_unit.unit_type() == UnitType::Time {
                             rate_type = Some(rate_unit!(left_unit, right_unit))

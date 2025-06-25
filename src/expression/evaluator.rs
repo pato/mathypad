@@ -65,12 +65,13 @@ pub fn evaluate_tokens_stream_with_context(
 
                     // Prevent fallback for:
                     // 1. Pure math expressions: has_math && !has_conversion
-                    // 2. Pure conversion expressions: has_conversion && !has_math  
+                    // 2. Pure conversion expressions: has_conversion && !has_math
                     // 3. Mixed expressions with conversion at the end: has_math && has_conversion && has_conversion_at_end
                     #[allow(clippy::nonminimal_bool)]
-                    if !has_math && has_conversion 
-                        || has_math && !has_conversion 
-                        || has_math && has_conversion_at_end {
+                    if !has_math && has_conversion
+                        || has_math && !has_conversion
+                        || has_math && has_conversion_at_end
+                    {
                         return None; // Fail entirely for these cases
                     }
                     // For other mixed expressions, allow fallback

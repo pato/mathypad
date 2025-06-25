@@ -212,18 +212,16 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         .then(number)
         .then(just('/'))
         .then(text::ascii::ident())
-        .try_map(
-            |parsed: ((((String, ()), f64), char), &str), span| {
-                let ((((currency_str, _), amount), _), time_str) = parsed;
-                let compound = format!("{}/{}", currency_str, time_str);
-                // Only allow if it forms a valid rate unit
-                if let Some(unit) = parse_unit(&compound) {
-                    Ok(Token::NumberWithUnit(amount, unit))
-                } else {
-                    Err(Rich::custom(span, "Invalid currency rate unit"))
-                }
-            },
-        );
+        .try_map(|parsed: ((((String, ()), f64), char), &str), span| {
+            let ((((currency_str, _), amount), _), time_str) = parsed;
+            let compound = format!("{}/{}", currency_str, time_str);
+            // Only allow if it forms a valid rate unit
+            if let Some(unit) = parse_unit(&compound) {
+                Ok(Token::NumberWithUnit(amount, unit))
+            } else {
+                Err(Rich::custom(span, "Invalid currency rate unit"))
+            }
+        });
 
     // Parser for currency amounts (currency symbol followed by number)
     let currency_amount = currency_symbol
