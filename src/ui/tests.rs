@@ -227,6 +227,33 @@ fn test_syntax_highlighting_line_references() {
 }
 
 #[test]
+fn test_syntax_highlighting_line_references_with_operators() {
+    let app = App {
+        text_lines: vec![
+            "$40".to_string(),
+            "line1/month * 3".to_string(),
+            "line1+100".to_string(),
+            "line1*rate-50".to_string(),
+        ],
+        results: vec![
+            Some("40 $".to_string()),
+            Some("120 $/month".to_string()),
+            Some("140 $".to_string()),
+            Some("170 $".to_string()),
+        ],
+        variables: {
+            let mut vars = std::collections::HashMap::new();
+            vars.insert("rate".to_string(), "5.5".to_string());
+            vars
+        },
+        ..Default::default()
+    };
+
+    let output = render_app_to_string(&app);
+    assert_snapshot!("syntax_highlighting_line_references_with_operators", output);
+}
+
+#[test]
 fn test_syntax_highlighting_variables() {
     let mut app = App {
         text_lines: vec![
