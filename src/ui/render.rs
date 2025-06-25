@@ -254,9 +254,7 @@ pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -
             let start_pos = current_pos;
 
             while current_pos < chars.len()
-                && (chars[current_pos].is_ascii_alphabetic()
-                    || chars[current_pos].is_ascii_digit()
-                    || chars[current_pos] == '/')
+                && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos].is_ascii_digit())
             {
                 current_pos += 1;
             }
@@ -365,9 +363,7 @@ pub fn parse_colors_with_cursor<'a>(
             let start_char_index = char_index;
 
             while current_pos < chars.len()
-                && (chars[current_pos].is_ascii_alphabetic()
-                    || chars[current_pos].is_ascii_digit()
-                    || chars[current_pos] == '/')
+                && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos].is_ascii_digit())
             {
                 current_pos += 1;
                 char_index += 1;
