@@ -1900,6 +1900,27 @@ fn test_extended_time_unit_conversions() {
     let unit_val = result.unwrap();
     let expected = 365.25 / 30.44; // 365.25 days / 30.44 days per month
     assert!((unit_val.value - expected).abs() < 0.01);
+
+    // Test quarter conversions
+    let result = evaluate_with_unit_info("1 quarter to months");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 3.0).abs() < 0.01); // 1 quarter = 3 months
+
+    let result = evaluate_with_unit_info("1 quarter to days");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 91.32).abs() < 0.01); // 1 quarter = 3 * 30.44 days
+
+    let result = evaluate_with_unit_info("4 quarters to years");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 1.0).abs() < 0.01); // 4 quarters = 1 year
+
+    let result = evaluate_with_unit_info("1 year to quarters");
+    assert!(result.is_some());
+    let unit_val = result.unwrap();
+    assert!((unit_val.value - 4.0).abs() < 0.01); // 1 year = 4 quarters
 }
 
 #[test]
@@ -1918,6 +1939,16 @@ fn test_extended_time_arithmetic() {
     assert_eq!(
         evaluate_test_expression("1 year - 1 month"),
         Some("11 month".to_string()) // 365.25 - 30.44 = 334.81 days ≈ 11 months
+    );
+
+    assert_eq!(
+        evaluate_test_expression("1 year - 1 quarter"),
+        Some("3 quarter".to_string()) // 4 quarters - 1 quarter = 3 quarters
+    );
+
+    assert_eq!(
+        evaluate_test_expression("2 quarters + 1 month"),
+        Some("7 month".to_string()) // 6 months + 1 month = 7 months
     );
 
     // Test multiplication and division
@@ -2464,6 +2495,22 @@ fn test_currency_rate_real_world_scenarios() {
     assert_eq!(
         evaluate_test_expression("€3000/month * 3 months"),
         Some("9,000 €".to_string())
+    );
+
+    // Quarterly calculations
+    assert_eq!(
+        evaluate_test_expression("$12000/quarter to $/month"),
+        Some("4,000 $/month".to_string())
+    );
+
+    assert_eq!(
+        evaluate_test_expression("$100000/year to $/quarter"),
+        Some("24,999.487 $/quarter".to_string()) // Slight precision difference due to 365.25 days/year
+    );
+
+    assert_eq!(
+        evaluate_test_expression("€5000/quarter * 4 quarters"),
+        Some("20,000 €".to_string())
     );
 }
 

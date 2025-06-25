@@ -1,7 +1,5 @@
 # Todo 
 
-i want you to add support for "quarter" as a unit of time, it is equivalent to 3 months.
-
 i want you to make sure that we cannot add currency rates unless it is the same currency, then i want you to critically review all the currency operators to make sure we do not accidentally allow operations across diferent currencies
 
 it looks like we have duplicate logic:  The main function evaluate_expression_with_context calls evaluate_tokens_stream_with_context,
@@ -9,6 +7,8 @@ it looks like we have duplicate logic:  The main function evaluate_expression_wi
 
 - [ ] Add "12 as % of 60" support
 - [ ] Add support for comments after expressions
+- [ ] find a way to get better precision (maybe a year should just be 365 days? a month only 30?)
+- [x] i want you to add support for "quarter" as a unit of time, it is equivalent to 3 months.
 - [x] Doesn't handle currency (at the very least preserving unit, not including currency conversion)
 - [x] Update the readme.md with all the latest functionality
 - [x] Add support for sqrt()

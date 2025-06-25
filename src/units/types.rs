@@ -26,6 +26,7 @@ pub enum Unit {
     Day,
     Week,
     Month,
+    Quarter,
     Year,
 
     // Bit units (base 10)
@@ -120,6 +121,7 @@ impl Unit {
             Unit::Day => value * 86400.0,
             Unit::Week => value * 604800.0, // 7 days * 86400 seconds/day
             Unit::Month => value * 2629746.0, // 30.44 days * 86400 seconds/day (average month)
+            Unit::Quarter => value * 7889238.0, // 3 months * 2629746 seconds/month
             Unit::Year => value * 31557600.0, // 365.25 days * 86400 seconds/day (accounting for leap years)
 
             // Bit units base 10 (convert to bits)
@@ -199,6 +201,7 @@ impl Unit {
             Unit::Day => base_value / 86400.0,
             Unit::Week => base_value / 604800.0,
             Unit::Month => base_value / 2629746.0,
+            Unit::Quarter => base_value / 7889238.0,
             Unit::Year => base_value / 31557600.0,
 
             // Bit units base 10 (from bits)
@@ -278,6 +281,7 @@ impl Unit {
             | Unit::Day
             | Unit::Week
             | Unit::Month
+            | Unit::Quarter
             | Unit::Year => UnitType::Time,
             Unit::Bit
             | Unit::Kb
@@ -356,6 +360,7 @@ impl Unit {
             Unit::Day => Cow::Borrowed("day"),
             Unit::Week => Cow::Borrowed("week"),
             Unit::Month => Cow::Borrowed("month"),
+            Unit::Quarter => Cow::Borrowed("quarter"),
             Unit::Year => Cow::Borrowed("year"),
             Unit::Bit => Cow::Borrowed("bit"),
             Unit::Kb => Cow::Borrowed("Kb"),
