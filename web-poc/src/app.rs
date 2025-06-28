@@ -33,19 +33,10 @@ impl MathypadPocApp {
         Default::default()
     }
 
-    /// Calculate line count consistently for both editor and results
+    /// Calculate line count consistently for both editor and results  
     fn calculate_line_count(&self) -> usize {
-        let content = self.core.get_content();
-        let mut edit_content = content.clone();
-        if !edit_content.ends_with('\n') {
-            edit_content.push('\n');
-        }
-        
-        if edit_content.is_empty() {
-            1
-        } else {
-            edit_content.lines().count().max(1)
-        }
+        // Now that core properly manages lines, just use the text_lines count
+        self.core.text_lines.len()
     }
 
     /// Render the code editor with proper line numbers and syntax highlighting
@@ -87,36 +78,43 @@ impl MathypadPocApp {
     
     /// Render the main editor with syntax highlighting
     fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
-        // Always ensure there's a trailing newline for editing
-        // This allows adding new lines when cursor is at the end
-        if !content.ends_with('\n') {
-            content.push('\n');
-        }
+        let original_content = content.clone();
         
-        let response = ui.add_sized(
-            [ui.available_width(), ui.available_height()],
+        let response = ui.add(
             TextEdit::multiline(&mut content)
                 .font(FontId::monospace(14.0))
                 .frame(false)
+                .desired_width(ui.available_width())
+                .desired_rows(25) // Minimum rows to ensure space
         );
         
         // Update core state if content changed
         if response.changed() {
-            // Remove the trailing newline we added for editing if it's the only one
-            // This prevents accumulating extra newlines
-            let trimmed_content = if content.ends_with("\n\n") && !content.ends_with("\n\n\n") {
-                // If there are exactly two newlines at the end, keep just one
-                content.trim_end_matches('\n').to_string() + "\n"
-            } else if content.len() == 1 && content == "\n" {
-                // If the content is just a single newline, make it empty
-                String::new()
-            } else {
-                // Otherwise keep the content as-is
-                content
-            };
-            
-            self.core.set_content(&trimmed_content);
+            self.smart_update_content(&original_content, &content);
         }
+    }
+    
+    /// Smart content update that preserves cursor position when possible
+    fn smart_update_content(&mut self, old_content: &str, new_content: &str) {
+        // For now, use a simple heuristic: if the new content just has more newlines
+        // at the end, it's likely the user pressed Enter at the end
+        if new_content.len() > old_content.len() {
+            let diff = &new_content[old_content.len()..];
+            if diff == "\n" && old_content.is_empty() {
+                // Special case: empty pad + Enter = add first new line
+                // But we need to set cursor properly
+                self.core.set_content(new_content);
+                // Try to set cursor to second line
+                if self.core.text_lines.len() >= 2 {
+                    self.core.cursor_line = 1;
+                    self.core.cursor_col = 0;
+                }
+                return;
+            }
+        }
+        
+        // Fallback: use set_content (will reset cursor)
+        self.core.set_content(new_content);
     }
     
     

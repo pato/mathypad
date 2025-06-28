@@ -241,11 +241,20 @@ impl MathypadCore {
 
     /// Set text content from a string (splitting into lines)
     pub fn set_content(&mut self, content: &str) {
-        self.text_lines = if content.is_empty() {
-            vec![String::new()]
+        if content.is_empty() {
+            self.text_lines = vec![String::new()];
         } else {
-            content.lines().map(|s| s.to_string()).collect()
-        };
+            // Preserve trailing newlines by checking if content ends with newline
+            let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+            
+            // If content ends with newline, add an empty line to represent it
+            if content.ends_with('\n') {
+                lines.push(String::new());
+            }
+            
+            self.text_lines = lines;
+        }
+        
         self.cursor_line = 0;
         self.cursor_col = 0;
         self.results = vec![None; self.text_lines.len()];
@@ -255,6 +264,18 @@ impl MathypadCore {
 
     /// Get content as a single string
     pub fn get_content(&self) -> String {
-        self.text_lines.join("\n")
+        if self.text_lines.len() == 1 && self.text_lines[0].is_empty() {
+            // Special case: single empty line means empty content
+            String::new()
+        } else if self.text_lines.len() > 1 && self.text_lines.last().map(|s| s.is_empty()).unwrap_or(false) {
+            // Multiple lines with empty last line = trailing newline
+            let content_lines = &self.text_lines[..self.text_lines.len()-1];
+            let mut result = content_lines.join("\n");
+            result.push('\n'); // Always add trailing newline when we have multiple lines
+            result
+        } else {
+            // Normal case: just join with newlines
+            self.text_lines.join("\n")
+        }
     }
 }
