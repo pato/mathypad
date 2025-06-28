@@ -31,6 +31,10 @@ opt-level = "z"  # Optimize for size.
 strip = true
 lto = true
 
+# Web POC profile settings
+[profile.release.package.mathypad-web-poc]
+opt-level = 2
+
 [[bin]]
 name = "mathypad"
 path = "src/bin/main.rs"

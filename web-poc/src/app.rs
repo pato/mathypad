@@ -3,18 +3,10 @@ use egui::{Color32, FontId, RichText, ScrollArea, TextEdit, TextStyle};
 use mathypad_core::core::MathypadCore;
 use mathypad_core::core::highlighting::{highlight_expression, HighlightType};
 
-/// Convert a HighlightType to an egui Color32
+/// Convert a HighlightType to an egui Color32 using shared color system
 fn highlight_type_to_color32(highlight_type: &HighlightType) -> Color32 {
-    match highlight_type {
-        HighlightType::Number => Color32::from_rgb(173, 216, 230),    // Light blue
-        HighlightType::Unit => Color32::from_rgb(144, 238, 144),      // Light green
-        HighlightType::LineReference => Color32::from_rgb(221, 160, 221), // Plum/magenta
-        HighlightType::Keyword => Color32::from_rgb(255, 255, 0),     // Yellow
-        HighlightType::Operator => Color32::from_rgb(0, 255, 255),    // Cyan
-        HighlightType::Variable => Color32::from_rgb(224, 255, 255),  // Light cyan
-        HighlightType::Function => Color32::from_rgb(0, 255, 255),    // Cyan
-        HighlightType::Normal => Color32::from_rgb(200, 200, 200),    // Light gray
-    }
+    let (r, g, b) = highlight_type.rgb_color();
+    Color32::from_rgb(r, g, b)
 }
 
 /// The main application state
@@ -83,12 +75,8 @@ impl eframe::App for MathypadPocApp {
                             }
                         });
 
-                        // Text editor and highlighted display
+                        // Syntax highlighted text display
                         ui.vertical(|ui| {
-                            // First show syntax highlighted display (read-only)
-                            ui.label("Syntax Highlighted View:");
-                            ui.separator();
-                            
                             ScrollArea::vertical().show(ui, |ui| {
                                 for (line_num, line_text) in self.core.text_lines.iter().enumerate() {
                                     ui.horizontal(|ui| {
@@ -114,9 +102,8 @@ impl eframe::App for MathypadPocApp {
                             });
                             
                             ui.separator();
-                            ui.label("Editable Content:");
                             
-                            // Then the editable text area
+                            // Editable text area
                             let mut content = self.core.get_content();
                             let response = ui.add(
                                 TextEdit::multiline(&mut content)

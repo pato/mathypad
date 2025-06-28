@@ -28,13 +28,11 @@ pub mod test_helpers {
         evaluate_expression_with_context(expr, &[], 0)
     }
 
-    pub fn evaluate_with_unit_info(expr: &str) -> (Option<String>, Option<UnitValue>) {
+    pub fn evaluate_with_unit_info(expr: &str) -> Option<UnitValue> {
         if let Some(result_str) = evaluate_expression_with_context(expr, &[], 0) {
-            // Try to parse the result as a UnitValue for unit information
-            let unit_value = crate::expression::evaluator::parse_result_string(&result_str);
-            (Some(result_str), unit_value)
+            crate::expression::evaluator::parse_result_string(&result_str)
         } else {
-            (None, None)
+            None
         }
     }
 }

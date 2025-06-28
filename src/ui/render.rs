@@ -11,18 +11,10 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
-/// Convert a HighlightType to a ratatui Color
+/// Convert a HighlightType to a ratatui Color using shared color system
 fn highlight_type_to_color(highlight_type: &HighlightType) -> Color {
-    match highlight_type {
-        HighlightType::Number => Color::LightBlue,
-        HighlightType::Unit => Color::Green,
-        HighlightType::LineReference => Color::Magenta,
-        HighlightType::Keyword => Color::Yellow,
-        HighlightType::Operator => Color::Cyan,
-        HighlightType::Variable => Color::LightCyan,
-        HighlightType::Function => Color::Cyan,
-        HighlightType::Normal => Color::Reset,
-    }
+    let (r, g, b) = highlight_type.rgb_color();
+    Color::Rgb(r, g, b)
 }
 
 /// Animate a color by interpolating its intensity based on opacity
