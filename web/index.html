@@ -252,6 +252,9 @@
             <div class="cta-section">
                 <div class="install-code">cargo install mathypad</div>
                 <p style="color: rgba(255,255,255,0.9); margin-top: 1rem;">Rust-powered TUI calculator for engineers. Unit-aware, scriptable, with vim keybindings.</p>
+                <p style="color: rgba(255,255,255,0.8); margin-top: 1rem;">
+                    ✨ <a href="/web" style="color: rgba(255,255,255,0.95); text-decoration: underline;">Try the web version</a> - No installation required!
+                </p>
             </div>
         </div>
 
@@ -337,8 +340,24 @@
 
             <div style="text-align: center; margin: 3rem 0;">
                 <h2 style="margin-bottom: 1rem;">Ready to get started?</h2>
-                <div class="install-code" style="background: #1a1a1a; color: #fff;">cargo install mathypad</div>
-                <p style="margin-top: 1rem; color: #666;">Launch with <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad</code> for interactive mode or <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad -- "100 GB / 10 Mbps"</code> for scripting and automation</p>
+                
+                <!-- Web version CTA -->
+                <div style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                    <h3 style="margin-bottom: 1rem; color: white;">🌐 Try it now in your browser</h3>
+                    <a href="/web" style="display: inline-block; background: rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; border: 2px solid rgba(255,255,255,0.3); transition: all 0.3s ease;" 
+                       onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.borderColor='rgba(255,255,255,0.5)'"
+                       onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.borderColor='rgba(255,255,255,0.3)'">
+                        Launch Web App →
+                    </a>
+                    <p style="margin-top: 1rem; color: rgba(255,255,255,0.9); font-size: 0.9rem;">No installation required • Works on any device</p>
+                </div>
+                
+                <!-- Terminal installation -->
+                <div>
+                    <h3 style="margin-bottom: 1rem;">💻 Or install the terminal version</h3>
+                    <div class="install-code" style="background: #1a1a1a; color: #fff;">cargo install mathypad</div>
+                    <p style="margin-top: 1rem; color: #666;">Launch with <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad</code> for interactive mode or <code style="background: #f1f1f1; padding: 0.2rem 0.5rem; border-radius: 4px;">mathypad -- "100 GB / 10 Mbps"</code> for scripting and automation</p>
+                </div>
             </div>
         </div>
 
