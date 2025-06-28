@@ -1,13 +1,6 @@
 use eframe::egui;
 use egui::{Color32, FontId, RichText, ScrollArea, TextEdit, TextStyle};
 use mathypad_core::core::MathypadCore;
-use mathypad_core::core::highlighting::{highlight_expression, HighlightType};
-
-/// Convert a HighlightType to an egui Color32 using shared color system
-fn highlight_type_to_color32(highlight_type: &HighlightType) -> Color32 {
-    let (r, g, b) = highlight_type.rgb_color();
-    Color32::from_rgb(r, g, b)
-}
 
 /// The main application state
 pub struct MathypadPocApp {
@@ -75,43 +68,16 @@ impl eframe::App for MathypadPocApp {
                             }
                         });
 
-                        // Syntax highlighted text display
+                        // Text editor
                         ui.vertical(|ui| {
-                            ScrollArea::vertical().show(ui, |ui| {
-                                for (line_num, line_text) in self.core.text_lines.iter().enumerate() {
-                                    ui.horizontal(|ui| {
-                                        // Line number
-                                        ui.label(
-                                            RichText::new(format!("{:3} ", line_num + 1))
-                                                .color(Color32::from_gray(128))
-                                                .monospace(),
-                                        );
-                                        
-                                        // Syntax highlighted line content
-                                        let highlighted_spans = highlight_expression(line_text, &self.core.variables);
-                                        for span in highlighted_spans {
-                                            let color = highlight_type_to_color32(&span.highlight_type);
-                                            ui.label(
-                                                RichText::new(span.text)
-                                                    .color(color)
-                                                    .monospace(),
-                                            );
-                                        }
-                                    });
-                                }
-                            });
-                            
-                            ui.separator();
-                            
-                            // Editable text area
                             let mut content = self.core.get_content();
                             let response = ui.add(
                                 TextEdit::multiline(&mut content)
                                     .code_editor()
                                     .desired_width(f32::INFINITY)
-                                    .frame(true),
+                                    .frame(false)
                             );
-
+                            
                             // Update core state if content changed
                             if response.changed() {
                                 self.core.set_content(&content);
