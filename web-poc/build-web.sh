@@ -29,6 +29,11 @@ if command -v wasm-opt &> /dev/null; then
     wasm-opt -O2 pkg/mathypad_web_poc_bg.wasm -o pkg/mathypad_web_poc_bg.wasm
 fi
 
+# Copy files to root directory to match production structure
+echo "Copying files to root directory for local development..."
+cp pkg/mathypad_web_poc.js .
+cp pkg/mathypad_web_poc_bg.wasm .
+
 echo "Build complete! Open index.html in a web server to run."
 echo ""
 echo "You can use Python's built-in server:"
