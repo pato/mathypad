@@ -278,4 +278,48 @@ impl MathypadCore {
             self.text_lines.join("\n")
         }
     }
+
+    /// Update content with line reference updating (for incremental edits)
+    /// This detects line insertions/deletions and updates references accordingly
+    pub fn update_content_with_line_references(&mut self, new_content: &str) {
+        // Get current state
+        let old_lines = self.text_lines.clone();
+        
+        // Set the new content first
+        self.set_content(new_content);
+        
+        // Detect what changed and update line references
+        let new_line_count = self.text_lines.len();
+        let old_line_count = old_lines.len();
+        
+        if new_line_count > old_line_count {
+            // Lines were inserted - we need to figure out where
+            // For now, assume insertion happened at the end or find the first difference
+            for i in 0..old_line_count.min(new_line_count) {
+                if i >= old_lines.len() || i >= self.text_lines.len() || old_lines[i] != self.text_lines[i] {
+                    // Found first difference - line was likely inserted here
+                    self.update_line_references_for_insertion(i);
+                    break;
+                }
+            }
+            // If no difference found in existing lines, insertion was at the end
+            if old_line_count > 0 && new_line_count > old_line_count {
+                let lines_added = new_line_count - old_line_count;
+                for _ in 0..lines_added {
+                    self.update_line_references_for_insertion(old_line_count);
+                }
+            }
+        } else if new_line_count < old_line_count {
+            // Lines were deleted
+            let lines_deleted = old_line_count - new_line_count;
+            for i in 0..lines_deleted {
+                // Assume deletion happened at the point where content differs
+                // For simplicity, assume deletion at the end for now
+                self.update_line_references_for_deletion(new_line_count + i);
+            }
+        }
+        
+        // Recalculate everything after line reference updates
+        self.recalculate_all();
+    }
 }
