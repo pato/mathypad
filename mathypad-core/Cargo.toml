@@ -1,0 +1,12 @@
+[package]
+name = "mathypad-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core calculation and parsing logic for Mathypad"
+
+[dependencies]
+# Use chumsky without stacker for WASM compatibility
+chumsky = { version = "0.10.1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+tempfile = "3.20"
