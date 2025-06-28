@@ -40,10 +40,20 @@ impl MathypadPocApp {
         self.core.text_lines.len()
     }
 
-    /// Convert mathypad HighlightType to egui Color32 (reusing existing logic)
+    /// Convert mathypad HighlightType to egui Color32 with light theme colors
     fn highlight_type_to_color(&self, highlight_type: &HighlightType) -> Color32 {
-        let (r, g, b) = highlight_type.rgb_color();
-        Color32::from_rgb(r, g, b)
+        // Use darker colors suitable for light background instead of the bright colors
+        // designed for dark terminal backgrounds
+        match highlight_type {
+            HighlightType::Number => Color32::from_rgb(0, 100, 180),        // Dark blue (readable on white)
+            HighlightType::Unit => Color32::from_rgb(0, 120, 60),           // Dark green  
+            HighlightType::LineReference => Color32::from_rgb(150, 50, 150), // Dark magenta
+            HighlightType::Keyword => Color32::from_rgb(180, 100, 0),       // Dark orange (instead of bright yellow)
+            HighlightType::Operator => Color32::from_rgb(0, 150, 150),      // Dark cyan
+            HighlightType::Variable => Color32::from_rgb(50, 100, 150),     // Dark blue-gray
+            HighlightType::Function => Color32::from_rgb(100, 50, 180),     // Dark purple
+            HighlightType::Normal => Color32::from_rgb(50, 50, 50),         // Dark gray (readable on white)
+        }
     }
 
     /// Create a LayoutJob with mathypad syntax highlighting
@@ -151,8 +161,8 @@ impl MathypadPocApp {
             let diff = &new_content[old_content.len()..];
             if diff == "\n" && old_content.is_empty() {
                 // Special case: empty pad + Enter = add first new line
-                // But we need to set cursor properly
-                self.core.set_content(new_content);
+                // Use the new method that handles line references
+                self.core.update_content_with_line_references(new_content);
                 // Try to set cursor to second line
                 if self.core.text_lines.len() >= 2 {
                     self.core.cursor_line = 1;
@@ -162,8 +172,8 @@ impl MathypadPocApp {
             }
         }
         
-        // Fallback: use set_content (will reset cursor)
-        self.core.set_content(new_content);
+        // Use the new method that handles line reference updates
+        self.core.update_content_with_line_references(new_content);
     }
     
     
