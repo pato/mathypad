@@ -1,6 +1,7 @@
 use eframe::egui;
 use egui::{Color32, FontId, TextEdit, TextStyle, ScrollArea};
-use mathypad_core::core::MathypadCore;
+use egui::text::{LayoutJob, TextFormat};
+use mathypad_core::core::{MathypadCore, highlighting::{highlight_expression, HighlightType}};
 
 /// The main application state
 pub struct MathypadPocApp {
@@ -37,6 +38,32 @@ impl MathypadPocApp {
     fn calculate_line_count(&self) -> usize {
         // Now that core properly manages lines, just use the text_lines count
         self.core.text_lines.len()
+    }
+
+    /// Convert mathypad HighlightType to egui Color32 (reusing existing logic)
+    fn highlight_type_to_color(&self, highlight_type: &HighlightType) -> Color32 {
+        let (r, g, b) = highlight_type.rgb_color();
+        Color32::from_rgb(r, g, b)
+    }
+
+    /// Create a LayoutJob with mathypad syntax highlighting
+    fn create_highlighted_layout_job(&self, text: &str) -> LayoutJob {
+        let mut job = LayoutJob::default();
+        
+        // Use mathypad's existing highlighting function - no code duplication!
+        let highlighted_spans = highlight_expression(text, &self.core.variables);
+        
+        for span in highlighted_spans {
+            let color = self.highlight_type_to_color(&span.highlight_type);
+            let format = TextFormat::simple(
+                FontId::monospace(14.0),
+                color
+            );
+            
+            job.append(&span.text, 0.0, format);
+        }
+        
+        job
     }
 
     /// Render the code editor with proper line numbers and syntax highlighting
@@ -80,12 +107,34 @@ impl MathypadPocApp {
     fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
         let original_content = content.clone();
         
+        // Pre-create the highlighted layout job to avoid borrowing issues
+        let highlighted_layout = self.create_highlighted_layout_job(&content);
+        let content_for_comparison = content.clone();
+        
+        // Create a custom layouter for syntax highlighting
+        let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
+            // If the string matches our content, use our pre-computed highlighting
+            if string == content_for_comparison {
+                ui.fonts(|f| f.layout_job(highlighted_layout.clone()))
+            } else {
+                // For different content (intermediate states), create simple highlighting
+                let mut simple_job = LayoutJob::default();
+                simple_job.append(
+                    string,
+                    0.0,
+                    TextFormat::simple(FontId::monospace(14.0), Color32::WHITE)
+                );
+                ui.fonts(|f| f.layout_job(simple_job))
+            }
+        };
+        
         let response = ui.add(
             TextEdit::multiline(&mut content)
-                .font(FontId::monospace(14.0))
+                .code_editor()
                 .frame(false)
                 .desired_width(ui.available_width())
                 .desired_rows(25) // Minimum rows to ensure space
+                .layouter(&mut layouter)
         );
         
         // Update core state if content changed
