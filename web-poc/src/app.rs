@@ -1,7 +1,10 @@
 use eframe::egui;
-use egui::{Color32, FontId, TextEdit, TextStyle, ScrollArea};
 use egui::text::{LayoutJob, TextFormat};
-use mathypad_core::core::{MathypadCore, highlighting::{highlight_expression, HighlightType}};
+use egui::{Color32, FontId, ScrollArea, TextEdit, TextStyle};
+use mathypad_core::core::{
+    MathypadCore,
+    highlighting::{HighlightType, highlight_expression},
+};
 
 /// The main application state
 pub struct MathypadPocApp {
@@ -45,34 +48,31 @@ impl MathypadPocApp {
         // Use darker colors suitable for light background instead of the bright colors
         // designed for dark terminal backgrounds
         match highlight_type {
-            HighlightType::Number => Color32::from_rgb(0, 100, 180),        // Dark blue (readable on white)
-            HighlightType::Unit => Color32::from_rgb(0, 120, 60),           // Dark green  
+            HighlightType::Number => Color32::from_rgb(0, 100, 180), // Dark blue (readable on white)
+            HighlightType::Unit => Color32::from_rgb(0, 120, 60),    // Dark green
             HighlightType::LineReference => Color32::from_rgb(150, 50, 150), // Dark magenta
-            HighlightType::Keyword => Color32::from_rgb(180, 100, 0),       // Dark orange (instead of bright yellow)
-            HighlightType::Operator => Color32::from_rgb(0, 150, 150),      // Dark cyan
-            HighlightType::Variable => Color32::from_rgb(50, 100, 150),     // Dark blue-gray
-            HighlightType::Function => Color32::from_rgb(100, 50, 180),     // Dark purple
-            HighlightType::Normal => Color32::from_rgb(50, 50, 50),         // Dark gray (readable on white)
+            HighlightType::Keyword => Color32::from_rgb(180, 100, 0), // Dark orange (instead of bright yellow)
+            HighlightType::Operator => Color32::from_rgb(0, 150, 150), // Dark cyan
+            HighlightType::Variable => Color32::from_rgb(50, 100, 150), // Dark blue-gray
+            HighlightType::Function => Color32::from_rgb(100, 50, 180), // Dark purple
+            HighlightType::Normal => Color32::from_rgb(50, 50, 50), // Dark gray (readable on white)
         }
     }
 
     /// Create a LayoutJob with mathypad syntax highlighting
     fn create_highlighted_layout_job(&self, text: &str) -> LayoutJob {
         let mut job = LayoutJob::default();
-        
+
         // Use mathypad's existing highlighting function - no code duplication!
         let highlighted_spans = highlight_expression(text, &self.core.variables);
-        
+
         for span in highlighted_spans {
             let color = self.highlight_type_to_color(&span.highlight_type);
-            let format = TextFormat::simple(
-                FontId::monospace(14.0),
-                color
-            );
-            
+            let format = TextFormat::simple(FontId::monospace(14.0), color);
+
             job.append(&span.text, 0.0, format);
         }
-        
+
         job
     }
 
@@ -80,19 +80,19 @@ impl MathypadPocApp {
     fn render_code_editor(&mut self, ui: &mut egui::Ui) {
         let content = self.core.get_content();
         let line_count = self.calculate_line_count();
-        
+
         // Fixed width for line numbers to ensure alignment
         let line_number_width = 50.0;
-        
+
         ui.horizontal(|ui| {
             // Line numbers column
             self.render_line_numbers(ui, line_count, line_number_width);
-            
+
             // Main editor
             self.render_main_editor(ui, content);
         });
     }
-    
+
     /// Render the line numbers column
     fn render_line_numbers(&self, ui: &mut egui::Ui, line_count: usize, width: f32) {
         // Create line numbers text
@@ -100,27 +100,27 @@ impl MathypadPocApp {
             .map(|i| format!("{:3}", i))
             .collect::<Vec<_>>()
             .join("\n");
-        
+
         let mut line_numbers_text = line_numbers;
-        
+
         ui.add_sized(
             [width, ui.available_height()],
             TextEdit::multiline(&mut line_numbers_text)
                 .font(FontId::monospace(14.0))
                 .interactive(false)
                 .frame(false)
-                .desired_width(width)
+                .desired_width(width),
         );
     }
-    
+
     /// Render the main editor with syntax highlighting
     fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
         let original_content = content.clone();
-        
+
         // Pre-create the highlighted layout job to avoid borrowing issues
         let highlighted_layout = self.create_highlighted_layout_job(&content);
         let content_for_comparison = content.clone();
-        
+
         // Create a custom layouter for syntax highlighting
         let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
             // If the string matches our content, use our pre-computed highlighting
@@ -132,27 +132,27 @@ impl MathypadPocApp {
                 simple_job.append(
                     string,
                     0.0,
-                    TextFormat::simple(FontId::monospace(14.0), Color32::WHITE)
+                    TextFormat::simple(FontId::monospace(14.0), Color32::WHITE),
                 );
                 ui.fonts(|f| f.layout_job(simple_job))
             }
         };
-        
+
         let response = ui.add(
             TextEdit::multiline(&mut content)
                 .code_editor()
                 .frame(false)
                 .desired_width(ui.available_width())
                 .desired_rows(25) // Minimum rows to ensure space
-                .layouter(&mut layouter)
+                .layouter(&mut layouter),
         );
-        
+
         // Update core state if content changed
         if response.changed() {
             self.smart_update_content(&original_content, &content);
         }
     }
-    
+
     /// Smart content update that preserves cursor position when possible
     fn smart_update_content(&mut self, old_content: &str, new_content: &str) {
         // For now, use a simple heuristic: if the new content just has more newlines
@@ -171,23 +171,22 @@ impl MathypadPocApp {
                 return;
             }
         }
-        
+
         // Use the new method that handles line reference updates
         self.core.update_content_with_line_references(new_content);
     }
-    
-    
+
     /// Render the results panel with aligned line numbers
     fn render_results_panel(&self, ui: &mut egui::Ui) {
         let line_count = self.calculate_line_count();
-        
+
         // Use same fixed width as editor
         let line_number_width = 50.0;
-        
+
         ui.horizontal(|ui| {
             // Use the same line number rendering as the editor
             self.render_line_numbers(ui, line_count, line_number_width);
-            
+
             // Results column - create multiline text to match editor layout
             let results_text: String = (0..line_count)
                 .map(|i| {
@@ -203,16 +202,16 @@ impl MathypadPocApp {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            
+
             let mut results_display = results_text;
-            
+
             ui.add_sized(
                 [ui.available_width(), ui.available_height()],
                 TextEdit::multiline(&mut results_display)
                     .font(FontId::monospace(14.0))
                     .interactive(false)
                     .frame(false)
-                    .text_color(Color32::from_rgb(100, 200, 100))
+                    .text_color(Color32::from_rgb(100, 200, 100)),
             );
         });
     }
@@ -221,8 +220,64 @@ impl MathypadPocApp {
 impl eframe::App for MathypadPocApp {
     /// Called each time the UI needs repainting
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Calculate panel widths
+        // Check if we're on mobile (narrow screen)
         let total_width = ctx.screen_rect().width();
+        let is_mobile = total_width < 600.0;
+
+        if is_mobile {
+            // Mobile layout: Stack vertically
+            self.render_mobile_layout(ctx);
+        } else {
+            // Desktop layout: Side by side panels
+            self.render_desktop_layout(ctx, total_width);
+        }
+    }
+}
+
+impl MathypadPocApp {
+    /// Render mobile-friendly vertical layout
+    fn render_mobile_layout(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // Header
+            ui.horizontal(|ui| {
+                ui.heading("📱 Mathypad");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.small("Results stay visible while typing!");
+                });
+            });
+            ui.separator();
+
+            // Split screen vertically for mobile - Results FIRST, then editor
+            let available_height = ui.available_height();
+            let results_height = available_height * 0.4; // 40% for results (top)
+
+            // Results section FIRST (top) - visible when keyboard is open
+            ui.allocate_ui_with_layout(
+                egui::Vec2::new(ui.available_width(), results_height),
+                egui::Layout::top_down(egui::Align::LEFT),
+                |ui| {
+                    ui.label("📊 Results:");
+                    ScrollArea::vertical()
+                        .max_height(results_height - 30.0)
+                        .show(ui, |ui| {
+                            self.render_results_panel(ui);
+                        });
+                },
+            );
+
+            ui.separator();
+
+            // Editor section (bottom) - gets covered by keyboard but that's OK
+            ui.label("📝 Input:");
+            ScrollArea::vertical().show(ui, |ui| {
+                self.render_code_editor(ui);
+            });
+        });
+    }
+
+    /// Render desktop layout with resizable panels
+    fn render_desktop_layout(&mut self, ctx: &egui::Context, total_width: f32) {
+        // Calculate panel widths
         let left_width = total_width * (self.separator_position / 100.0);
 
         // Left panel - Text input
@@ -240,7 +295,7 @@ impl eframe::App for MathypadPocApp {
                 });
             });
 
-        // Right panel - Results  
+        // Right panel - Results
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Results");
             ui.separator();
@@ -250,26 +305,41 @@ impl eframe::App for MathypadPocApp {
                 self.render_results_panel(ui);
             });
         });
-
-        // Note: Panel resizing is handled automatically by egui
-        // The separator_position will be updated automatically when panels are resized
     }
 }
 
 fn configure_fonts(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
 
+    // Detect mobile and adjust font sizes accordingly
+    let is_mobile = ctx.screen_rect().width() < 600.0;
+    let base_font_size = if is_mobile { 16.0 } else { 14.0 }; // Larger on mobile
+    let heading_size = if is_mobile { 20.0 } else { 18.0 };
+
     // Use monospace font for code
     style.text_styles.insert(
         TextStyle::Monospace,
-        FontId::new(14.0, egui::FontFamily::Monospace),
+        FontId::new(base_font_size, egui::FontFamily::Monospace),
     );
 
     // Set default font size
     style.text_styles.insert(
         TextStyle::Body,
-        FontId::new(14.0, egui::FontFamily::Monospace),
+        FontId::new(base_font_size, egui::FontFamily::Monospace),
     );
+
+    // Larger headings
+    style.text_styles.insert(
+        TextStyle::Heading,
+        FontId::new(heading_size, egui::FontFamily::Proportional),
+    );
+
+    // Improve spacing for mobile
+    if is_mobile {
+        style.spacing.item_spacing.y = 8.0; // More vertical spacing
+        style.spacing.button_padding = egui::Vec2::new(12.0, 8.0); // Bigger touch targets
+        style.spacing.menu_margin = egui::Margin::same(8.0);
+    }
 
     ctx.set_style(style);
 }

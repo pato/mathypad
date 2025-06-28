@@ -296,11 +296,7 @@ pub fn parse_colors_with_cursor<'a>(
             }
 
             let cursor_char = span_chars[cursor_offset];
-            let cursor_style = if base_color == Color::Reset {
-                Style::default().bg(Color::White).fg(Color::Black)
-            } else {
-                Style::default().bg(Color::White).fg(Color::Black)
-            };
+            let cursor_style = Style::default().bg(Color::White).fg(Color::Black);
             spans.push(Span::styled(cursor_char.to_string(), cursor_style));
 
             if cursor_offset + 1 < span_chars.len() {

@@ -19,7 +19,6 @@ pub use expression::{
 pub use units::{Unit, UnitType, UnitValue, parse_unit};
 
 /// Test helpers for expression evaluation - shared across implementations
-#[cfg(test)]
 pub mod test_helpers {
     use crate::expression::evaluator::evaluate_expression_with_context;
     use crate::units::UnitValue;

@@ -539,29 +539,29 @@ mod tests {
 
         // Clear the default empty line if we have file content
         if !contents.trim().is_empty() {
-            app.text_lines.clear();
-            app.results.clear();
+            app.core.text_lines.clear();
+            app.core.results.clear();
         }
 
         for line in contents.lines() {
-            app.text_lines.push(line.to_string());
-            app.results.push(None);
+            app.core.text_lines.push(line.to_string());
+            app.core.results.push(None);
         }
 
         app.recalculate_all();
 
         // Verify the loaded content and calculations
-        assert_eq!(app.text_lines.len(), 4);
-        assert_eq!(app.text_lines[0], "5 + 3");
-        assert_eq!(app.text_lines[1], "100 GiB to MiB");
-        assert_eq!(app.text_lines[2], "x = 42");
-        assert_eq!(app.text_lines[3], "x * 2");
+        assert_eq!(app.core.text_lines.len(), 4);
+        assert_eq!(app.core.text_lines[0], "5 + 3");
+        assert_eq!(app.core.text_lines[1], "100 GiB to MiB");
+        assert_eq!(app.core.text_lines[2], "x = 42");
+        assert_eq!(app.core.text_lines[3], "x * 2");
 
         // Verify calculations
-        assert_eq!(app.results[0], Some("8".to_string()));
-        assert_eq!(app.results[1], Some("102,400 MiB".to_string()));
-        assert_eq!(app.results[2], Some("42".to_string()));
-        assert_eq!(app.results[3], Some("84".to_string()));
+        assert_eq!(app.core.results[0], Some("8".to_string()));
+        assert_eq!(app.core.results[1], Some("102,400 MiB".to_string()));
+        assert_eq!(app.core.results[2], Some("42".to_string()));
+        assert_eq!(app.core.results[3], Some("84".to_string()));
     }
 
     #[test]
@@ -578,20 +578,20 @@ mod tests {
         let contents = fs::read_to_string(temp_file.path()).unwrap();
 
         for line in contents.lines() {
-            app.text_lines.push(line.to_string());
-            app.results.push(None);
+            app.core.text_lines.push(line.to_string());
+            app.core.results.push(None);
         }
 
         // Ensure we have at least one empty line
-        if app.text_lines.is_empty() {
-            app.text_lines.push(String::new());
-            app.results.push(None);
+        if app.core.text_lines.is_empty() {
+            app.core.text_lines.push(String::new());
+            app.core.results.push(None);
         }
 
         // Verify we have exactly one empty line
-        assert_eq!(app.text_lines.len(), 1);
-        assert_eq!(app.text_lines[0], "");
-        assert_eq!(app.results[0], None);
+        assert_eq!(app.core.text_lines.len(), 1);
+        assert_eq!(app.core.text_lines[0], "");
+        assert_eq!(app.core.results[0], None);
     }
 
     #[test]
@@ -605,22 +605,20 @@ mod tests {
         let temp_path = temp_file.path().to_path_buf();
 
         // Create an app with some content
-        let mut app = App {
-            text_lines: vec![
-                "5 + 3".to_string(),
-                "x = 42".to_string(),
-                "x * 2".to_string(),
-            ],
-            results: vec![None, None, None],
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec![
+            "5 + 3".to_string(),
+            "x = 42".to_string(),
+            "x * 2".to_string(),
+        ];
+        app.core.results = vec![None, None, None];
         app.set_file_path(Some(temp_path.clone()));
 
         // Verify initial state
         assert!(!app.has_unsaved_changes);
 
         // Make a change - move cursor to end of first line then insert
-        app.cursor_col = 5; // Move to end of "5 + 3"
+        app.core.cursor_col = 5; // Move to end of "5 + 3"
         app.insert_char('!');
         assert!(app.has_unsaved_changes);
 
@@ -640,12 +638,10 @@ mod tests {
         use tempfile::NamedTempFile;
 
         // Create an app with some content but no file path
-        let mut app = App {
-            text_lines: vec!["test content".to_string()],
-            results: vec![None],
-            has_unsaved_changes: true,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["test content".to_string()];
+        app.core.results = vec![None];
+        app.has_unsaved_changes = true;
 
         // Create a temporary file to save to
         let temp_file = NamedTempFile::new().unwrap();
@@ -694,9 +690,9 @@ mod tests {
         app.has_unsaved_changes = false;
 
         // Delete word should mark as unsaved
-        app.text_lines[0] = "hello world".to_string();
-        app.cursor_line = 0; // Make sure we're on the line with text
-        app.cursor_col = 11;
+        app.core.text_lines[0] = "hello world".to_string();
+        app.core.cursor_line = 0; // Make sure we're on the line with text
+        app.core.cursor_col = 11;
         app.delete_word();
         assert!(app.has_unsaved_changes);
     }
@@ -985,31 +981,29 @@ mod tests {
         use crossterm::event::KeyCode;
 
         // Test basic movement commands
-        let mut app = App {
-            text_lines: vec![
-                "first line".to_string(),
-                "second line".to_string(),
-                "third line".to_string(),
-            ],
-            results: vec![None, None, None],
-            mode: Mode::Normal,
-            cursor_line: 1,
-            cursor_col: 5,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec![
+            "first line".to_string(),
+            "second line".to_string(),
+            "third line".to_string(),
+        ];
+        app.core.results = vec![None, None, None];
+        app.mode = Mode::Normal;
+        app.core.cursor_line = 1;
+        app.core.cursor_col = 5;
 
         // Test '0' - go to beginning of line
         crate::ui::handle_normal_mode(&mut app, KeyCode::Char('0'));
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.cursor_col, 0);
 
         // Test '$' - go to end of line
         crate::ui::handle_normal_mode(&mut app, KeyCode::Char('$'));
-        assert_eq!(app.cursor_col, 11); // "second line" length
+        assert_eq!(app.core.cursor_col, 11); // "second line" length
 
         // Test 'G' - go to end of file
         crate::ui::handle_normal_mode(&mut app, KeyCode::Char('G'));
-        assert_eq!(app.cursor_line, 2); // Last line (0-indexed)
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.cursor_line, 2); // Last line (0-indexed)
+        assert_eq!(app.core.cursor_col, 0);
 
         // Test 'gg' - go to beginning of file
         // First 'g' sets pending command
@@ -1018,8 +1012,8 @@ mod tests {
 
         // Second 'g' executes the command
         crate::ui::handle_normal_mode(&mut app, KeyCode::Char('g'));
-        assert_eq!(app.cursor_line, 0);
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.cursor_line, 0);
+        assert_eq!(app.core.cursor_col, 0);
         assert_eq!(app.scroll_offset, 0);
         assert_eq!(app.pending_normal_command, None);
     }
