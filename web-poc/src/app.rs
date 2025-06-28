@@ -43,38 +43,7 @@ impl MathypadPocApp {
         self.core.text_lines.len()
     }
 
-    /// Convert mathypad HighlightType to egui Color32 with light theme colors
-    fn highlight_type_to_color(&self, highlight_type: &HighlightType) -> Color32 {
-        // Use darker colors suitable for light background instead of the bright colors
-        // designed for dark terminal backgrounds
-        match highlight_type {
-            HighlightType::Number => Color32::from_rgb(0, 100, 180), // Dark blue (readable on white)
-            HighlightType::Unit => Color32::from_rgb(0, 120, 60),    // Dark green
-            HighlightType::LineReference => Color32::from_rgb(150, 50, 150), // Dark magenta
-            HighlightType::Keyword => Color32::from_rgb(180, 100, 0), // Dark orange (instead of bright yellow)
-            HighlightType::Operator => Color32::from_rgb(0, 150, 150), // Dark cyan
-            HighlightType::Variable => Color32::from_rgb(50, 100, 150), // Dark blue-gray
-            HighlightType::Function => Color32::from_rgb(100, 50, 180), // Dark purple
-            HighlightType::Normal => Color32::from_rgb(50, 50, 50), // Dark gray (readable on white)
-        }
-    }
 
-    /// Create a LayoutJob with mathypad syntax highlighting
-    fn create_highlighted_layout_job(&self, text: &str) -> LayoutJob {
-        let mut job = LayoutJob::default();
-
-        // Use mathypad's existing highlighting function - no code duplication!
-        let highlighted_spans = highlight_expression(text, &self.core.variables);
-
-        for span in highlighted_spans {
-            let color = self.highlight_type_to_color(&span.highlight_type);
-            let format = TextFormat::simple(FontId::monospace(14.0), color);
-
-            job.append(&span.text, 0.0, format);
-        }
-
-        job
-    }
 
     /// Render the code editor with proper line numbers and syntax highlighting
     fn render_code_editor(&mut self, ui: &mut egui::Ui) {
@@ -117,33 +86,49 @@ impl MathypadPocApp {
     fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
         let original_content = content.clone();
 
-        // Pre-create the highlighted layout job to avoid borrowing issues
-        let highlighted_layout = self.create_highlighted_layout_job(&content);
-        let content_for_comparison = content.clone();
+        // Use a stable ID to help egui maintain widget state consistently
+        let text_edit_id = ui.make_persistent_id("mathypad_editor");
 
-        // Create a custom layouter for syntax highlighting
+        // Try minimal custom layouter with stable behavior
+        let variables = self.core.variables.clone(); // Clone to avoid borrow issues
         let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
-            // If the string matches our content, use our pre-computed highlighting
-            if string == content_for_comparison {
-                ui.fonts(|f| f.layout_job(highlighted_layout.clone()))
+            // Only highlight if string is not empty and looks stable
+            if string.is_empty() {
+                // Empty string case
+                let mut job = LayoutJob::default();
+                job.append("", 0.0, TextFormat::simple(FontId::monospace(14.0), Color32::from_rgb(200, 200, 200)));
+                ui.fonts(|f| f.layout_job(job))
             } else {
-                // For different content (intermediate states), create simple highlighting
-                let mut simple_job = LayoutJob::default();
-                simple_job.append(
-                    string,
-                    0.0,
-                    TextFormat::simple(FontId::monospace(14.0), Color32::WHITE),
-                );
-                ui.fonts(|f| f.layout_job(simple_job))
+                // Apply highlighting
+                let highlighted_spans = highlight_expression(string, &variables);
+                let mut job = LayoutJob::default();
+                
+                for span in highlighted_spans {
+                    let color = match span.highlight_type {
+                        HighlightType::Number => Color32::from_rgb(100, 200, 255), // Light blue
+                        HighlightType::Unit => Color32::from_rgb(100, 255, 100),    // Light green
+                        HighlightType::LineReference => Color32::from_rgb(255, 100, 255), // Light magenta
+                        HighlightType::Keyword => Color32::from_rgb(255, 200, 100), // Light orange
+                        HighlightType::Operator => Color32::from_rgb(100, 255, 255), // Light cyan
+                        HighlightType::Variable => Color32::from_rgb(150, 150, 255), // Light blue-gray
+                        HighlightType::Function => Color32::from_rgb(200, 100, 255), // Light purple
+                        HighlightType::Normal => Color32::from_rgb(200, 200, 200), // Light gray
+                    };
+                    let format = TextFormat::simple(FontId::monospace(14.0), color);
+                    job.append(&span.text, 0.0, format);
+                }
+                
+                ui.fonts(|f| f.layout_job(job))
             }
         };
 
         let response = ui.add(
             TextEdit::multiline(&mut content)
+                .id(text_edit_id)
                 .code_editor()
                 .frame(false)
                 .desired_width(ui.available_width())
-                .desired_rows(25) // Minimum rows to ensure space
+                .desired_rows(25)
                 .layouter(&mut layouter),
         );
 
