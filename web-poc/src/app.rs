@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui::{Color32, FontId, RichText, ScrollArea, TextEdit, TextStyle};
+use egui::{Color32, FontId, TextEdit, TextStyle, ScrollArea};
 use mathypad_core::core::MathypadCore;
 
 /// The main application state
@@ -12,9 +12,7 @@ pub struct MathypadPocApp {
 
 impl Default for MathypadPocApp {
     fn default() -> Self {
-        let mut core = MathypadCore::new();
-        // Set up some example content
-        core.set_content("5 + 3\n10 kg to lb\nline1 * 2\nsqrt(16)\n$100/month * 12");
+        let core = MathypadCore::new();
 
         Self {
             core,
@@ -34,6 +32,110 @@ impl MathypadPocApp {
 
         Default::default()
     }
+
+    /// Render the code editor with proper line numbers and syntax highlighting
+    fn render_code_editor(&mut self, ui: &mut egui::Ui) {
+        let content = self.core.get_content();
+        
+        // Calculate line count and max line number width
+        let line_count = if content.is_empty() {
+            1
+        } else {
+            content.lines().count().max(1)
+        };
+        
+        // Fixed width for line numbers to ensure alignment
+        let line_number_width = 50.0;
+        
+        ui.horizontal(|ui| {
+            // Line numbers column
+            self.render_line_numbers(ui, line_count, line_number_width);
+            
+            // Main editor
+            self.render_main_editor(ui, content);
+        });
+    }
+    
+    /// Render the line numbers column
+    fn render_line_numbers(&self, ui: &mut egui::Ui, line_count: usize, width: f32) {
+        // Create line numbers text
+        let line_numbers: String = (1..=line_count)
+            .map(|i| format!("{:3}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        
+        let mut line_numbers_text = line_numbers;
+        
+        ui.add_sized(
+            [width, ui.available_height()],
+            TextEdit::multiline(&mut line_numbers_text)
+                .font(FontId::monospace(14.0))
+                .interactive(false)
+                .frame(false)
+                .desired_width(width)
+        );
+    }
+    
+    /// Render the main editor with syntax highlighting
+    fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
+        let response = ui.add_sized(
+            [ui.available_width(), ui.available_height()],
+            TextEdit::multiline(&mut content)
+                .font(FontId::monospace(14.0))
+                .frame(false)
+        );
+        
+        // Update core state if content changed
+        if response.changed() {
+            self.core.set_content(&content);
+        }
+    }
+    
+    
+    /// Render the results panel with aligned line numbers
+    fn render_results_panel(&self, ui: &mut egui::Ui) {
+        let content = self.core.get_content();
+        let line_count = if content.is_empty() {
+            1
+        } else {
+            content.lines().count().max(1)
+        };
+        
+        // Use same fixed width as editor
+        let line_number_width = 50.0;
+        
+        ui.horizontal(|ui| {
+            // Use the same line number rendering as the editor
+            self.render_line_numbers(ui, line_count, line_number_width);
+            
+            // Results column - create multiline text to match editor layout
+            let results_text: String = (0..line_count)
+                .map(|i| {
+                    if i < self.core.results.len() {
+                        if let Some(res) = &self.core.results[i] {
+                            res.clone()
+                        } else {
+                            String::new()
+                        }
+                    } else {
+                        String::new()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            
+            let mut results_display = results_text;
+            
+            ui.add_sized(
+                [ui.available_width(), ui.available_height()],
+                TextEdit::multiline(&mut results_display)
+                    .font(FontId::monospace(14.0))
+                    .interactive(false)
+                    .frame(false)
+                    .text_color(Color32::from_rgb(100, 200, 100))
+            );
+        });
+    }
 }
 
 impl eframe::App for MathypadPocApp {
@@ -52,65 +154,20 @@ impl eframe::App for MathypadPocApp {
                 ui.heading("Mathypad");
                 ui.separator();
 
-                // Text editor with line numbers
+                // Custom code editor with proper line numbers and syntax highlighting
                 ScrollArea::vertical().show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        // Line numbers column
-                        let line_count = self.core.text_lines.len();
-                        ui.vertical(|ui| {
-                            ui.style_mut().spacing.item_spacing.y = 0.0;
-                            for i in 1..=line_count {
-                                ui.label(
-                                    RichText::new(format!("{:3} ", i))
-                                        .color(Color32::from_gray(128))
-                                        .monospace(),
-                                );
-                            }
-                        });
-
-                        // Text editor
-                        ui.vertical(|ui| {
-                            let mut content = self.core.get_content();
-                            let response = ui.add(
-                                TextEdit::multiline(&mut content)
-                                    .code_editor()
-                                    .desired_width(f32::INFINITY)
-                                    .frame(false)
-                            );
-                            
-                            // Update core state if content changed
-                            if response.changed() {
-                                self.core.set_content(&content);
-                            }
-                        });
-                    });
+                    self.render_code_editor(ui);
                 });
             });
 
-        // Right panel - Results
+        // Right panel - Results  
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Results");
             ui.separator();
 
-            // Results display
+            // Results display with aligned line numbers
             ScrollArea::vertical().show(ui, |ui| {
-                // Show real calculation results aligned with line numbers
-                for (i, result) in self.core.results.iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!("{:3} ", i + 1))
-                                .color(Color32::from_gray(128))
-                                .monospace(),
-                        );
-                        if let Some(res) = result {
-                            ui.label(
-                                RichText::new(res)
-                                    .color(Color32::from_rgb(100, 200, 100))
-                                    .monospace(),
-                            );
-                        }
-                    });
-                }
+                self.render_results_panel(ui);
             });
         });
 
