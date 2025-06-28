@@ -1,3 +1,5 @@
 /target
 deploy.sh
 *.pad
+*.log
+web-poc/pkg/
