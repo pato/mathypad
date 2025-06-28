@@ -33,16 +33,25 @@ impl MathypadPocApp {
         Default::default()
     }
 
+    /// Calculate line count consistently for both editor and results
+    fn calculate_line_count(&self) -> usize {
+        let content = self.core.get_content();
+        let mut edit_content = content.clone();
+        if !edit_content.ends_with('\n') {
+            edit_content.push('\n');
+        }
+        
+        if edit_content.is_empty() {
+            1
+        } else {
+            edit_content.lines().count().max(1)
+        }
+    }
+
     /// Render the code editor with proper line numbers and syntax highlighting
     fn render_code_editor(&mut self, ui: &mut egui::Ui) {
         let content = self.core.get_content();
-        
-        // Calculate line count and max line number width
-        let line_count = if content.is_empty() {
-            1
-        } else {
-            content.lines().count().max(1)
-        };
+        let line_count = self.calculate_line_count();
         
         // Fixed width for line numbers to ensure alignment
         let line_number_width = 50.0;
@@ -78,6 +87,12 @@ impl MathypadPocApp {
     
     /// Render the main editor with syntax highlighting
     fn render_main_editor(&mut self, ui: &mut egui::Ui, mut content: String) {
+        // Always ensure there's a trailing newline for editing
+        // This allows adding new lines when cursor is at the end
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        
         let response = ui.add_sized(
             [ui.available_width(), ui.available_height()],
             TextEdit::multiline(&mut content)
@@ -87,19 +102,27 @@ impl MathypadPocApp {
         
         // Update core state if content changed
         if response.changed() {
-            self.core.set_content(&content);
+            // Remove the trailing newline we added for editing if it's the only one
+            // This prevents accumulating extra newlines
+            let trimmed_content = if content.ends_with("\n\n") && !content.ends_with("\n\n\n") {
+                // If there are exactly two newlines at the end, keep just one
+                content.trim_end_matches('\n').to_string() + "\n"
+            } else if content.len() == 1 && content == "\n" {
+                // If the content is just a single newline, make it empty
+                String::new()
+            } else {
+                // Otherwise keep the content as-is
+                content
+            };
+            
+            self.core.set_content(&trimmed_content);
         }
     }
     
     
     /// Render the results panel with aligned line numbers
     fn render_results_panel(&self, ui: &mut egui::Ui) {
-        let content = self.core.get_content();
-        let line_count = if content.is_empty() {
-            1
-        } else {
-            content.lines().count().max(1)
-        };
+        let line_count = self.calculate_line_count();
         
         // Use same fixed width as editor
         let line_number_width = 50.0;
