@@ -33,7 +33,10 @@ pub enum HighlightType {
 }
 
 /// Parse text and return highlighted spans for syntax highlighting
-pub fn highlight_expression(text: &str, variables: &HashMap<String, String>) -> Vec<HighlightedSpan> {
+pub fn highlight_expression(
+    text: &str,
+    variables: &HashMap<String, String>,
+) -> Vec<HighlightedSpan> {
     let mut spans = Vec::new();
     let mut current_pos = 0;
     let chars: Vec<char> = text.chars().collect();
@@ -95,7 +98,7 @@ pub fn highlight_expression(text: &str, variables: &HashMap<String, String>) -> 
             }
 
             let number_text: String = chars[start_pos..current_pos].iter().collect();
-            
+
             if has_digit {
                 spans.push(HighlightedSpan {
                     text: number_text,
@@ -145,9 +148,9 @@ pub fn highlight_expression(text: &str, variables: &HashMap<String, String>) -> 
 /// Convenience function to highlight a single line with cursor position
 /// Returns the spans and the character index where the cursor should be highlighted
 pub fn highlight_expression_with_cursor(
-    text: &str, 
-    cursor_col: usize, 
-    variables: &HashMap<String, String>
+    text: &str,
+    cursor_col: usize,
+    variables: &HashMap<String, String>,
 ) -> (Vec<HighlightedSpan>, usize) {
     let spans = highlight_expression(text, variables);
     // The cursor highlighting would be handled by the UI layer
@@ -163,7 +166,7 @@ mod tests {
     fn test_number_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("123.45", &variables);
-        
+
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].text, "123.45");
         assert_eq!(spans[0].highlight_type, HighlightType::Number);
@@ -173,7 +176,7 @@ mod tests {
     fn test_operator_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("5 + 3", &variables);
-        
+
         assert_eq!(spans.len(), 5); // "5", " ", "+", " ", "3"
         assert_eq!(spans[0].highlight_type, HighlightType::Number);
         assert_eq!(spans[1].highlight_type, HighlightType::Normal); // space
@@ -186,7 +189,7 @@ mod tests {
     fn test_unit_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("100 kg", &variables);
-        
+
         assert_eq!(spans.len(), 3); // "100", " ", "kg"
         assert_eq!(spans[0].highlight_type, HighlightType::Number);
         assert_eq!(spans[1].highlight_type, HighlightType::Normal); // space
@@ -197,8 +200,12 @@ mod tests {
     fn test_line_reference_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("line1 + 5", &variables);
-        
-        assert!(spans.iter().any(|s| s.highlight_type == HighlightType::LineReference));
+
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.highlight_type == HighlightType::LineReference)
+        );
         assert!(spans.iter().any(|s| s.text == "line1"));
     }
 
@@ -206,10 +213,14 @@ mod tests {
     fn test_variable_highlighting() {
         let mut variables = HashMap::new();
         variables.insert("x".to_string(), "42".to_string());
-        
+
         let spans = highlight_expression("x * 2", &variables);
-        
-        assert!(spans.iter().any(|s| s.highlight_type == HighlightType::Variable));
+
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.highlight_type == HighlightType::Variable)
+        );
         assert!(spans.iter().any(|s| s.text == "x"));
     }
 
@@ -217,8 +228,12 @@ mod tests {
     fn test_keyword_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("100 kg to lb", &variables);
-        
-        assert!(spans.iter().any(|s| s.highlight_type == HighlightType::Keyword));
+
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.highlight_type == HighlightType::Keyword)
+        );
         assert!(spans.iter().any(|s| s.text == "to"));
     }
 
@@ -226,8 +241,12 @@ mod tests {
     fn test_function_highlighting() {
         let variables = HashMap::new();
         let spans = highlight_expression("sqrt(16)", &variables);
-        
-        assert!(spans.iter().any(|s| s.highlight_type == HighlightType::Function));
+
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.highlight_type == HighlightType::Function)
+        );
         assert!(spans.iter().any(|s| s.text == "sqrt"));
     }
 }

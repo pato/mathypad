@@ -41,7 +41,11 @@ impl MathypadCore {
     pub fn from_lines(lines: Vec<String>) -> Self {
         let line_count = lines.len().max(1);
         let mut core = Self {
-            text_lines: if lines.is_empty() { vec![String::new()] } else { lines },
+            text_lines: if lines.is_empty() {
+                vec![String::new()]
+            } else {
+                lines
+            },
             cursor_line: 0,
             cursor_col: 0,
             results: vec![None; line_count],
@@ -107,10 +111,10 @@ impl MathypadCore {
                 self.cursor_line -= 1;
                 self.cursor_col = self.text_lines[self.cursor_line].chars().count();
                 self.text_lines[self.cursor_line].push_str(&current_line);
-                
+
                 // Remove the corresponding result
                 self.results.remove(self.cursor_line + 1);
-                
+
                 // Update all affected line references
                 self.update_line_references_for_deletion(self.cursor_line + 1);
                 self.recalculate_all();
@@ -139,7 +143,7 @@ impl MathypadCore {
 
             // Split the line at the cursor position
             let remaining = self.text_lines[self.cursor_line].split_off(byte_index);
-            
+
             // Insert the new line
             self.cursor_line += 1;
             self.text_lines.insert(self.cursor_line, remaining);
@@ -158,25 +162,21 @@ impl MathypadCore {
     pub fn update_result(&mut self, line_index: usize) {
         if line_index < self.text_lines.len() {
             let line_text = &self.text_lines[line_index];
-            
+
             // Evaluate the expression with current variables and other line results
-            let (result, variable_assignment) = evaluate_with_variables(
-                line_text, 
-                &self.variables, 
-                &self.results, 
-                line_index
-            );
-            
+            let (result, variable_assignment) =
+                evaluate_with_variables(line_text, &self.variables, &self.results, line_index);
+
             // Handle variable assignment if present
             if let Some((var_name, var_value)) = variable_assignment {
                 self.variables.insert(var_name, var_value);
             }
-            
+
             // Ensure results vector is large enough
             while self.results.len() <= line_index {
                 self.results.push(None);
             }
-            
+
             // Store the result
             self.results[line_index] = result;
         }
@@ -186,10 +186,10 @@ impl MathypadCore {
     pub fn recalculate_all(&mut self) {
         // Clear variables and recalculate from scratch
         self.variables.clear();
-        
+
         // Ensure results vector matches text lines
         self.results.resize(self.text_lines.len(), None);
-        
+
         // Evaluate each line in order
         for i in 0..self.text_lines.len() {
             self.update_result(i);

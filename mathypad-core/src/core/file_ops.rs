@@ -5,10 +5,10 @@ use std::path::Path;
 /// Trait for file operations - allows different backends (native fs, web storage, etc.)
 pub trait FileOperations {
     type Error;
-    
+
     /// Save content to a file path
     fn save_content(&self, path: &Path, content: &str) -> Result<(), Self::Error>;
-    
+
     /// Load content from a file path
     fn load_content(&self, path: &Path) -> Result<String, Self::Error>;
 }
@@ -33,7 +33,11 @@ mod tests {
 
     #[test]
     fn test_serialize_lines() {
-        let lines = vec!["line1".to_string(), "line2".to_string(), "line3".to_string()];
+        let lines = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line3".to_string(),
+        ];
         let content = serialize_lines(&lines);
         assert_eq!(content, "line1\nline2\nline3");
     }

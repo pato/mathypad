@@ -13,7 +13,7 @@ fn main() -> eframe::Result {
             .with_title("Mathypad Web POC"),
         ..Default::default()
     };
-    
+
     eframe::run_native(
         "Mathypad Web POC",
         native_options,

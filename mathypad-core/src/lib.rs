@@ -1,11 +1,11 @@
 //! Mathypad Core - Shared calculation and parsing logic
-//! 
-//! This crate contains the core mathematical evaluation, unit conversion, 
+//!
+//! This crate contains the core mathematical evaluation, unit conversion,
 //! and expression parsing logic that is shared between the TUI and web UI versions of Mathypad.
 
+pub mod core;
 pub mod expression;
 pub mod units;
-pub mod core;
 
 // Constants used throughout the application
 pub const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;

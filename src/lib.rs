@@ -24,15 +24,15 @@ mod integration_tests;
 pub use app::App;
 pub use cli::run_one_shot_mode;
 pub use mathypad_core::expression::evaluator::evaluate_expression_with_context;
+pub use mathypad_core::{Unit, UnitType, UnitValue};
 pub use mode::Mode;
 pub use ui::{run_interactive_mode, run_interactive_mode_with_file};
-pub use mathypad_core::{Unit, UnitType, UnitValue};
 
 // Constants used throughout the application
 pub const TICK_RATE_MS: u64 = 16; // ~60 FPS for smooth animations
 
 // Re-export constants from core
-pub use mathypad_core::{MAX_INTEGER_FOR_FORMATTING, FLOAT_EPSILON};
+pub use mathypad_core::{FLOAT_EPSILON, MAX_INTEGER_FOR_FORMATTING};
 
 #[cfg(test)]
 pub mod test_helpers {
