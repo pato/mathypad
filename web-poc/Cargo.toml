@@ -32,6 +32,3 @@ native = []
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
-[profile.release]
-opt-level = 2
-lto = true

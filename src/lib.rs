@@ -34,22 +34,6 @@ pub const TICK_RATE_MS: u64 = 16; // ~60 FPS for smooth animations
 // Re-export constants from core
 pub use mathypad_core::{FLOAT_EPSILON, MAX_INTEGER_FOR_FORMATTING};
 
+// Re-export test helpers from core to avoid duplication
 #[cfg(test)]
-pub mod test_helpers {
-    use super::*;
-
-    // Helper function to evaluate expressions for testing
-    pub fn evaluate_test_expression(input: &str) -> Option<String> {
-        evaluate_expression_with_context(input, &[], 0)
-    }
-
-    // Helper function to get unit conversion results for testing
-    pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
-        // Use the core evaluation and try to parse as UnitValue
-        if let Some(result_str) = evaluate_expression_with_context(input, &[], 0) {
-            mathypad_core::expression::evaluator::parse_result_string(&result_str)
-        } else {
-            None
-        }
-    }
-}
+pub use mathypad_core::test_helpers;

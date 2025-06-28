@@ -2,7 +2,7 @@
 
 use crate::Mode;
 use mathypad_core::core::MathypadCore;
-use mathypad_core::expression::{evaluate_with_variables, update_line_references_in_text};
+use mathypad_core::expression::update_line_references_in_text;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -835,43 +835,6 @@ impl App {
         }
     }
 
-    /// Re-evaluate all lines that might depend on the given variable
-    fn re_evaluate_dependent_lines(&mut self, changed_variable: &str, assignment_line: usize) {
-        // Re-evaluate all lines after the assignment line that might use this variable
-        for line_idx in (assignment_line + 1)..self.core.text_lines.len() {
-            if line_idx < self.core.results.len() {
-                let line = &self.core.text_lines[line_idx];
-
-                // Check if this line contains the variable name
-                // This is a simple heuristic - we could make it more sophisticated
-                if line.contains(changed_variable) {
-                    let (result, nested_assignment) = evaluate_with_variables(
-                        line,
-                        &self.core.variables,
-                        &self.core.results,
-                        line_idx,
-                    );
-
-                    // Handle nested variable assignments (variables that depend on other variables)
-                    if let Some((nested_var_name, nested_var_value)) = nested_assignment {
-                        let nested_changed =
-                            self.core.variables.get(&nested_var_name) != Some(&nested_var_value);
-                        self.core
-                            .variables
-                            .insert(nested_var_name.clone(), nested_var_value);
-
-                        // If this nested assignment changed, recursively update its dependents
-                        if nested_changed {
-                            self.core.results[line_idx] = result;
-                            self.re_evaluate_dependent_lines(&nested_var_name, line_idx);
-                        }
-                    } else {
-                        self.core.results[line_idx] = result;
-                    }
-                }
-            }
-        }
-    }
 
     /// Update line references in all lines when a line is deleted
     /// All references > deleted_line need to be decremented by 1
