@@ -1,9 +1,28 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mathypad Web POC</title>
+    <title>Mathypad Web App - Calculator with Units & Variables</title>
+    <meta name="description" content="Try Mathypad in your browser! Unit-aware calculator for capacity planning, performance analysis, and infrastructure math. No installation required.">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mathypad.app/web">
+    <meta property="og:title" content="Mathypad Web App - Calculator with Units & Variables">
+    <meta property="og:description" content="Try Mathypad in your browser! Unit-aware calculator for capacity planning, performance analysis, and infrastructure math.">
+    <meta property="og:image" content="https://mathypad.app/screenshots/screen1.png">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://mathypad.app/web">
+    <meta name="twitter:title" content="Mathypad Web App">
+    <meta name="twitter:description" content="Try Mathypad in your browser! Unit-aware calculator for engineers.">
+    <meta name="twitter:image" content="https://mathypad.app/screenshots/screen1.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="canonical" href="https://mathypad.app/web">
     
     <style>
         html, body {
@@ -31,6 +50,7 @@
             font-size: 20px;
         }
         
+        
         .spinner {
             display: inline-block;
             width: 40px;
@@ -51,7 +71,11 @@
     <div id="loading_text">
         <div class="spinner"></div>
         <br>
-        Loading Mathypad...
+        Loading Mathypad Web App...
+        <br>
+        <small style="opacity: 0.7; margin-top: 10px; display: block;">
+            Your browser-based calculator for unit-aware math
+        </small>
     </div>
     <canvas id="mathypad_canvas"></canvas>
     
@@ -71,7 +95,7 @@
     
     <!-- Load and initialize the WASM module -->
     <script type="module">
-        import init, { main } from './pkg/mathypad_web_poc.js';
+        import init, { main } from './mathypad_web_poc.js';
         
         async function run() {
             try {
