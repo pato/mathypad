@@ -105,14 +105,15 @@ impl MathypadPocApp {
                 
                 for span in highlighted_spans {
                     let color = match span.highlight_type {
-                        HighlightType::Number => Color32::from_rgb(100, 200, 255), // Light blue
-                        HighlightType::Unit => Color32::from_rgb(100, 255, 100),    // Light green
-                        HighlightType::LineReference => Color32::from_rgb(255, 100, 255), // Light magenta
-                        HighlightType::Keyword => Color32::from_rgb(255, 200, 100), // Light orange
-                        HighlightType::Operator => Color32::from_rgb(100, 255, 255), // Light cyan
-                        HighlightType::Variable => Color32::from_rgb(150, 150, 255), // Light blue-gray
-                        HighlightType::Function => Color32::from_rgb(200, 100, 255), // Light purple
-                        HighlightType::Normal => Color32::from_rgb(200, 200, 200), // Light gray
+                        // Elegant dark colors for light background - inspired by GitHub/VSCode light themes
+                        HighlightType::Number => Color32::from_rgb(9, 134, 88),        // Dark green (GitHub numbers)
+                        HighlightType::Unit => Color32::from_rgb(0, 92, 197),          // Dark blue (GitHub keywords)
+                        HighlightType::LineReference => Color32::from_rgb(181, 118, 20), // Dark orange/amber
+                        HighlightType::Keyword => Color32::from_rgb(215, 58, 73),      // Dark red (GitHub keywords)
+                        HighlightType::Operator => Color32::from_rgb(36, 41, 47),      // Very dark gray (almost black)
+                        HighlightType::Variable => Color32::from_rgb(111, 66, 193),    // Dark purple
+                        HighlightType::Function => Color32::from_rgb(102, 57, 186),    // Dark violet
+                        HighlightType::Normal => Color32::from_rgb(36, 41, 47),        // Dark gray
                     };
                     let format = TextFormat::simple(FontId::monospace(14.0), color);
                     job.append(&span.text, 0.0, format);
@@ -330,18 +331,18 @@ fn configure_fonts(ctx: &egui::Context) {
 }
 
 fn configure_visuals(ctx: &egui::Context) {
-    let mut visuals = egui::Visuals::dark();
+    let mut visuals = egui::Visuals::light();
 
-    // Dark theme colors similar to terminal
-    visuals.panel_fill = Color32::from_rgb(30, 30, 30);
-    visuals.window_fill = Color32::from_rgb(30, 30, 30);
-    visuals.faint_bg_color = Color32::from_rgb(35, 35, 35);
+    // Clean light theme colors
+    visuals.panel_fill = Color32::from_rgb(248, 249, 250);     // Very light gray
+    visuals.window_fill = Color32::from_rgb(255, 255, 255);    // Pure white
+    visuals.faint_bg_color = Color32::from_rgb(246, 248, 250); // Slightly darker gray
 
-    // Text colors
-    visuals.override_text_color = Some(Color32::from_rgb(200, 200, 200));
+    // Text colors for light theme
+    visuals.override_text_color = Some(Color32::from_rgb(36, 41, 47)); // Dark gray text
 
-    // Selection colors
-    visuals.selection.bg_fill = Color32::from_rgb(60, 90, 120);
+    // Selection colors for light theme
+    visuals.selection.bg_fill = Color32::from_rgb(0, 92, 197); // Blue selection
 
     ctx.set_visuals(visuals);
 }
