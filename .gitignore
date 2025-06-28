@@ -2,5 +2,4 @@
 deploy.sh
 *.pad
 *.log
-/web-poc/pkg/
-web-poc/pkg/*
+web-poc/pkg/
