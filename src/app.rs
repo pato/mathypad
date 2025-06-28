@@ -1,10 +1,8 @@
 //! Application state and core logic
 
-use crate::{
-    Mode,
-    expression::{evaluate_with_variables, update_line_references_in_text},
-};
-use std::collections::HashMap;
+use crate::Mode;
+use mathypad_core::core::MathypadCore;
+use mathypad_core::expression::{evaluate_with_variables, update_line_references_in_text};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -70,12 +68,9 @@ impl ResultAnimation {
 
 /// Main application state for the mathematical notepad
 pub struct App {
-    pub text_lines: Vec<String>,
-    pub cursor_line: usize,
-    pub cursor_col: usize,
+    /// Core calculation and text state (shared with web UI)
+    pub core: MathypadCore,
     pub scroll_offset: usize,
-    pub results: Vec<Option<String>>,
-    pub variables: HashMap<String, String>, // variable_name -> value_string
     pub mode: Mode,
     pub result_animations: Vec<Option<ResultAnimation>>, // Animation state for each result
     pub file_path: Option<PathBuf>,                      // Path to the currently opened file
@@ -101,12 +96,8 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            text_lines: vec![String::new()],
-            cursor_line: 0,
-            cursor_col: 0,
+            core: MathypadCore::new(),
             scroll_offset: 0,
-            results: vec![None],
-            variables: HashMap::new(),
             mode: Mode::Insert,                // Start in insert mode
             result_animations: vec![None],     // Start with no animations
             file_path: None,                   // No file loaded initially
@@ -135,15 +126,15 @@ impl App {
     #[cfg(test)]
     pub fn test_scenario_line_splitting(&mut self) -> (String, String) {
         // Set up the scenario: "5" on line 1, "line1 + 1" on line 2
-        self.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
-        self.results = vec![None, None];
-        self.cursor_line = 0;
-        self.cursor_col = 0; // Position cursor OVER the "5" (at beginning)
+        self.core.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        self.core.results = vec![None, None];
+        self.core.cursor_line = 0;
+        self.core.cursor_col = 0; // Position cursor OVER the "5" (at beginning)
 
         // Record the original state
         let before = format!(
             "Line 1: '{}', Line 2: '{}'",
-            self.text_lines[0], self.text_lines[1]
+            self.core.text_lines[0], self.core.text_lines[1]
         );
 
         // Hit enter when cursor is over the 5 (actually after it)
@@ -152,54 +143,31 @@ impl App {
         // Record the new state
         let after = format!(
             "Line 1: '{}', Line 2: '{}', Line 3: '{}'",
-            self.text_lines.first().unwrap_or(&"".to_string()),
-            self.text_lines.get(1).unwrap_or(&"".to_string()),
-            self.text_lines.get(2).unwrap_or(&"".to_string())
+            self.core.text_lines.first().unwrap_or(&"".to_string()),
+            self.core.text_lines.get(1).unwrap_or(&"".to_string()),
+            self.core.text_lines.get(2).unwrap_or(&"".to_string())
         );
 
         (before, after)
     }
     /// Insert a character at the current cursor position
     pub fn insert_char(&mut self, c: char) {
-        if self.cursor_line < self.text_lines.len() {
-            // Convert cursor position from character index to byte index for insertion
-            let line = &self.text_lines[self.cursor_line];
-            let char_count = line.chars().count();
-
-            // Ensure cursor position is within bounds
-            let safe_cursor_col = self.cursor_col.min(char_count);
-
-            // Find the byte position for character insertion
-            let byte_index = if safe_cursor_col == 0 {
-                0
-            } else if safe_cursor_col >= char_count {
-                line.len()
-            } else {
-                line.char_indices()
-                    .nth(safe_cursor_col)
-                    .map(|(i, _)| i)
-                    .unwrap_or(line.len())
-            };
-
-            self.text_lines[self.cursor_line].insert(byte_index, c);
-            self.cursor_col += 1;
-            self.update_result(self.cursor_line);
-            self.has_unsaved_changes = true;
-        }
+        self.core.insert_char(c);
+        self.has_unsaved_changes = true;
     }
 
     /// Delete the character before the cursor
     pub fn delete_char(&mut self) {
-        if self.cursor_line < self.text_lines.len() {
-            if self.cursor_col > 0 {
+        if self.core.cursor_line < self.core.text_lines.len() {
+            if self.core.cursor_col > 0 {
                 // Delete character within the current line
-                let line = &mut self.text_lines[self.cursor_line];
+                let line = &mut self.core.text_lines[self.core.cursor_line];
 
                 // Find the byte index of the character to delete
                 let char_indices: Vec<_> = line.char_indices().collect();
-                if self.cursor_col > 0 && self.cursor_col <= char_indices.len() {
+                if self.core.cursor_col > 0 && self.core.cursor_col <= char_indices.len() {
                     // We want to delete the character before the cursor (at cursor_col - 1)
-                    let char_to_delete_idx = self.cursor_col - 1;
+                    let char_to_delete_idx = self.core.cursor_col - 1;
 
                     // Get the byte range of this character
                     let start_byte = char_indices[char_to_delete_idx].0;
@@ -211,50 +179,51 @@ impl App {
 
                     // Remove the character using drain
                     line.drain(start_byte..end_byte);
-                    self.cursor_col -= 1;
-                    self.update_result(self.cursor_line);
+                    self.core.cursor_col -= 1;
+                    self.update_result(self.core.cursor_line);
                     self.has_unsaved_changes = true;
                 }
-            } else if self.cursor_line > 0 {
+            } else if self.core.cursor_line > 0 {
                 // Cursor is at beginning of line - merge with previous line
-                let current_line = self.text_lines.remove(self.cursor_line);
-                self.results.remove(self.cursor_line);
+                let current_line = self.core.text_lines.remove(self.core.cursor_line);
+                self.core.results.remove(self.core.cursor_line);
 
                 // Remove corresponding animation if it exists
-                if self.cursor_line < self.result_animations.len() {
-                    self.result_animations.remove(self.cursor_line);
+                if self.core.cursor_line < self.result_animations.len() {
+                    self.result_animations.remove(self.core.cursor_line);
                 }
 
                 // Remove corresponding copy flash animation if it exists
-                if self.cursor_line < self.copy_flash_animations.len() {
-                    self.copy_flash_animations.remove(self.cursor_line);
+                if self.core.cursor_line < self.copy_flash_animations.len() {
+                    self.copy_flash_animations.remove(self.core.cursor_line);
                 }
-                if self.cursor_line < self.copy_flash_is_result.len() {
-                    self.copy_flash_is_result.remove(self.cursor_line);
+                if self.core.cursor_line < self.copy_flash_is_result.len() {
+                    self.copy_flash_is_result.remove(self.core.cursor_line);
                 }
 
                 // Check if the previous line is empty - if so, we conceptually want to delete
                 // the previous line rather than the current line
-                let prev_line_empty = self.text_lines[self.cursor_line - 1].is_empty();
+                let prev_line_empty = self.core.text_lines[self.core.cursor_line - 1].is_empty();
 
                 if prev_line_empty && !current_line.is_empty() {
                     // Previous line is empty, current line has content
                     // Delete the previous line (conceptually what the user wants)
-                    self.text_lines[self.cursor_line - 1] = current_line;
-                    self.update_line_references_for_deletion(self.cursor_line - 1);
-                    self.cursor_line -= 1;
-                    self.cursor_col = 0;
+                    self.core.text_lines[self.core.cursor_line - 1] = current_line;
+                    self.update_line_references_for_deletion(self.core.cursor_line - 1);
+                    self.core.cursor_line -= 1;
+                    self.core.cursor_col = 0;
                 } else {
                     // Normal case: merge current line into previous line
-                    self.update_line_references_for_deletion(self.cursor_line);
-                    self.cursor_line -= 1;
-                    self.cursor_col = self.text_lines[self.cursor_line].chars().count();
-                    self.text_lines[self.cursor_line].push_str(&current_line);
+                    self.update_line_references_for_deletion(self.core.cursor_line);
+                    self.core.cursor_line -= 1;
+                    self.core.cursor_col =
+                        self.core.text_lines[self.core.cursor_line].chars().count();
+                    self.core.text_lines[self.core.cursor_line].push_str(&current_line);
                 }
 
                 // Re-evaluate all lines after deletion to ensure line references resolve correctly
-                self.update_result(self.cursor_line);
-                for i in (self.cursor_line + 1)..self.text_lines.len() {
+                self.update_result(self.core.cursor_line);
+                for i in (self.core.cursor_line + 1)..self.core.text_lines.len() {
                     self.update_result(i);
                 }
                 self.has_unsaved_changes = true;
@@ -264,9 +233,9 @@ impl App {
 
     /// Delete the word before the cursor (Ctrl+W behavior)
     pub fn delete_word(&mut self) {
-        if self.cursor_line < self.text_lines.len() && self.cursor_col > 0 {
-            let line = &self.text_lines[self.cursor_line];
-            let mut new_col = self.cursor_col;
+        if self.core.cursor_line < self.core.text_lines.len() && self.core.cursor_col > 0 {
+            let line = &self.core.text_lines[self.core.cursor_line];
+            let mut new_col = self.core.cursor_col;
 
             // Skip trailing whitespace
             while new_col > 0 && line.chars().nth(new_col - 1).unwrap_or(' ').is_whitespace() {
@@ -284,7 +253,7 @@ impl App {
             }
 
             // If no word was found, delete non-word characters until whitespace
-            if new_col == self.cursor_col {
+            if new_col == self.core.cursor_col {
                 while new_col > 0 {
                     let ch = line.chars().nth(new_col - 1).unwrap_or(' ');
                     if ch.is_whitespace() || ch.is_alphanumeric() || ch == '_' {
@@ -295,8 +264,8 @@ impl App {
             }
 
             // Delete the characters from new_col to cursor_col
-            if new_col < self.cursor_col {
-                let line = &self.text_lines[self.cursor_line];
+            if new_col < self.core.cursor_col {
+                let line = &self.core.text_lines[self.core.cursor_line];
                 let char_indices: Vec<_> = line.char_indices().collect();
 
                 if !char_indices.is_empty() {
@@ -306,19 +275,19 @@ impl App {
                         line.len()
                     };
 
-                    let end_byte = if self.cursor_col < char_indices.len() {
-                        char_indices[self.cursor_col].0
+                    let end_byte = if self.core.cursor_col < char_indices.len() {
+                        char_indices[self.core.cursor_col].0
                     } else {
                         line.len()
                     };
 
                     if start_byte < end_byte {
-                        self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                        self.core.text_lines[self.core.cursor_line].drain(start_byte..end_byte);
                     }
                 }
 
-                self.cursor_col = new_col;
-                self.update_result(self.cursor_line);
+                self.core.cursor_col = new_col;
+                self.update_result(self.core.cursor_line);
                 self.has_unsaved_changes = true;
             }
         }
@@ -326,10 +295,10 @@ impl App {
 
     /// Insert a new line at the cursor position
     pub fn new_line(&mut self) {
-        if self.cursor_line < self.text_lines.len() {
-            let current_line = self.text_lines[self.cursor_line].clone();
+        if self.core.cursor_line < self.core.text_lines.len() {
+            let current_line = self.core.text_lines[self.core.cursor_line].clone();
             let char_count = current_line.chars().count();
-            let safe_cursor_col = self.cursor_col.min(char_count);
+            let safe_cursor_col = self.core.cursor_col.min(char_count);
 
             // Split the line at character boundary, not byte boundary
             let (left, right) = if safe_cursor_col == 0 {
@@ -351,41 +320,44 @@ impl App {
             let left_empty = left.trim().is_empty();
             let right_empty = right.trim().is_empty();
 
-            self.text_lines[self.cursor_line] = left;
-            self.text_lines.insert(self.cursor_line + 1, right);
-            self.results.insert(self.cursor_line + 1, None);
+            self.core.text_lines[self.core.cursor_line] = left;
+            self.core
+                .text_lines
+                .insert(self.core.cursor_line + 1, right);
+            self.core.results.insert(self.core.cursor_line + 1, None);
 
             // Insert corresponding empty animation slot
-            if self.cursor_line + 1 < self.result_animations.len() {
-                self.result_animations.insert(self.cursor_line + 1, None);
+            if self.core.cursor_line + 1 < self.result_animations.len() {
+                self.result_animations
+                    .insert(self.core.cursor_line + 1, None);
             } else {
                 // Ensure animations vector is large enough
-                while self.result_animations.len() <= self.cursor_line + 1 {
+                while self.result_animations.len() <= self.core.cursor_line + 1 {
                     self.result_animations.push(None);
                 }
             }
 
             // Also ensure copy flash animations vector is large enough
-            if self.cursor_line + 1 < self.copy_flash_animations.len() {
+            if self.core.cursor_line + 1 < self.copy_flash_animations.len() {
                 self.copy_flash_animations
-                    .insert(self.cursor_line + 1, None);
+                    .insert(self.core.cursor_line + 1, None);
                 self.copy_flash_is_result
-                    .insert(self.cursor_line + 1, false);
+                    .insert(self.core.cursor_line + 1, false);
             } else {
-                while self.copy_flash_animations.len() <= self.cursor_line + 1 {
+                while self.copy_flash_animations.len() <= self.core.cursor_line + 1 {
                     self.copy_flash_animations.push(None);
                     self.copy_flash_is_result.push(false);
                 }
             }
 
             // Handle line reference updates for insertion
-            let insertion_point = self.cursor_line + 1; // 0-based index of newly inserted line
+            let insertion_point = self.core.cursor_line + 1; // 0-based index of newly inserted line
 
             if left_empty && !right_empty {
                 // Content moved from cursor_line to insertion_point
                 // Use combined update that handles both content move and position shifts
                 self.update_line_references_for_line_split_with_content_move(
-                    self.cursor_line,
+                    self.core.cursor_line,
                     insertion_point,
                 );
             } else {
@@ -393,17 +365,17 @@ impl App {
                 self.update_line_references_for_standard_insertion(insertion_point);
             }
 
-            self.cursor_line += 1;
-            self.cursor_col = 0;
+            self.core.cursor_line += 1;
+            self.core.cursor_col = 0;
 
             // Make sure to evaluate all lines in the correct order
             // First evaluate the lines that were directly affected by the split
-            self.update_result(self.cursor_line - 1); // Line 0
-            self.update_result(self.cursor_line); // Line 1
+            self.update_result(self.core.cursor_line - 1); // Line 0
+            self.update_result(self.core.cursor_line); // Line 1
 
             // Then re-evaluate any lines that had their references updated
             // This ensures line references can resolve correctly
-            for i in (self.cursor_line + 1)..self.text_lines.len() {
+            for i in (self.core.cursor_line + 1)..self.core.text_lines.len() {
                 self.update_result(i);
             }
             self.has_unsaved_changes = true;
@@ -412,70 +384,77 @@ impl App {
 
     /// Move cursor up one line
     pub fn move_cursor_up(&mut self) {
-        if self.cursor_line > 0 {
-            self.cursor_line -= 1;
-            self.cursor_col = self.cursor_col.min(self.text_lines[self.cursor_line].len());
+        if self.core.cursor_line > 0 {
+            self.core.cursor_line -= 1;
+            self.core.cursor_col = self
+                .core
+                .cursor_col
+                .min(self.core.text_lines[self.core.cursor_line].len());
         }
     }
 
     /// Move cursor down one line
     pub fn move_cursor_down(&mut self) {
-        if self.cursor_line + 1 < self.text_lines.len() {
-            self.cursor_line += 1;
-            self.cursor_col = self.cursor_col.min(self.text_lines[self.cursor_line].len());
+        if self.core.cursor_line + 1 < self.core.text_lines.len() {
+            self.core.cursor_line += 1;
+            self.core.cursor_col = self
+                .core
+                .cursor_col
+                .min(self.core.text_lines[self.core.cursor_line].len());
         }
     }
 
     /// Move cursor left one character
     pub fn move_cursor_left(&mut self) {
-        if self.cursor_col > 0 {
-            self.cursor_col -= 1;
+        if self.core.cursor_col > 0 {
+            self.core.cursor_col -= 1;
         }
     }
 
     /// Move cursor right one character
     pub fn move_cursor_right(&mut self) {
-        if self.cursor_line < self.text_lines.len() {
-            self.cursor_col = (self.cursor_col + 1).min(self.text_lines[self.cursor_line].len());
+        if self.core.cursor_line < self.core.text_lines.len() {
+            self.core.cursor_col =
+                (self.core.cursor_col + 1).min(self.core.text_lines[self.core.cursor_line].len());
         }
     }
 
     /// Delete the entire current line (vim 'dd' command)
     pub fn delete_line(&mut self) {
-        if self.text_lines.len() > 1 {
+        if self.core.text_lines.len() > 1 {
             // Update line references before deletion
-            self.update_line_references_for_deletion(self.cursor_line);
+            self.update_line_references_for_deletion(self.core.cursor_line);
 
             // Remove the line
-            self.text_lines.remove(self.cursor_line);
-            self.results.remove(self.cursor_line);
+            self.core.text_lines.remove(self.core.cursor_line);
+            self.core.results.remove(self.core.cursor_line);
 
             // Remove animation states
-            if self.cursor_line < self.result_animations.len() {
-                self.result_animations.remove(self.cursor_line);
+            if self.core.cursor_line < self.result_animations.len() {
+                self.result_animations.remove(self.core.cursor_line);
             }
-            if self.cursor_line < self.copy_flash_animations.len() {
-                self.copy_flash_animations.remove(self.cursor_line);
-                self.copy_flash_is_result.remove(self.cursor_line);
+            if self.core.cursor_line < self.copy_flash_animations.len() {
+                self.copy_flash_animations.remove(self.core.cursor_line);
+                self.copy_flash_is_result.remove(self.core.cursor_line);
             }
 
             // Adjust cursor position
-            if self.cursor_line >= self.text_lines.len() && self.cursor_line > 0 {
-                self.cursor_line -= 1;
+            if self.core.cursor_line >= self.core.text_lines.len() && self.core.cursor_line > 0 {
+                self.core.cursor_line -= 1;
             }
-            self.cursor_col = 0;
+            self.core.cursor_col = 0;
 
             // Re-evaluate all lines after deletion
-            for i in self.cursor_line..self.text_lines.len() {
+            for i in self.core.cursor_line..self.core.text_lines.len() {
                 self.update_result(i);
             }
 
             self.has_unsaved_changes = true;
-        } else if self.text_lines.len() == 1 {
+        } else if self.core.text_lines.len() == 1 {
             // If only one line, just clear it instead of deleting
-            self.text_lines[0].clear();
-            self.results[0] = None;
-            self.cursor_col = 0;
+            self.core.text_lines[0].clear();
+            self.core.results[0] = None;
+            self.core.cursor_col = 0;
             self.update_result(0);
             self.has_unsaved_changes = true;
         }
@@ -483,28 +462,29 @@ impl App {
 
     /// Delete character at cursor position (vim 'x' command)
     pub fn delete_char_at_cursor(&mut self) {
-        if self.cursor_line < self.text_lines.len() {
-            let line = &self.text_lines[self.cursor_line];
+        if self.core.cursor_line < self.core.text_lines.len() {
+            let line = &self.core.text_lines[self.core.cursor_line];
             let char_count = line.chars().count();
 
-            if self.cursor_col < char_count {
+            if self.core.cursor_col < char_count {
                 let char_indices: Vec<_> = line.char_indices().collect();
-                if self.cursor_col < char_indices.len() {
-                    let byte_start = char_indices[self.cursor_col].0;
-                    let byte_end = if self.cursor_col + 1 < char_indices.len() {
-                        char_indices[self.cursor_col + 1].0
+                if self.core.cursor_col < char_indices.len() {
+                    let byte_start = char_indices[self.core.cursor_col].0;
+                    let byte_end = if self.core.cursor_col + 1 < char_indices.len() {
+                        char_indices[self.core.cursor_col + 1].0
                     } else {
                         line.len()
                     };
 
-                    self.text_lines[self.cursor_line].drain(byte_start..byte_end);
+                    self.core.text_lines[self.core.cursor_line].drain(byte_start..byte_end);
 
                     // Adjust cursor if at end of line after deletion
-                    let new_char_count = self.text_lines[self.cursor_line].chars().count();
-                    if self.cursor_col >= new_char_count && self.cursor_col > 0 {
-                        self.cursor_col = new_char_count;
+                    let new_char_count =
+                        self.core.text_lines[self.core.cursor_line].chars().count();
+                    if self.core.cursor_col >= new_char_count && self.core.cursor_col > 0 {
+                        self.core.cursor_col = new_char_count;
                     }
-                    self.update_result(self.cursor_line);
+                    self.update_result(self.core.cursor_line);
                     self.has_unsaved_changes = true;
                 }
             }
@@ -514,13 +494,13 @@ impl App {
     /// Move cursor forward by one word (vim 'w' command)
     /// A word is a sequence of alphanumeric characters or underscores
     pub fn move_word_forward(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let mut new_col = self.cursor_col;
+        let mut new_col = self.core.cursor_col;
 
         // Skip current word if we're in one
         while new_col < chars.len() && (chars[new_col].is_alphanumeric() || chars[new_col] == '_') {
@@ -534,33 +514,33 @@ impl App {
         }
 
         // If we've reached the end of the line, move to the next line
-        if new_col >= chars.len() && self.cursor_line + 1 < self.text_lines.len() {
-            self.cursor_line += 1;
-            self.cursor_col = 0;
+        if new_col >= chars.len() && self.core.cursor_line + 1 < self.core.text_lines.len() {
+            self.core.cursor_line += 1;
+            self.core.cursor_col = 0;
         } else {
-            self.cursor_col = new_col;
+            self.core.cursor_col = new_col;
         }
     }
 
     /// Move cursor backward by one word (vim 'b' command)
     pub fn move_word_backward(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
 
-        if self.cursor_col == 0 {
+        if self.core.cursor_col == 0 {
             // If at start of line, move to end of previous line
-            if self.cursor_line > 0 {
-                self.cursor_line -= 1;
-                self.cursor_col = self.text_lines[self.cursor_line].chars().count();
+            if self.core.cursor_line > 0 {
+                self.core.cursor_line -= 1;
+                self.core.cursor_col = self.core.text_lines[self.core.cursor_line].chars().count();
             }
             return;
         }
 
-        let mut new_col = self.cursor_col;
+        let mut new_col = self.core.cursor_col;
         new_col = new_col.saturating_sub(1);
 
         // Skip non-word characters backwards
@@ -573,19 +553,19 @@ impl App {
             new_col -= 1;
         }
 
-        self.cursor_col = new_col;
+        self.core.cursor_col = new_col;
     }
 
     /// Move cursor forward by one WORD (vim 'W' command)
     /// A WORD is a sequence of non-whitespace characters
     pub fn move_word_forward_big(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let mut new_col = self.cursor_col;
+        let mut new_col = self.core.cursor_col;
 
         // Skip current WORD if we're in one
         while new_col < chars.len() && !chars[new_col].is_whitespace() {
@@ -598,33 +578,33 @@ impl App {
         }
 
         // If we've reached the end of the line, move to the next line
-        if new_col >= chars.len() && self.cursor_line + 1 < self.text_lines.len() {
-            self.cursor_line += 1;
-            self.cursor_col = 0;
+        if new_col >= chars.len() && self.core.cursor_line + 1 < self.core.text_lines.len() {
+            self.core.cursor_line += 1;
+            self.core.cursor_col = 0;
         } else {
-            self.cursor_col = new_col;
+            self.core.cursor_col = new_col;
         }
     }
 
     /// Move cursor backward by one WORD (vim 'B' command)
     pub fn move_word_backward_big(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
 
-        if self.cursor_col == 0 {
+        if self.core.cursor_col == 0 {
             // If at start of line, move to end of previous line
-            if self.cursor_line > 0 {
-                self.cursor_line -= 1;
-                self.cursor_col = self.text_lines[self.cursor_line].chars().count();
+            if self.core.cursor_line > 0 {
+                self.core.cursor_line -= 1;
+                self.core.cursor_col = self.core.text_lines[self.core.cursor_line].chars().count();
             }
             return;
         }
 
-        let mut new_col = self.cursor_col;
+        let mut new_col = self.core.cursor_col;
         new_col = new_col.saturating_sub(1);
 
         // Skip whitespace backwards
@@ -637,19 +617,19 @@ impl App {
             new_col -= 1;
         }
 
-        self.cursor_col = new_col;
+        self.core.cursor_col = new_col;
     }
 
     /// Delete from cursor to the end of the current word (vim 'dw' command)
     pub fn delete_word_forward(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let start_col = self.cursor_col;
-        let mut end_col = self.cursor_col;
+        let start_col = self.core.cursor_col;
+        let mut end_col = self.core.cursor_col;
 
         // Skip current word if we're in one
         while end_col < chars.len() && (chars[end_col].is_alphanumeric() || chars[end_col] == '_') {
@@ -664,7 +644,7 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            let line = &self.text_lines[self.cursor_line];
+            let line = &self.core.text_lines[self.core.cursor_line];
             let char_indices: Vec<_> = line.char_indices().collect();
 
             if !char_indices.is_empty() {
@@ -681,25 +661,25 @@ impl App {
                 };
 
                 if start_byte < end_byte {
-                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                    self.core.text_lines[self.core.cursor_line].drain(start_byte..end_byte);
                 }
             }
 
-            self.update_result(self.cursor_line);
+            self.update_result(self.core.cursor_line);
             self.has_unsaved_changes = true;
         }
     }
 
     /// Delete from cursor to the beginning of the previous word (vim 'db' command)
     pub fn delete_word_backward(&mut self) {
-        if self.cursor_line >= self.text_lines.len() || self.cursor_col == 0 {
+        if self.core.cursor_line >= self.core.text_lines.len() || self.core.cursor_col == 0 {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let end_col = self.cursor_col;
-        let mut start_col = self.cursor_col;
+        let end_col = self.core.cursor_col;
+        let mut start_col = self.core.cursor_col;
 
         start_col = start_col.saturating_sub(1);
 
@@ -717,7 +697,7 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            let line = &self.text_lines[self.cursor_line];
+            let line = &self.core.text_lines[self.core.cursor_line];
             let char_indices: Vec<_> = line.char_indices().collect();
 
             if !char_indices.is_empty() {
@@ -734,26 +714,26 @@ impl App {
                 };
 
                 if start_byte < end_byte {
-                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                    self.core.text_lines[self.core.cursor_line].drain(start_byte..end_byte);
                 }
             }
 
-            self.cursor_col = start_col;
-            self.update_result(self.cursor_line);
+            self.core.cursor_col = start_col;
+            self.update_result(self.core.cursor_line);
             self.has_unsaved_changes = true;
         }
     }
 
     /// Delete from cursor to the end of the current WORD (vim 'dW' command)
     pub fn delete_word_forward_big(&mut self) {
-        if self.cursor_line >= self.text_lines.len() {
+        if self.core.cursor_line >= self.core.text_lines.len() {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let start_col = self.cursor_col;
-        let mut end_col = self.cursor_col;
+        let start_col = self.core.cursor_col;
+        let mut end_col = self.core.cursor_col;
 
         // Skip current WORD if we're in one
         while end_col < chars.len() && !chars[end_col].is_whitespace() {
@@ -767,7 +747,7 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            let line = &self.text_lines[self.cursor_line];
+            let line = &self.core.text_lines[self.core.cursor_line];
             let char_indices: Vec<_> = line.char_indices().collect();
 
             if !char_indices.is_empty() {
@@ -784,25 +764,25 @@ impl App {
                 };
 
                 if start_byte < end_byte {
-                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                    self.core.text_lines[self.core.cursor_line].drain(start_byte..end_byte);
                 }
             }
 
-            self.update_result(self.cursor_line);
+            self.update_result(self.core.cursor_line);
             self.has_unsaved_changes = true;
         }
     }
 
     /// Delete from cursor to the beginning of the previous WORD (vim 'dB' command)
     pub fn delete_word_backward_big(&mut self) {
-        if self.cursor_line >= self.text_lines.len() || self.cursor_col == 0 {
+        if self.core.cursor_line >= self.core.text_lines.len() || self.core.cursor_col == 0 {
             return;
         }
 
-        let line = &self.text_lines[self.cursor_line];
+        let line = &self.core.text_lines[self.core.cursor_line];
         let chars: Vec<char> = line.chars().collect();
-        let end_col = self.cursor_col;
-        let mut start_col = self.cursor_col;
+        let end_col = self.core.cursor_col;
+        let mut start_col = self.core.cursor_col;
 
         start_col = start_col.saturating_sub(1);
 
@@ -818,7 +798,7 @@ impl App {
 
         // Delete the range
         if end_col > start_col {
-            let line = &self.text_lines[self.cursor_line];
+            let line = &self.core.text_lines[self.core.cursor_line];
             let char_indices: Vec<_> = line.char_indices().collect();
 
             if !char_indices.is_empty() {
@@ -835,86 +815,58 @@ impl App {
                 };
 
                 if start_byte < end_byte {
-                    self.text_lines[self.cursor_line].drain(start_byte..end_byte);
+                    self.core.text_lines[self.core.cursor_line].drain(start_byte..end_byte);
                 }
             }
 
-            self.cursor_col = start_col;
-            self.update_result(self.cursor_line);
+            self.core.cursor_col = start_col;
+            self.update_result(self.core.cursor_line);
             self.has_unsaved_changes = true;
         }
     }
 
     /// Update the calculation result for a given line
     pub fn update_result(&mut self, line_index: usize) {
-        if line_index < self.text_lines.len() && line_index < self.results.len() {
-            let line = &self.text_lines[line_index];
-            let (result, variable_assignment) =
-                evaluate_with_variables(line, &self.variables, &self.results, line_index);
+        self.core.update_result(line_index);
 
-            // Check if result has changed to trigger animation
-            let result_changed = self.results[line_index] != result;
-
-            // If this is a variable assignment, store it and re-evaluate dependent lines
-            if let Some((var_name, var_value)) = variable_assignment {
-                // Check if this variable assignment actually changed the value
-                let variable_changed = self.variables.get(&var_name) != Some(&var_value);
-
-                self.variables.insert(var_name.clone(), var_value);
-
-                // If the variable changed, re-evaluate all lines that might use this variable
-                if variable_changed {
-                    self.results[line_index] = result.clone();
-                    if result_changed && result.is_some() {
-                        self.start_result_animation(line_index);
-                    }
-                    self.re_evaluate_dependent_lines(&var_name, line_index);
-                    return;
-                }
-            }
-
-            self.results[line_index] = result.clone();
-
-            // Start fade-in animation if result changed and is not None
-            if result_changed && result.is_some() {
-                self.start_result_animation(line_index);
-            }
-        } else {
-            // This should never happen in normal operation, but let's be defensive
-            eprintln!(
-                "Warning: Attempted to update result for invalid line index {}",
-                line_index
-            );
+        // Check if we need to start animation for the updated result
+        if line_index < self.core.results.len() && self.core.results[line_index].is_some() {
+            self.start_result_animation(line_index);
         }
     }
 
     /// Re-evaluate all lines that might depend on the given variable
     fn re_evaluate_dependent_lines(&mut self, changed_variable: &str, assignment_line: usize) {
         // Re-evaluate all lines after the assignment line that might use this variable
-        for line_idx in (assignment_line + 1)..self.text_lines.len() {
-            if line_idx < self.results.len() {
-                let line = &self.text_lines[line_idx];
+        for line_idx in (assignment_line + 1)..self.core.text_lines.len() {
+            if line_idx < self.core.results.len() {
+                let line = &self.core.text_lines[line_idx];
 
                 // Check if this line contains the variable name
                 // This is a simple heuristic - we could make it more sophisticated
                 if line.contains(changed_variable) {
-                    let (result, nested_assignment) =
-                        evaluate_with_variables(line, &self.variables, &self.results, line_idx);
+                    let (result, nested_assignment) = evaluate_with_variables(
+                        line,
+                        &self.core.variables,
+                        &self.core.results,
+                        line_idx,
+                    );
 
                     // Handle nested variable assignments (variables that depend on other variables)
                     if let Some((nested_var_name, nested_var_value)) = nested_assignment {
                         let nested_changed =
-                            self.variables.get(&nested_var_name) != Some(&nested_var_value);
-                        self.variables
+                            self.core.variables.get(&nested_var_name) != Some(&nested_var_value);
+                        self.core
+                            .variables
                             .insert(nested_var_name.clone(), nested_var_value);
 
                         // If this nested assignment changed, recursively update its dependents
                         if nested_changed {
-                            self.results[line_idx] = result;
+                            self.core.results[line_idx] = result;
                             self.re_evaluate_dependent_lines(&nested_var_name, line_idx);
                         }
                     } else {
-                        self.results[line_idx] = result;
+                        self.core.results[line_idx] = result;
                     }
                 }
             }
@@ -925,11 +877,11 @@ impl App {
     /// All references > deleted_line need to be decremented by 1
     /// References to the deleted line become invalid
     fn update_line_references_for_deletion(&mut self, deleted_line: usize) {
-        for i in 0..self.text_lines.len() {
+        for i in 0..self.core.text_lines.len() {
             let updated_text =
-                update_line_references_in_text(&self.text_lines[i], deleted_line, -1);
-            if updated_text != self.text_lines[i] {
-                self.text_lines[i] = updated_text;
+                update_line_references_in_text(&self.core.text_lines[i], deleted_line, -1);
+            if updated_text != self.core.text_lines[i] {
+                self.core.text_lines[i] = updated_text;
                 // Re-evaluate this line since its content changed
                 self.update_result(i);
             }
@@ -939,11 +891,11 @@ impl App {
     /// Update line references in all lines when a new line is inserted
     /// All references >= insertion_point need to be incremented by 1
     fn update_line_references_for_standard_insertion(&mut self, insertion_point: usize) {
-        for i in 0..self.text_lines.len() {
+        for i in 0..self.core.text_lines.len() {
             let updated_text =
-                update_line_references_in_text(&self.text_lines[i], insertion_point, 1);
-            if updated_text != self.text_lines[i] {
-                self.text_lines[i] = updated_text;
+                update_line_references_in_text(&self.core.text_lines[i], insertion_point, 1);
+            if updated_text != self.core.text_lines[i] {
+                self.core.text_lines[i] = updated_text;
                 // Re-evaluate this line since its content changed
                 self.update_result(i);
             }
@@ -959,9 +911,9 @@ impl App {
     ) {
         use crate::expression::extract_line_references;
 
-        for i in 0..self.text_lines.len() {
-            let references = extract_line_references(&self.text_lines[i]);
-            let mut updated_text = self.text_lines[i].clone();
+        for i in 0..self.core.text_lines.len() {
+            let references = extract_line_references(&self.core.text_lines[i]);
+            let mut updated_text = self.core.text_lines[i].clone();
 
             // Process references in reverse order to maintain correct string positions
             for (start_pos, end_pos, line_num) in references.into_iter().rev() {
@@ -982,8 +934,8 @@ impl App {
                 }
             }
 
-            if updated_text != self.text_lines[i] {
-                self.text_lines[i] = updated_text;
+            if updated_text != self.core.text_lines[i] {
+                self.core.text_lines[i] = updated_text;
                 // Re-evaluate this line since its content changed
                 self.update_result(i);
             }
@@ -993,10 +945,10 @@ impl App {
     /// Recalculate all lines in the notebook
     pub fn recalculate_all(&mut self) {
         // Clear variables to ensure fresh calculation
-        self.variables.clear();
+        self.core.variables.clear();
 
         // Recalculate each line in order
-        for i in 0..self.text_lines.len() {
+        for i in 0..self.core.text_lines.len() {
             self.update_result(i);
         }
     }
@@ -1009,7 +961,7 @@ impl App {
         }
 
         // Only start animation if there's actually a result
-        if line_index < self.results.len() && self.results[line_index].is_some() {
+        if line_index < self.core.results.len() && self.core.results[line_index].is_some() {
             self.result_animations[line_index] = Some(ResultAnimation::new_fade_in());
         }
     }
@@ -1043,7 +995,7 @@ impl App {
     pub fn save(&mut self) -> Result<(), std::io::Error> {
         if let Some(ref path) = self.file_path {
             use std::fs;
-            let content = self.text_lines.join("\n");
+            let content = self.core.text_lines.join("\n");
             fs::write(path, content)?;
             self.has_unsaved_changes = false;
             Ok(())
@@ -1058,7 +1010,7 @@ impl App {
     /// Save the current content to a new file
     pub fn save_as(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
         use std::fs;
-        let content = self.text_lines.join("\n");
+        let content = self.core.text_lines.join("\n");
         fs::write(&path, content)?;
         self.file_path = Some(path);
         self.has_unsaved_changes = false;

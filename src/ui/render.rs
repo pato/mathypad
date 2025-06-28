@@ -1,8 +1,7 @@
 //! UI rendering functions
 
-use crate::expression::parse_line_reference;
-use crate::units::parse_unit;
 use crate::{App, Mode};
+use mathypad_core::core::highlighting::{HighlightType, highlight_expression};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -11,6 +10,20 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 use std::collections::HashMap;
+
+/// Convert a HighlightType to a ratatui Color
+fn highlight_type_to_color(highlight_type: &HighlightType) -> Color {
+    match highlight_type {
+        HighlightType::Number => Color::LightBlue,
+        HighlightType::Unit => Color::Green,
+        HighlightType::LineReference => Color::Magenta,
+        HighlightType::Keyword => Color::Yellow,
+        HighlightType::Operator => Color::Cyan,
+        HighlightType::Variable => Color::LightCyan,
+        HighlightType::Function => Color::Cyan,
+        HighlightType::Normal => Color::Reset,
+    }
+}
 
 /// Animate a color by interpolating its intensity based on opacity
 fn animate_color(base_color: Color, opacity: f32) -> Color {
@@ -125,10 +138,10 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
 
     let visible_height = inner_area.height as usize;
     let start_line = app.scroll_offset;
-    let end_line = (start_line + visible_height).min(app.text_lines.len());
+    let end_line = (start_line + visible_height).min(app.core.text_lines.len());
 
     let mut lines = Vec::new();
-    for (i, line_text) in app.text_lines[start_line..end_line].iter().enumerate() {
+    for (i, line_text) in app.core.text_lines[start_line..end_line].iter().enumerate() {
         let line_num = start_line + i + 1;
         let line_num_str = format!("{:4} ", line_num);
         let line_index = start_line + i;
@@ -152,10 +165,10 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
             Style::default()
         };
 
-        if start_line + i == app.cursor_line {
+        if start_line + i == app.core.cursor_line {
             // Parse with cursor highlighting
             let mut colored_spans =
-                parse_colors_with_cursor(line_text, app.cursor_col, &app.variables);
+                parse_colors_with_cursor(line_text, app.core.cursor_col, &app.core.variables);
             // Apply flash background to all spans if flashing
             if line_style.bg.is_some() {
                 for span in &mut colored_spans {
@@ -164,7 +177,7 @@ pub fn render_text_area(f: &mut Frame, app: &App, area: Rect) {
             }
             spans.extend(colored_spans);
         } else {
-            let mut colored_spans = parse_colors(line_text, &app.variables);
+            let mut colored_spans = parse_colors(line_text, &app.core.variables);
             // Apply flash background to all spans if flashing
             if line_style.bg.is_some() {
                 for span in &mut colored_spans {
@@ -190,10 +203,10 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
 
     let visible_height = inner_area.height as usize;
     let start_line = app.scroll_offset;
-    let end_line = (start_line + visible_height).min(app.results.len());
+    let end_line = (start_line + visible_height).min(app.core.results.len());
 
     let mut lines = Vec::new();
-    for (i, result) in app.results[start_line..end_line].iter().enumerate() {
+    for (i, result) in app.core.results[start_line..end_line].iter().enumerate() {
         let line_num = start_line + i + 1;
         let line_num_str = format!("{:4} ", line_num);
         let line_index = start_line + i;
@@ -242,270 +255,84 @@ pub fn render_results_panel(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(paragraph, inner_area);
 }
 
-/// Parse text and return colored spans for syntax highlighting
+/// Parse text and return colored spans for syntax highlighting using shared logic
 pub fn parse_colors<'a>(text: &'a str, variables: &'a HashMap<String, String>) -> Vec<Span<'a>> {
-    let mut spans = Vec::new();
-    let mut current_pos = 0;
-    let chars: Vec<char> = text.chars().collect();
+    let highlighted_spans = highlight_expression(text, variables);
 
-    while current_pos < chars.len() {
-        if chars[current_pos].is_ascii_alphabetic() {
-            // Handle potential units, keywords, and line references first
-            let start_pos = current_pos;
-
-            while current_pos < chars.len()
-                && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos].is_ascii_digit())
-            {
-                current_pos += 1;
-            }
-
-            let word_text: String = chars[start_pos..current_pos].iter().collect();
-
-            // Check if it's a valid unit, keyword, line reference, function, or variable
-            if parse_line_reference(&word_text).is_some() {
-                spans.push(Span::styled(word_text, Style::default().fg(Color::Magenta)));
-            } else if word_text.to_lowercase() == "to"
-                || word_text.to_lowercase() == "in"
-                || word_text.to_lowercase() == "of"
-            {
-                spans.push(Span::styled(word_text, Style::default().fg(Color::Yellow)));
-            } else if word_text.to_lowercase() == "sqrt" {
-                // Highlight function names like operators
-                spans.push(Span::styled(word_text, Style::default().fg(Color::Cyan)));
-            } else if parse_unit(&word_text).is_some() {
-                spans.push(Span::styled(word_text, Style::default().fg(Color::Green)));
-            } else if variables.contains_key(&word_text) {
-                // Highlight variables that are defined
-                spans.push(Span::styled(
-                    word_text,
-                    Style::default().fg(Color::LightCyan),
-                ));
+    highlighted_spans
+        .into_iter()
+        .map(|span| {
+            let color = highlight_type_to_color(&span.highlight_type);
+            if color == Color::Reset {
+                Span::raw(span.text)
             } else {
-                spans.push(Span::raw(word_text));
+                Span::styled(span.text, Style::default().fg(color))
             }
-        } else if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
-            // Handle numbers
-            let start_pos = current_pos;
-            let mut has_digit = false;
-            let mut has_dot = false;
-
-            while current_pos < chars.len() {
-                let ch = chars[current_pos];
-                if ch.is_ascii_digit() {
-                    has_digit = true;
-                    current_pos += 1;
-                } else if ch == '.' && !has_dot {
-                    has_dot = true;
-                    current_pos += 1;
-                } else if ch == ',' {
-                    current_pos += 1;
-                } else {
-                    break;
-                }
-            }
-
-            if has_digit {
-                let number_text: String = chars[start_pos..current_pos].iter().collect();
-                spans.push(Span::styled(
-                    number_text,
-                    Style::default().fg(Color::LightBlue),
-                ));
-            } else {
-                spans.push(Span::raw(chars[start_pos].to_string()));
-                current_pos = start_pos + 1;
-            }
-        } else if chars[current_pos] == '%' {
-            // Handle percentage symbol as a unit
-            spans.push(Span::styled(
-                "%".to_string(),
-                Style::default().fg(Color::Green),
-            ));
-            current_pos += 1;
-        } else if "$€£¥₹₩".contains(chars[current_pos]) {
-            // Handle currency symbols as units
-            spans.push(Span::styled(
-                chars[current_pos].to_string(),
-                Style::default().fg(Color::Green),
-            ));
-            current_pos += 1;
-        } else if "+-*/()=^".contains(chars[current_pos]) {
-            // Handle operators (including assignment and exponentiation)
-            spans.push(Span::styled(
-                chars[current_pos].to_string(),
-                Style::default().fg(Color::Cyan),
-            ));
-            current_pos += 1;
-        } else {
-            // Handle other characters
-            spans.push(Span::raw(chars[current_pos].to_string()));
-            current_pos += 1;
-        }
-    }
-
-    spans
+        })
+        .collect()
 }
 
-/// Parse text and return colored spans with cursor highlighting
+/// Parse text and return colored spans with cursor highlighting using shared logic
 pub fn parse_colors_with_cursor<'a>(
     text: &'a str,
     cursor_col: usize,
     variables: &'a HashMap<String, String>,
 ) -> Vec<Span<'a>> {
+    let highlighted_spans = highlight_expression(text, variables);
     let mut spans = Vec::new();
-    let mut current_pos = 0;
-    let chars: Vec<char> = text.chars().collect();
     let mut char_index = 0; // Track character position for cursor
 
-    while current_pos < chars.len() {
-        if chars[current_pos].is_ascii_alphabetic() {
-            // Handle potential units, keywords, and line references first
-            let start_pos = current_pos;
-            let start_char_index = char_index;
+    for highlighted_span in highlighted_spans {
+        let span_text = highlighted_span.text;
+        let span_start = char_index;
+        let span_end = char_index + span_text.chars().count();
+        let base_color = highlight_type_to_color(&highlighted_span.highlight_type);
 
-            while current_pos < chars.len()
-                && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos].is_ascii_digit())
-            {
-                current_pos += 1;
-                char_index += 1;
+        // Check if cursor is within this span
+        if cursor_col >= span_start && cursor_col < span_end {
+            // Split the span to highlight the cursor character
+            let cursor_offset = cursor_col - span_start;
+            let span_chars: Vec<char> = span_text.chars().collect();
+
+            if cursor_offset > 0 {
+                let before: String = span_chars[..cursor_offset].iter().collect();
+                if base_color == Color::Reset {
+                    spans.push(Span::raw(before));
+                } else {
+                    spans.push(Span::styled(before, Style::default().fg(base_color)));
+                }
             }
 
-            let word_text: String = chars[start_pos..current_pos].iter().collect();
-
-            // Determine the style for this word
-            let style = if parse_line_reference(&word_text).is_some() {
-                Style::default().fg(Color::Magenta)
-            } else if word_text.to_lowercase() == "to"
-                || word_text.to_lowercase() == "in"
-                || word_text.to_lowercase() == "of"
-            {
-                Style::default().fg(Color::Yellow)
-            } else if word_text.to_lowercase() == "sqrt" {
-                // Highlight function names like operators
-                Style::default().fg(Color::Cyan)
-            } else if parse_unit(&word_text).is_some() {
-                Style::default().fg(Color::Green)
-            } else if variables.contains_key(&word_text) {
-                Style::default().fg(Color::LightCyan)
+            let cursor_char = span_chars[cursor_offset];
+            let cursor_style = if base_color == Color::Reset {
+                Style::default().bg(Color::White).fg(Color::Black)
             } else {
-                Style::default()
+                Style::default().bg(Color::White).fg(Color::Black)
             };
+            spans.push(Span::styled(cursor_char.to_string(), cursor_style));
 
-            // Check if cursor is within this word
-            if cursor_col >= start_char_index && cursor_col < char_index {
-                // Split the word to highlight the cursor character
-                let cursor_offset = cursor_col - start_char_index;
-                let word_chars: Vec<char> = word_text.chars().collect();
-
-                if cursor_offset > 0 {
-                    let before: String = word_chars[..cursor_offset].iter().collect();
-                    spans.push(Span::styled(before, style));
-                }
-
-                let cursor_char = word_chars[cursor_offset];
-                spans.push(Span::styled(
-                    cursor_char.to_string(),
-                    style.bg(Color::White).fg(Color::Black),
-                ));
-
-                if cursor_offset + 1 < word_chars.len() {
-                    let after: String = word_chars[cursor_offset + 1..].iter().collect();
-                    spans.push(Span::styled(after, style));
-                }
-            } else {
-                spans.push(Span::styled(word_text, style));
-            }
-        } else if chars[current_pos].is_ascii_digit() || chars[current_pos] == '.' {
-            // Handle numbers
-            let start_pos = current_pos;
-            let start_char_index = char_index;
-            let mut has_digit = false;
-            let mut has_dot = false;
-
-            while current_pos < chars.len() {
-                let ch = chars[current_pos];
-                if ch.is_ascii_digit() {
-                    has_digit = true;
-                    current_pos += 1;
-                    char_index += 1;
-                } else if ch == '.' && !has_dot {
-                    has_dot = true;
-                    current_pos += 1;
-                    char_index += 1;
-                } else if ch == ',' {
-                    current_pos += 1;
-                    char_index += 1;
+            if cursor_offset + 1 < span_chars.len() {
+                let after: String = span_chars[cursor_offset + 1..].iter().collect();
+                if base_color == Color::Reset {
+                    spans.push(Span::raw(after));
                 } else {
-                    break;
+                    spans.push(Span::styled(after, Style::default().fg(base_color)));
                 }
-            }
-
-            if has_digit {
-                let number_text: String = chars[start_pos..current_pos].iter().collect();
-                let style = Style::default().fg(Color::LightBlue);
-
-                // Check if cursor is within this number
-                if cursor_col >= start_char_index && cursor_col < char_index {
-                    let cursor_offset = cursor_col - start_char_index;
-                    let number_chars: Vec<char> = number_text.chars().collect();
-
-                    if cursor_offset > 0 {
-                        let before: String = number_chars[..cursor_offset].iter().collect();
-                        spans.push(Span::styled(before, style));
-                    }
-
-                    let cursor_char = number_chars[cursor_offset];
-                    spans.push(Span::styled(
-                        cursor_char.to_string(),
-                        style.bg(Color::White).fg(Color::Black),
-                    ));
-
-                    if cursor_offset + 1 < number_chars.len() {
-                        let after: String = number_chars[cursor_offset + 1..].iter().collect();
-                        spans.push(Span::styled(after, style));
-                    }
-                } else {
-                    spans.push(Span::styled(number_text, style));
-                }
-            } else {
-                let ch = chars[start_pos];
-                if cursor_col == char_index {
-                    spans.push(Span::styled(
-                        ch.to_string(),
-                        Style::default().bg(Color::White).fg(Color::Black),
-                    ));
-                } else {
-                    spans.push(Span::raw(ch.to_string()));
-                }
-                current_pos = start_pos + 1;
-                char_index += 1;
             }
         } else {
-            // Handle single characters (operators, punctuation, etc.)
-            let ch = chars[current_pos];
-            let style = if ch == '%' || "$€£¥₹₩".contains(ch) {
-                Style::default().fg(Color::Green)
-            } else if "+-*/()=^".contains(ch) {
-                Style::default().fg(Color::Cyan)
+            // Normal span without cursor
+            if base_color == Color::Reset {
+                spans.push(Span::raw(span_text));
             } else {
-                Style::default()
-            };
-
-            if cursor_col == char_index {
-                spans.push(Span::styled(
-                    ch.to_string(),
-                    style.bg(Color::White).fg(Color::Black),
-                ));
-            } else {
-                spans.push(Span::styled(ch.to_string(), style));
+                spans.push(Span::styled(span_text, Style::default().fg(base_color)));
             }
-
-            current_pos += 1;
-            char_index += 1;
         }
+
+        char_index = span_end;
     }
 
-    // If cursor is at the end of the line, add a space with cursor background
-    if cursor_col == char_index {
+    // Handle cursor at end of line
+    if cursor_col >= char_index {
         spans.push(Span::styled(
             " ",
             Style::default().bg(Color::White).fg(Color::Black),

@@ -42,9 +42,7 @@ pub fn main() {
             match start_result {
                 Ok(_) => loading_text.remove(),
                 Err(e) => {
-                    loading_text.set_inner_html(
-                        &format!("An error occurred:<br/><br/>{:?}", e),
-                    );
+                    loading_text.set_inner_html(&format!("An error occurred:<br/><br/>{:?}", e));
                 }
             }
         }

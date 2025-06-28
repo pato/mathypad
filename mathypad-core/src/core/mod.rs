@@ -1,9 +1,9 @@
 //! Core abstractions for shared application state and logic
 
-pub mod state;
-pub mod highlighting;
 pub mod file_ops;
+pub mod highlighting;
+pub mod state;
 
+pub use file_ops::{FileOperations, deserialize_lines, serialize_lines};
+pub use highlighting::{HighlightType, HighlightedSpan, highlight_expression};
 pub use state::MathypadCore;
-pub use highlighting::{HighlightedSpan, HighlightType, highlight_expression};
-pub use file_ops::{FileOperations, serialize_lines, deserialize_lines};

@@ -179,7 +179,7 @@ fn run_event_loop(mut app: App) -> Result<(), Box<dyn Error>> {
     setup_panic_hook();
 
     // Initialize recovery state with current app
-    update_panic_recovery_text(&app.text_lines);
+    update_panic_recovery_text(&app.core.text_lines);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -368,7 +368,7 @@ fn run_event_loop(mut app: App) -> Result<(), Box<dyn Error>> {
             app.update_animations();
 
             // Update panic recovery with current text state
-            update_panic_recovery_text(&app.text_lines);
+            update_panic_recovery_text(&app.core.text_lines);
 
             last_tick = Instant::now();
         }
@@ -411,22 +411,22 @@ fn load_app_from_file(path: PathBuf) -> Result<App, Box<dyn Error>> {
 
     // Clear the default empty line if we have file content
     if !contents.trim().is_empty() {
-        app.text_lines.clear();
-        app.results.clear();
+        app.core.text_lines.clear();
+        app.core.results.clear();
         app.result_animations.clear();
     }
 
     // Split the contents into lines and load them into the app
     for line in contents.lines() {
-        app.text_lines.push(line.to_string());
-        app.results.push(None);
+        app.core.text_lines.push(line.to_string());
+        app.core.results.push(None);
         app.result_animations.push(None);
     }
 
     // If the file is empty, ensure we have at least one empty line
-    if app.text_lines.is_empty() {
-        app.text_lines.push(String::new());
-        app.results.push(None);
+    if app.core.text_lines.is_empty() {
+        app.core.text_lines.push(String::new());
+        app.core.results.push(None);
         app.result_animations.push(None);
     }
 
@@ -490,8 +490,8 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
             }
             // 'gg' - go to beginning of file
             ('g', KeyCode::Char('g')) => {
-                app.cursor_line = 0;
-                app.cursor_col = 0;
+                app.core.cursor_line = 0;
+                app.core.cursor_col = 0;
                 app.scroll_offset = 0;
                 return;
             }
@@ -559,22 +559,22 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
         }
         KeyCode::Char('0') => {
             // Go to beginning of line
-            app.cursor_col = 0;
+            app.core.cursor_col = 0;
         }
         KeyCode::Char('$') => {
             // Go to end of line
-            if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
+            if app.core.cursor_line < app.core.text_lines.len() {
+                app.core.cursor_col = app.core.text_lines[app.core.cursor_line].chars().count();
             }
         }
         KeyCode::Char('G') => {
             // Go to end of file
-            app.cursor_line = app.text_lines.len().saturating_sub(1);
-            app.cursor_col = 0;
+            app.core.cursor_line = app.core.text_lines.len().saturating_sub(1);
+            app.core.cursor_col = 0;
             // Adjust scroll to show the last line
             let visible_height = 25; // Approximate, this could be made dynamic
-            if app.cursor_line >= app.scroll_offset + visible_height {
-                app.scroll_offset = app.cursor_line.saturating_sub(visible_height - 1);
+            if app.core.cursor_line >= app.scroll_offset + visible_height {
+                app.scroll_offset = app.core.cursor_line.saturating_sub(visible_height - 1);
             }
         }
         KeyCode::Char('i') => {
@@ -586,28 +586,30 @@ pub fn handle_normal_mode(app: &mut App, key: KeyCode) {
         }
         KeyCode::Char('A') => {
             // Move to end of line
-            if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
+            if app.core.cursor_line < app.core.text_lines.len() {
+                app.core.cursor_col = app.core.text_lines[app.core.cursor_line].chars().count();
             }
             app.mode = Mode::Insert;
         }
         KeyCode::Char('I') => {
-            app.cursor_col = 0;
+            app.core.cursor_col = 0;
             app.mode = Mode::Insert;
         }
         KeyCode::Char('o') => {
             // Insert new line below and enter insert mode
-            if app.cursor_line < app.text_lines.len() {
-                app.cursor_col = app.text_lines[app.cursor_line].chars().count();
+            if app.core.cursor_line < app.core.text_lines.len() {
+                app.core.cursor_col = app.core.text_lines[app.core.cursor_line].chars().count();
             }
             app.new_line();
             app.mode = Mode::Insert;
         }
         KeyCode::Char('O') => {
             // Insert new line above and enter insert mode
-            app.text_lines.insert(app.cursor_line, String::new());
-            app.results.insert(app.cursor_line, None);
-            app.cursor_col = 0;
+            app.core
+                .text_lines
+                .insert(app.core.cursor_line, String::new());
+            app.core.results.insert(app.core.cursor_line, None);
+            app.core.cursor_col = 0;
             app.mode = Mode::Insert;
         }
         KeyCode::Char(':') => {
@@ -890,8 +892,8 @@ fn handle_double_click_copy(app: &mut App, mouse_x: u16, mouse_y: u16, terminal_
 
         if is_results_panel {
             // Clicked in results area - copy the result
-            if line_index < app.results.len() {
-                if let Some(result) = app.results[line_index].clone() {
+            if line_index < app.core.results.len() {
+                if let Some(result) = app.core.results[line_index].clone() {
                     if let Err(e) = app.copy_to_clipboard(&result, line_index, true) {
                         eprintln!("Copy failed: {}", e);
                     }
@@ -899,8 +901,8 @@ fn handle_double_click_copy(app: &mut App, mouse_x: u16, mouse_y: u16, terminal_
             }
         } else {
             // Clicked in text area - copy the line content
-            if line_index < app.text_lines.len() {
-                let text = app.text_lines[line_index].clone();
+            if line_index < app.core.text_lines.len() {
+                let text = app.core.text_lines[line_index].clone();
                 if !text.trim().is_empty() {
                     if let Err(e) = app.copy_to_clipboard(&text, line_index, false) {
                         eprintln!("Copy failed: {}", e);
