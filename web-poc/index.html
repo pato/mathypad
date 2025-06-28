@@ -69,10 +69,39 @@
         resizeCanvas();
     </script>
     
-    <!-- This will be replaced by the build script with the actual wasm-bindgen output -->
+    <!-- Load and initialize the WASM module -->
     <script type="module">
-        import init from './pkg/mathypad_web_poc.js';
-        init();
+        import init, { main } from './pkg/mathypad_web_poc.js';
+        
+        async function run() {
+            try {
+                console.log('Starting WASM initialization...');
+                
+                // Initialize the WASM module
+                await init();
+                console.log('WASM module initialized successfully');
+                
+                // Call the main function to start the app
+                console.log('Calling main function...');
+                main();
+                console.log('Main function called');
+                
+            } catch (error) {
+                console.error('Failed to initialize WASM:', error);
+                const loading = document.getElementById('loading_text');
+                if (loading) {
+                    loading.innerHTML = `
+                        <div style="color: #ff6b6b;">
+                            Failed to load Mathypad<br>
+                            <small>${error.message}</small><br>
+                            <small>Check browser console for details</small>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        run();
     </script>
 </body>
 </html>

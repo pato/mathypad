@@ -21,6 +21,7 @@ web-poc/
 │   └── app.rs               # Main application logic
 ├── index.html               # Web page hosting the app
 ├── build-web.sh             # WASM build script
+├── run-web.sh               # One-command build + serve + open
 ├── pkg/                     # Generated WASM files (after build)
 ├── Cargo.toml              # Dependencies
 └── README.md               # This file
@@ -28,14 +29,26 @@ web-poc/
 
 ## Running the POC
 
-### Option 1: Native Desktop App
+### Option 1: Quick Start (Web Version)
+
+```bash
+# From the web-poc directory
+./run-web.sh
+```
+
+This will automatically:
+- Build the WASM version
+- Start a local web server
+- Open your browser to the app
+
+### Option 2: Native Desktop App
 
 ```bash
 # From the web-poc directory
 cargo run --bin mathypad-web-poc
 ```
 
-### Option 2: Web Version
+### Option 3: Manual Web Setup
 
 1. **Build the WASM version:**
    ```bash
