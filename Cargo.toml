@@ -31,9 +31,9 @@ opt-level = "z"  # Optimize for size.
 strip = true
 lto = true
 
-# Web POC profile settings
+# Web POC profile settings - optimize for small WASM bundle size
 [profile.release.package.mathypad-web-poc]
-opt-level = 2
+opt-level = "s"          # Optimize for size instead of speed
 
 [[bin]]
 name = "mathypad"
