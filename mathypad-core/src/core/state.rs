@@ -246,15 +246,15 @@ impl MathypadCore {
         } else {
             // Preserve trailing newlines by checking if content ends with newline
             let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-            
+
             // If content ends with newline, add an empty line to represent it
             if content.ends_with('\n') {
                 lines.push(String::new());
             }
-            
+
             self.text_lines = lines;
         }
-        
+
         self.cursor_line = 0;
         self.cursor_col = 0;
         self.results = vec![None; self.text_lines.len()];
@@ -267,9 +267,15 @@ impl MathypadCore {
         if self.text_lines.len() == 1 && self.text_lines[0].is_empty() {
             // Special case: single empty line means empty content
             String::new()
-        } else if self.text_lines.len() > 1 && self.text_lines.last().map(|s| s.is_empty()).unwrap_or(false) {
+        } else if self.text_lines.len() > 1
+            && self
+                .text_lines
+                .last()
+                .map(|s| s.is_empty())
+                .unwrap_or(false)
+        {
             // Multiple lines with empty last line = trailing newline
-            let content_lines = &self.text_lines[..self.text_lines.len()-1];
+            let content_lines = &self.text_lines[..self.text_lines.len() - 1];
             let mut result = content_lines.join("\n");
             result.push('\n'); // Always add trailing newline when we have multiple lines
             result
@@ -284,19 +290,22 @@ impl MathypadCore {
     pub fn update_content_with_line_references(&mut self, new_content: &str) {
         // Get current state
         let old_lines = self.text_lines.clone();
-        
+
         // Set the new content first
         self.set_content(new_content);
-        
+
         // Detect what changed and update line references
         let new_line_count = self.text_lines.len();
         let old_line_count = old_lines.len();
-        
+
         if new_line_count > old_line_count {
             // Lines were inserted - we need to figure out where
             // For now, assume insertion happened at the end or find the first difference
             for i in 0..old_line_count.min(new_line_count) {
-                if i >= old_lines.len() || i >= self.text_lines.len() || old_lines[i] != self.text_lines[i] {
+                if i >= old_lines.len()
+                    || i >= self.text_lines.len()
+                    || old_lines[i] != self.text_lines[i]
+                {
                     // Found first difference - line was likely inserted here
                     self.update_line_references_for_insertion(i);
                     break;
@@ -318,7 +327,7 @@ impl MathypadCore {
                 self.update_line_references_for_deletion(new_line_count + i);
             }
         }
-        
+
         // Recalculate everything after line reference updates
         self.recalculate_all();
     }

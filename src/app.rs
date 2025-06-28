@@ -835,7 +835,6 @@ impl App {
         }
     }
 
-
     /// Update line references in all lines when a line is deleted
     /// All references > deleted_line need to be decremented by 1
     /// References to the deleted line become invalid
@@ -1131,7 +1130,7 @@ mod app_tests {
 
         // Debug the actual state
         println!("App state after split:");
-        for (i, line) in app.text_lines.iter().enumerate() {
+        for (i, line) in app.core.text_lines.iter().enumerate() {
             println!("  Line {}: '{}'", i + 1, line);
         }
 
@@ -1140,42 +1139,38 @@ mod app_tests {
         // is now at position 2, and "line1" in it should become "line2" because ALL lines
         // shift down after insertion point.
         assert!(
-            app.text_lines[2].contains("line2"),
+            app.core.text_lines[2].contains("line2"),
             "Expected 'line1' to be updated to 'line2' but got: '{}'",
-            app.text_lines[2]
+            app.core.text_lines[2]
         );
     }
 
     #[test]
     fn test_line_splitting_at_beginning() {
-        let mut app = App {
-            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
-            results: vec![None, None],
-            cursor_line: 0,
-            cursor_col: 0, // Position cursor at beginning of "5"
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.core.results = vec![None, None];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0; // Position cursor at beginning of "5"
 
         app.new_line();
 
         // When hitting enter at beginning:
         // Line 1: "" (empty), Line 2: "5" (content moved down), Line 3: "line2 + 1"
-        assert_eq!(app.text_lines[0], "");
-        assert_eq!(app.text_lines[1], "5");
+        assert_eq!(app.core.text_lines[0], "");
+        assert_eq!(app.core.text_lines[1], "5");
         assert!(
-            app.text_lines[2].contains("line2"),
+            app.core.text_lines[2].contains("line2"),
             "Expected 'line1' to be updated to 'line2' but got: '{}'",
-            app.text_lines[2]
+            app.core.text_lines[2]
         );
     }
 
     #[test]
     fn test_user_reported_scenario() {
-        let mut app = App {
-            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
-            results: vec![None, None],
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.core.results = vec![None, None];
 
         // Simulate exactly what the user described:
         // "i have the following notebook: 5, line1 + 1"
@@ -1183,43 +1178,41 @@ mod app_tests {
         app.update_result(1); // This should make line 2 result in "6" (5 + 1)
 
         // Verify initial results work correctly
-        assert_eq!(app.results[0], Some("5".to_string()));
-        assert_eq!(app.results[1], Some("6".to_string()));
+        assert_eq!(app.core.results[0], Some("5".to_string()));
+        assert_eq!(app.core.results[1], Some("6".to_string()));
 
         // Now simulate "hit enter when the cursor is over the 5"
-        app.cursor_line = 0;
-        app.cursor_col = 0; // Position cursor at the beginning of "5"
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0; // Position cursor at the beginning of "5"
         app.new_line();
 
         // Verify the results:
         // Line 1: "" (empty)
         // Line 2: "5"
         // Line 3: "line2 + 1" (updated reference)
-        assert_eq!(app.text_lines[0], "");
-        assert_eq!(app.text_lines[1], "5");
+        assert_eq!(app.core.text_lines[0], "");
+        assert_eq!(app.core.text_lines[1], "5");
         assert!(
-            app.text_lines[2].contains("line2"),
+            app.core.text_lines[2].contains("line2"),
             "Expected line reference to be updated to 'line2', got: '{}'",
-            app.text_lines[2]
+            app.core.text_lines[2]
         );
 
         // The key test: verify that the expression evaluates correctly automatically
         // line2 should now refer to "5" on line 2, so "line2 + 1" should be 6
         assert_eq!(
-            app.results[2],
+            app.core.results[2],
             Some("6".to_string()),
             "Expected 'line2 + 1' to evaluate to 6 automatically, got: {:?}",
-            app.results[2]
+            app.core.results[2]
         );
     }
 
     #[test]
     fn test_deletion_with_line_references() {
-        let mut app = App {
-            text_lines: vec!["".to_string(), "5".to_string(), "line2 + 1".to_string()],
-            results: vec![None, None, None],
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["".to_string(), "5".to_string(), "line2 + 1".to_string()];
+        app.core.results = vec![None, None, None];
 
         // Set up: after line splitting we have ["", "5", "line2 + 1"]
         app.update_result(0);
@@ -1227,71 +1220,69 @@ mod app_tests {
         app.update_result(2);
 
         // Verify initial state works
-        assert_eq!(app.results[1], Some("5".to_string()));
-        assert_eq!(app.results[2], Some("6".to_string()));
+        assert_eq!(app.core.results[1], Some("5".to_string()));
+        assert_eq!(app.core.results[2], Some("6".to_string()));
 
         // Now delete the empty first line by positioning cursor at beginning of line 2 and hitting backspace
-        app.cursor_line = 1;
-        app.cursor_col = 0;
+        app.core.cursor_line = 1;
+        app.core.cursor_col = 0;
         app.delete_char(); // This should merge lines and update references
 
         // Expected result: ["5", "line1 + 1"] (reference should go back to line1)
-        assert_eq!(app.text_lines.len(), 2);
-        assert_eq!(app.text_lines[0], "5");
+        assert_eq!(app.core.text_lines.len(), 2);
+        assert_eq!(app.core.text_lines[0], "5");
         assert!(
-            app.text_lines[1].contains("line1"),
+            app.core.text_lines[1].contains("line1"),
             "Expected 'line2' to be updated back to 'line1', got: '{}'",
-            app.text_lines[1]
+            app.core.text_lines[1]
         );
 
         // The critical test: expression should still evaluate correctly
         assert_eq!(
-            app.results[1],
+            app.core.results[1],
             Some("6".to_string()),
             "Expected 'line1 + 1' to evaluate to 6 after deletion, got: {:?}",
-            app.results[1]
+            app.core.results[1]
         );
     }
 
     #[test]
     fn test_full_user_workflow_add_then_remove_lines() {
-        let mut app = App {
-            text_lines: vec!["5".to_string(), "line1 + 1".to_string()],
-            results: vec![None, None],
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["5".to_string(), "line1 + 1".to_string()];
+        app.core.results = vec![None, None];
 
         // Start with the user's original notebook
         app.update_result(0);
         app.update_result(1);
 
         // Verify initial state: 5, line1 + 1 = 6
-        assert_eq!(app.results[0], Some("5".to_string()));
-        assert_eq!(app.results[1], Some("6".to_string()));
+        assert_eq!(app.core.results[0], Some("5".to_string()));
+        assert_eq!(app.core.results[1], Some("6".to_string()));
 
         // Step 1: Hit enter at beginning of "5" (add lines)
-        app.cursor_line = 0;
-        app.cursor_col = 0;
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0;
         app.new_line();
 
         // Should have: ["", "5", "line2 + 1"] with line2 + 1 = 6
-        assert_eq!(app.text_lines.len(), 3);
-        assert_eq!(app.text_lines[0], "");
-        assert_eq!(app.text_lines[1], "5");
-        assert!(app.text_lines[2].contains("line2"));
-        assert_eq!(app.results[2], Some("6".to_string()));
+        assert_eq!(app.core.text_lines.len(), 3);
+        assert_eq!(app.core.text_lines[0], "");
+        assert_eq!(app.core.text_lines[1], "5");
+        assert!(app.core.text_lines[2].contains("line2"));
+        assert_eq!(app.core.results[2], Some("6".to_string()));
 
         // Step 2: Remove the empty line (delete lines)
-        app.cursor_line = 1;
-        app.cursor_col = 0;
+        app.core.cursor_line = 1;
+        app.core.cursor_col = 0;
         app.delete_char();
 
         // Should be back to: ["5", "line1 + 1"] with line1 + 1 = 6
-        assert_eq!(app.text_lines.len(), 2);
-        assert_eq!(app.text_lines[0], "5");
-        assert!(app.text_lines[1].contains("line1"));
+        assert_eq!(app.core.text_lines.len(), 2);
+        assert_eq!(app.core.text_lines[0], "5");
+        assert!(app.core.text_lines[1].contains("line1"));
         assert_eq!(
-            app.results[1],
+            app.core.results[1],
             Some("6".to_string()),
             "Full workflow failed: expected line1 + 1 = 6 after add/remove cycle"
         );
@@ -1404,11 +1395,9 @@ mod app_tests {
 
     #[test]
     fn test_copy_flash_animation() {
-        let mut app = App {
-            text_lines: vec!["test".to_string(), "test2".to_string()],
-            copy_flash_animations: vec![None, None],
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["test".to_string(), "test2".to_string()];
+        app.copy_flash_animations = vec![None, None];
 
         // Ensure we have enough lines
 
@@ -1429,178 +1418,162 @@ mod app_tests {
 
     #[test]
     fn test_delete_line() {
-        let mut app = App {
-            text_lines: vec![
-                "first".to_string(),
-                "second".to_string(),
-                "third".to_string(),
-            ],
-            results: vec![None, None, None],
-            result_animations: vec![None, None, None],
-            copy_flash_animations: vec![None, None, None],
-            copy_flash_is_result: vec![false, false, false],
-            cursor_line: 1,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec![
+            "first".to_string(),
+            "second".to_string(),
+            "third".to_string(),
+        ];
+        app.core.results = vec![None, None, None];
+        app.result_animations = vec![None, None, None];
+        app.copy_flash_animations = vec![None, None, None];
+        app.copy_flash_is_result = vec![false, false, false];
+        app.core.cursor_line = 1;
 
         // Delete middle line
         app.delete_line();
-        assert_eq!(app.text_lines, vec!["first", "third"]);
-        assert_eq!(app.cursor_line, 1);
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.text_lines, vec!["first", "third"]);
+        assert_eq!(app.core.cursor_line, 1);
+        assert_eq!(app.core.cursor_col, 0);
 
         // Delete last line
         app.delete_line();
-        assert_eq!(app.text_lines, vec!["first"]);
-        assert_eq!(app.cursor_line, 0);
+        assert_eq!(app.core.text_lines, vec!["first"]);
+        assert_eq!(app.core.cursor_line, 0);
 
         // Try to delete only line - should just clear it
         app.delete_line();
-        assert_eq!(app.text_lines, vec![""]);
-        assert_eq!(app.cursor_line, 0);
+        assert_eq!(app.core.text_lines, vec![""]);
+        assert_eq!(app.core.cursor_line, 0);
     }
 
     #[test]
     fn test_delete_char_at_cursor() {
-        let mut app = App {
-            text_lines: vec!["hello world".to_string()],
-            results: vec![None],
-            cursor_line: 0,
-            cursor_col: 6, // at 'w'
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello world".to_string()];
+        app.core.results = vec![None];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 6; // at 'w'
 
         app.delete_char_at_cursor();
-        assert_eq!(app.text_lines[0], "hello orld");
-        assert_eq!(app.cursor_col, 6);
+        assert_eq!(app.core.text_lines[0], "hello orld");
+        assert_eq!(app.core.cursor_col, 6);
 
         // Delete at end of line should do nothing
-        app.cursor_col = app.text_lines[0].len();
+        app.core.cursor_col = app.core.text_lines[0].len();
         app.delete_char_at_cursor();
-        assert_eq!(app.text_lines[0], "hello orld");
+        assert_eq!(app.core.text_lines[0], "hello orld");
     }
 
     #[test]
     fn test_word_movement_forward() {
-        let mut app = App {
-            text_lines: vec!["hello world test_var 123".to_string()],
-            cursor_line: 0,
-            cursor_col: 0,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello world test_var 123".to_string()];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0;
 
         // Move from start to 'world'
         app.move_word_forward();
-        assert_eq!(app.cursor_col, 6);
+        assert_eq!(app.core.cursor_col, 6);
 
         // Move to 'test_var'
         app.move_word_forward();
-        assert_eq!(app.cursor_col, 12);
+        assert_eq!(app.core.cursor_col, 12);
 
         // Move to '123'
         app.move_word_forward();
-        assert_eq!(app.cursor_col, 21);
+        assert_eq!(app.core.cursor_col, 21);
 
         // Try to move past end - should go to end of line
         app.move_word_forward();
-        assert_eq!(app.cursor_col, 24); // Should be at end of line
+        assert_eq!(app.core.cursor_col, 24); // Should be at end of line
     }
 
     #[test]
     fn test_word_movement_backward() {
-        let mut app = App {
-            text_lines: vec!["hello world test_var".to_string()],
-            cursor_line: 0,
-            cursor_col: 20, // at end
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello world test_var".to_string()];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 20; // at end
 
         // Move to start of 'test_var'
         app.move_word_backward();
-        assert_eq!(app.cursor_col, 12);
+        assert_eq!(app.core.cursor_col, 12);
 
         // Move to start of 'world'
         app.move_word_backward();
-        assert_eq!(app.cursor_col, 6);
+        assert_eq!(app.core.cursor_col, 6);
 
         // Move to start of 'hello'
         app.move_word_backward();
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.cursor_col, 0);
     }
 
     #[test]
     fn test_word_movement_big() {
-        let mut app = App {
-            text_lines: vec!["hello-world test::func()".to_string()],
-            cursor_line: 0,
-            cursor_col: 0,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello-world test::func()".to_string()];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0;
 
         // 'hello-world' is one WORD
         app.move_word_forward_big();
-        assert_eq!(app.cursor_col, 12);
+        assert_eq!(app.core.cursor_col, 12);
 
         // Move backward
-        app.cursor_col = 24;
+        app.core.cursor_col = 24;
         app.move_word_backward_big();
-        assert_eq!(app.cursor_col, 12);
+        assert_eq!(app.core.cursor_col, 12);
 
         app.move_word_backward_big();
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.cursor_col, 0);
     }
 
     #[test]
     fn test_delete_word_forward() {
-        let mut app = App {
-            text_lines: vec!["hello world test".to_string()],
-            results: vec![None],
-            cursor_line: 0,
-            cursor_col: 0,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello world test".to_string()];
+        app.core.results = vec![None];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0;
 
         // Delete 'hello ' (word + trailing space)
         app.delete_word_forward();
-        assert_eq!(app.text_lines[0], "world test");
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.text_lines[0], "world test");
+        assert_eq!(app.core.cursor_col, 0);
 
         // Delete from middle of word
-        app.cursor_col = 2; // in 'world'
+        app.core.cursor_col = 2; // in 'world'
         app.delete_word_forward();
-        assert_eq!(app.text_lines[0], "wotest");
+        assert_eq!(app.core.text_lines[0], "wotest");
     }
 
     #[test]
     fn test_delete_word_backward() {
-        let mut app = App {
-            text_lines: vec!["hello world test".to_string()],
-            results: vec![None],
-            cursor_line: 0,
-            cursor_col: 11, // at space after 'world'
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello world test".to_string()];
+        app.core.results = vec![None];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 11; // at space after 'world'
 
         // Delete 'world'
         app.delete_word_backward();
-        assert_eq!(app.text_lines[0], "hello  test");
-        assert_eq!(app.cursor_col, 6);
+        assert_eq!(app.core.text_lines[0], "hello  test");
+        assert_eq!(app.core.cursor_col, 6);
     }
 
     #[test]
     fn test_delete_word_forward_big() {
-        let mut app = App {
-            text_lines: vec!["hello-world test::func()".to_string()],
-            results: vec![None],
-            cursor_line: 0,
-            cursor_col: 0,
-            ..Default::default()
-        };
+        let mut app = App::default();
+        app.core.text_lines = vec!["hello-world test::func()".to_string()];
+        app.core.results = vec![None];
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 0;
 
         // Delete 'hello-world ' (WORD + trailing space)
         app.delete_word_forward_big();
-        assert_eq!(app.text_lines[0], "test::func()");
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.text_lines[0], "test::func()");
+        assert_eq!(app.core.cursor_col, 0);
     }
 
     #[test]
@@ -1682,43 +1655,43 @@ mod app_tests {
 
         // Test deleting multi-byte characters
         app.insert_char('€');
-        assert_eq!(app.cursor_col, 1);
+        assert_eq!(app.core.cursor_col, 1);
         app.insert_char(' ');
-        assert_eq!(app.cursor_col, 2);
+        assert_eq!(app.core.cursor_col, 2);
         app.insert_char('5');
-        assert_eq!(app.cursor_col, 3);
-        assert_eq!(app.text_lines[0], "€ 5");
+        assert_eq!(app.core.cursor_col, 3);
+        assert_eq!(app.core.text_lines[0], "€ 5");
 
         // Delete '5'
         app.delete_char();
-        assert_eq!(app.text_lines[0], "€ ");
-        assert_eq!(app.cursor_col, 2);
+        assert_eq!(app.core.text_lines[0], "€ ");
+        assert_eq!(app.core.cursor_col, 2);
 
         // Delete space
         app.delete_char();
-        assert_eq!(app.text_lines[0], "€");
-        assert_eq!(app.cursor_col, 1);
+        assert_eq!(app.core.text_lines[0], "€");
+        assert_eq!(app.core.cursor_col, 1);
 
         // Delete euro sign
         app.delete_char();
-        assert_eq!(app.text_lines[0], "");
-        assert_eq!(app.cursor_col, 0);
+        assert_eq!(app.core.text_lines[0], "");
+        assert_eq!(app.core.cursor_col, 0);
 
         // Test with emoji
         app.insert_char('🚀');
         app.insert_char('€');
         app.insert_char('¥');
-        assert_eq!(app.text_lines[0], "🚀€¥");
-        assert_eq!(app.cursor_col, 3);
+        assert_eq!(app.core.text_lines[0], "🚀€¥");
+        assert_eq!(app.core.cursor_col, 3);
 
         // Delete yen
         app.delete_char();
-        assert_eq!(app.text_lines[0], "🚀€");
-        assert_eq!(app.cursor_col, 2);
+        assert_eq!(app.core.text_lines[0], "🚀€");
+        assert_eq!(app.core.cursor_col, 2);
 
         // Delete euro
         app.delete_char();
-        assert_eq!(app.text_lines[0], "🚀");
-        assert_eq!(app.cursor_col, 1);
+        assert_eq!(app.core.text_lines[0], "🚀");
+        assert_eq!(app.core.cursor_col, 1);
     }
 }

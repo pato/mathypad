@@ -37,14 +37,14 @@ impl HighlightType {
     /// Returns (red, green, blue) as u8 values
     pub fn rgb_color(&self) -> (u8, u8, u8) {
         match self {
-            HighlightType::Number => (173, 216, 230),     // Light blue
-            HighlightType::Unit => (144, 238, 144),       // Light green
+            HighlightType::Number => (173, 216, 230), // Light blue
+            HighlightType::Unit => (144, 238, 144),   // Light green
             HighlightType::LineReference => (221, 160, 221), // Plum/magenta
-            HighlightType::Keyword => (255, 255, 0),      // Yellow
-            HighlightType::Operator => (0, 255, 255),     // Cyan
-            HighlightType::Variable => (224, 255, 255),   // Light cyan
-            HighlightType::Function => (0, 255, 255),     // Cyan
-            HighlightType::Normal => (200, 200, 200),     // Light gray
+            HighlightType::Keyword => (255, 255, 0),  // Yellow
+            HighlightType::Operator => (0, 255, 255), // Cyan
+            HighlightType::Variable => (224, 255, 255), // Light cyan
+            HighlightType::Function => (0, 255, 255), // Cyan
+            HighlightType::Normal => (200, 200, 200), // Light gray
         }
     }
 }

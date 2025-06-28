@@ -20,27 +20,27 @@ fn render_app_to_string(app: &App) -> String {
 
 /// Helper function to create an app with some sample content
 fn create_sample_app() -> App {
-    let mut app = App {
-        text_lines: vec![
-            "5 + 3".to_string(),
-            "10 kg to lb".to_string(),
-            "line1 * 2".to_string(),
-            "sin(30 degrees)".to_string(),
-        ],
-        results: vec![
-            Some("8".to_string()),
-            Some("22.046 lb".to_string()),
-            Some("16".to_string()),
-            Some("0.5".to_string()),
-        ],
-        cursor_line: 1,
-        cursor_col: 5,
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "5 + 3".to_string(),
+        "10 kg to lb".to_string(),
+        "line1 * 2".to_string(),
+        "sin(30 degrees)".to_string(),
+    ];
+    app.core.results = vec![
+        Some("8".to_string()),
+        Some("22.046 lb".to_string()),
+        Some("16".to_string()),
+        Some("0.5".to_string()),
+    ];
+    app.core.cursor_line = 1;
+    app.core.cursor_col = 5;
 
     // Add some variables
-    app.variables.insert("x".to_string(), "42".to_string());
-    app.variables.insert("rate".to_string(), "5.5".to_string());
+    app.core.variables.insert("x".to_string(), "42".to_string());
+    app.core
+        .variables
+        .insert("rate".to_string(), "5.5".to_string());
 
     app
 }
@@ -125,15 +125,13 @@ fn test_results_panel_rendering() {
 
 #[test]
 fn test_syntax_highlighting_numbers() {
-    let app = App {
-        text_lines: vec![
-            "123".to_string(),
-            "3.14159".to_string(),
-            "1,234,567.89".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "123".to_string(),
+        "3.14159".to_string(),
+        "1,234,567.89".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_numbers", output);
@@ -141,15 +139,13 @@ fn test_syntax_highlighting_numbers() {
 
 #[test]
 fn test_syntax_highlighting_operators() {
-    let app = App {
-        text_lines: vec![
-            "5 + 3 - 2".to_string(),
-            "10 * (4 / 2)".to_string(),
-            "x = 42".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "5 + 3 - 2".to_string(),
+        "10 * (4 / 2)".to_string(),
+        "x = 42".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_operators", output);
@@ -157,15 +153,13 @@ fn test_syntax_highlighting_operators() {
 
 #[test]
 fn test_syntax_highlighting_functions() {
-    let app = App {
-        text_lines: vec![
-            "sqrt(16) + 1".to_string(),
-            "2^3 + sqrt(9)".to_string(),
-            "sqrt(2 + 2) * 3".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "sqrt(16) + 1".to_string(),
+        "2^3 + sqrt(9)".to_string(),
+        "sqrt(2 + 2) * 3".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_functions", output);
@@ -173,16 +167,14 @@ fn test_syntax_highlighting_functions() {
 
 #[test]
 fn test_syntax_highlighting_units() {
-    let app = App {
-        text_lines: vec![
-            "100 kg".to_string(),
-            "50 miles per hour".to_string(),
-            "25 degrees celsius".to_string(),
-            "1 GiB".to_string(),
-        ],
-        results: vec![None, None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "100 kg".to_string(),
+        "50 miles per hour".to_string(),
+        "25 degrees celsius".to_string(),
+        "1 GiB".to_string(),
+    ];
+    app.core.results = vec![None, None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_units", output);
@@ -190,15 +182,13 @@ fn test_syntax_highlighting_units() {
 
 #[test]
 fn test_syntax_highlighting_keywords() {
-    let app = App {
-        text_lines: vec![
-            "100 kg to lb".to_string(),
-            "50 miles in km".to_string(),
-            "25% of 200".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "100 kg to lb".to_string(),
+        "50 miles in km".to_string(),
+        "25% of 200".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_keywords", output);
@@ -206,21 +196,19 @@ fn test_syntax_highlighting_keywords() {
 
 #[test]
 fn test_syntax_highlighting_line_references() {
-    let app = App {
-        text_lines: vec![
-            "100".to_string(),
-            "line1 + 50".to_string(),
-            "line2 * 2".to_string(),
-            "line1 + line2 + line3".to_string(),
-        ],
-        results: vec![
-            Some("100".to_string()),
-            Some("150".to_string()),
-            Some("300".to_string()),
-            Some("550".to_string()),
-        ],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "100".to_string(),
+        "line1 + 50".to_string(),
+        "line2 * 2".to_string(),
+        "line1 + line2 + line3".to_string(),
+    ];
+    app.core.results = vec![
+        Some("100".to_string()),
+        Some("150".to_string()),
+        Some("300".to_string()),
+        Some("550".to_string()),
+    ];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_line_references", output);
@@ -228,26 +216,22 @@ fn test_syntax_highlighting_line_references() {
 
 #[test]
 fn test_syntax_highlighting_line_references_with_operators() {
-    let app = App {
-        text_lines: vec![
-            "$40".to_string(),
-            "line1/month * 3".to_string(),
-            "line1+100".to_string(),
-            "line1*rate-50".to_string(),
-        ],
-        results: vec![
-            Some("40 $".to_string()),
-            Some("120 $/month".to_string()),
-            Some("140 $".to_string()),
-            Some("170 $".to_string()),
-        ],
-        variables: {
-            let mut vars = std::collections::HashMap::new();
-            vars.insert("rate".to_string(), "5.5".to_string());
-            vars
-        },
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "$40".to_string(),
+        "line1/month * 3".to_string(),
+        "line1+100".to_string(),
+        "line1*rate-50".to_string(),
+    ];
+    app.core.results = vec![
+        Some("40 $".to_string()),
+        Some("120 $/month".to_string()),
+        Some("140 $".to_string()),
+        Some("170 $".to_string()),
+    ];
+    app.core
+        .variables
+        .insert("rate".to_string(), "5.5".to_string());
 
     let output = render_app_to_string(&app);
     assert_snapshot!("syntax_highlighting_line_references_with_operators", output);
@@ -255,18 +239,17 @@ fn test_syntax_highlighting_line_references_with_operators() {
 
 #[test]
 fn test_syntax_highlighting_variables() {
-    let mut app = App {
-        text_lines: vec![
-            "x = 42".to_string(),
-            "y = x * 2".to_string(),
-            "result = x + y".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
-    app.variables.insert("x".to_string(), "42".to_string());
-    app.variables.insert("y".to_string(), "84".to_string());
-    app.variables
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "x = 42".to_string(),
+        "y = x * 2".to_string(),
+        "result = x + y".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
+    app.core.variables.insert("x".to_string(), "42".to_string());
+    app.core.variables.insert("y".to_string(), "84".to_string());
+    app.core
+        .variables
         .insert("result".to_string(), "126".to_string());
 
     let output = render_app_to_string(&app);
@@ -275,13 +258,11 @@ fn test_syntax_highlighting_variables() {
 
 #[test]
 fn test_cursor_highlighting() {
-    let app = App {
-        text_lines: vec!["hello world".to_string(), "123 + 456".to_string()],
-        results: vec![None, None],
-        cursor_line: 0,
-        cursor_col: 6, // Position cursor on 'w' in "world"
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec!["hello world".to_string(), "123 + 456".to_string()];
+    app.core.results = vec![None, None];
+    app.core.cursor_line = 0;
+    app.core.cursor_col = 6; // Position cursor on 'w' in "world"
 
     let output = render_app_to_string(&app);
     assert_snapshot!("cursor_highlighting", output);
@@ -289,13 +270,11 @@ fn test_cursor_highlighting() {
 
 #[test]
 fn test_cursor_at_end_of_line() {
-    let app = App {
-        text_lines: vec!["hello".to_string()],
-        results: vec![None],
-        cursor_line: 0,
-        cursor_col: 5, // Position cursor at end of line
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec!["hello".to_string()];
+    app.core.results = vec![None];
+    app.core.cursor_line = 0;
+    app.core.cursor_col = 5; // Position cursor at end of line
 
     let output = render_app_to_string(&app);
     assert_snapshot!("cursor_at_end_of_line", output);
@@ -303,15 +282,13 @@ fn test_cursor_at_end_of_line() {
 
 #[test]
 fn test_scrolled_content() {
-    let app = App {
-        // Create more lines than fit on screen
-        text_lines: (0..50).map(|i| format!("line {} content", i + 1)).collect(),
-        results: vec![None; 50],
-        scroll_offset: 10, // Scroll down 10 lines
-        cursor_line: 15,
-        cursor_col: 5,
-        ..Default::default()
-    };
+    let mut app = App::default();
+    // Create more lines than fit on screen
+    app.core.text_lines = (0..50).map(|i| format!("line {} content", i + 1)).collect();
+    app.core.results = vec![None; 50];
+    app.scroll_offset = 10; // Scroll down 10 lines
+    app.core.cursor_line = 15;
+    app.core.cursor_col = 5;
 
     let output = render_app_to_string(&app);
     assert_snapshot!("scrolled_content", output);
@@ -319,15 +296,13 @@ fn test_scrolled_content() {
 
 #[test]
 fn test_empty_results() {
-    let app = App {
-        text_lines: vec![
-            "".to_string(),
-            "invalid expression +++".to_string(),
-            "".to_string(),
-        ],
-        results: vec![None, None, None],
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec![
+        "".to_string(),
+        "invalid expression +++".to_string(),
+        "".to_string(),
+    ];
+    app.core.results = vec![None, None, None];
 
     let output = render_app_to_string(&app);
     assert_snapshot!("empty_results", output);
@@ -462,16 +437,14 @@ fn test_welcome_dialog_minimal_content() {
 
 #[test]
 fn test_command_mode_rendering() {
-    let app = App {
-        text_lines: vec!["5 + 3".to_string(), "sqrt(16)".to_string()],
-        results: vec![Some("8".to_string()), Some("4".to_string())],
-        mode: Mode::Command,
-        command_line: ":w test-file".to_string(),
-        command_cursor: 11,
-        cursor_line: 0,
-        cursor_col: 3,
-        ..Default::default()
-    };
+    let mut app = App::default();
+    app.core.text_lines = vec!["5 + 3".to_string(), "sqrt(16)".to_string()];
+    app.core.results = vec![Some("8".to_string()), Some("4".to_string())];
+    app.mode = Mode::Command;
+    app.command_line = ":w test-file".to_string();
+    app.command_cursor = 11;
+    app.core.cursor_line = 0;
+    app.core.cursor_col = 3;
 
     let output = render_app_to_string(&app);
     assert_snapshot!("command_mode_rendering", output);
