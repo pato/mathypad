@@ -1,28 +1,24 @@
 use egui::{Color32, FontId, RichText, ScrollArea, TextEdit, TextStyle};
 use eframe::egui;
+use mathypad_core::core::MathypadCore;
 
 /// The main application state
 pub struct MathypadPocApp {
-    /// The input text in the left panel
-    input_text: String,
+    /// Core calculation engine
+    core: MathypadCore,
     /// The position of the separator (percentage of window width for left panel)
     separator_position: f32,
-    /// Dummy results for display
-    dummy_results: Vec<(usize, Option<String>)>,
 }
 
 impl Default for MathypadPocApp {
     fn default() -> Self {
+        let mut core = MathypadCore::new();
+        // Set up some example content
+        core.set_content("5 + 3\n10 kg to lb\nline1 * 2\nsqrt(16)\n$100/month * 12");
+        
         Self {
-            input_text: "5 + 3\n10 kg to lb\nline1 * 2\nsin(30 degrees)\n$100/month * 12\n".to_string(),
+            core,
             separator_position: 70.0,
-            dummy_results: vec![
-                (1, Some("8".to_string())),
-                (2, Some("22.046 lb".to_string())),
-                (3, Some("16".to_string())),
-                (4, Some("0.5".to_string())),
-                (5, Some("$1,200/year".to_string())),
-            ],
         }
     }
 }
@@ -60,7 +56,7 @@ impl eframe::App for MathypadPocApp {
                 ScrollArea::vertical().show(ui, |ui| {
                     ui.horizontal(|ui| {
                         // Line numbers column
-                        let line_count = self.input_text.lines().count().max(1);
+                        let line_count = self.core.text_lines.len();
                         ui.vertical(|ui| {
                             ui.style_mut().spacing.item_spacing.y = 0.0;
                             for i in 1..=line_count {
@@ -74,16 +70,17 @@ impl eframe::App for MathypadPocApp {
                         
                         // Text editor
                         ui.vertical(|ui| {
+                            let mut content = self.core.get_content();
                             let response = ui.add(
-                                TextEdit::multiline(&mut self.input_text)
+                                TextEdit::multiline(&mut content)
                                     .code_editor()
                                     .desired_width(f32::INFINITY)
                                     .frame(false)
                             );
                             
-                            // Ensure the editor gets focus
-                            if response.has_focus() {
-                                // In a real app, we'd do syntax highlighting here
+                            // Update core state if content changed
+                            if response.changed() {
+                                self.core.set_content(&content);
                             }
                         });
                     });
@@ -97,23 +94,11 @@ impl eframe::App for MathypadPocApp {
             
             // Results display
             ScrollArea::vertical().show(ui, |ui| {
-                // Show dummy results aligned with line numbers
-                let mut current_line = 1;
-                for &(line_num, ref result) in &self.dummy_results {
-                    // Add empty lines for spacing
-                    while current_line < line_num {
-                        ui.label(
-                            RichText::new(format!("{:3} ", current_line))
-                                .color(Color32::from_gray(128))
-                                .monospace()
-                        );
-                        current_line += 1;
-                    }
-                    
-                    // Show result
+                // Show real calculation results aligned with line numbers
+                for (i, result) in self.core.results.iter().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new(format!("{:3} ", line_num))
+                            RichText::new(format!("{:3} ", i + 1))
                                 .color(Color32::from_gray(128))
                                 .monospace()
                         );
@@ -125,7 +110,6 @@ impl eframe::App for MathypadPocApp {
                             );
                         }
                     });
-                    current_line += 1;
                 }
             });
         });

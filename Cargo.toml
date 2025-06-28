@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "web-poc"]
+members = [".", "web-poc", "mathypad-core"]
 resolver = "2"
 
 [package]
@@ -14,10 +14,10 @@ homepage = "https://mathypad.app"
 repository = "https://github.com/pato/mathypad"
 
 [dependencies]
+mathypad-core = { path = "mathypad-core" }
 ratatui = "0.29"
 crossterm = "0.29"
 clap = { version = "4.5", features = ["derive", "cargo"] }
-chumsky = "0.10.1"
 arboard = "3.5"
 dirs = "6.0"
 

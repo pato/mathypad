@@ -10,11 +10,12 @@
 
 pub mod app;
 pub mod cli;
-pub mod expression;
 pub mod mode;
 pub mod ui;
-pub mod units;
 pub mod version;
+
+// Re-export core functionality
+pub use mathypad_core::{expression, units};
 
 #[cfg(test)]
 mod integration_tests;
@@ -22,15 +23,16 @@ mod integration_tests;
 // Re-export commonly used types for convenience
 pub use app::App;
 pub use cli::run_one_shot_mode;
-pub use expression::evaluate_expression_with_context;
+pub use mathypad_core::expression::evaluator::evaluate_expression_with_context;
 pub use mode::Mode;
 pub use ui::{run_interactive_mode, run_interactive_mode_with_file};
-pub use units::{Unit, UnitType, UnitValue};
+pub use mathypad_core::{Unit, UnitType, UnitValue};
 
 // Constants used throughout the application
 pub const TICK_RATE_MS: u64 = 16; // ~60 FPS for smooth animations
-pub const MAX_INTEGER_FOR_FORMATTING: f64 = 1e15;
-pub const FLOAT_EPSILON: f64 = f64::EPSILON;
+
+// Re-export constants from core
+pub use mathypad_core::{MAX_INTEGER_FOR_FORMATTING, FLOAT_EPSILON};
 
 #[cfg(test)]
 pub mod test_helpers {
@@ -43,11 +45,9 @@ pub mod test_helpers {
 
     // Helper function to get unit conversion results for testing
     pub fn evaluate_with_unit_info(input: &str) -> Option<UnitValue> {
-        // Use the new token-based approach
-        use crate::expression::{evaluate_tokens_stream_with_context, tokenize_with_units};
-
-        if let Some(tokens) = tokenize_with_units(input) {
-            evaluate_tokens_stream_with_context(&tokens, &[], 0)
+        // Use the core evaluation and try to parse as UnitValue
+        if let Some(result_str) = evaluate_expression_with_context(input, &[], 0) {
+            mathypad_core::expression::evaluator::parse_result_string(&result_str)
         } else {
             None
         }
