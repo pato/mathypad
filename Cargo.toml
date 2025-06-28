@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "web-poc"]
+resolver = "2"
+
 [package]
 name = "mathypad"
 version = "0.1.13"
