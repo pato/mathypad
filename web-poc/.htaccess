@@ -1,0 +1,17 @@
+# Set correct MIME type for WebAssembly files
+AddType application/wasm .wasm
+
+# Enable GZIP compression for WASM files (optional but recommended)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/wasm
+</IfModule>
+
+# Set proper caching headers for WASM files (optional)
+<FilesMatch "\.(wasm)$">
+    Header set Cache-Control "public, max-age=31536000"
+</FilesMatch>
+
+# Ensure CORS headers are set correctly for WASM (if needed)
+<FilesMatch "\.(wasm)$">
+    Header set Access-Control-Allow-Origin "*"
+</FilesMatch>
