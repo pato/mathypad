@@ -72,10 +72,14 @@ impl MathypadPocApp {
 
         let mut line_numbers_text = line_numbers;
 
+        // Use responsive font size - at least 16px on mobile to prevent zoom
+        let is_mobile = ui.ctx().screen_rect().width() < 600.0;
+        let font_size = if is_mobile { 16.0 } else { 14.0 };
+
         ui.add_sized(
             [width, ui.available_height()],
             TextEdit::multiline(&mut line_numbers_text)
-                .font(FontId::monospace(14.0))
+                .font(FontId::monospace(font_size))
                 .interactive(false)
                 .frame(false)
                 .desired_width(width),
@@ -89,6 +93,10 @@ impl MathypadPocApp {
         // Use a stable ID to help egui maintain widget state consistently
         let text_edit_id = ui.make_persistent_id("mathypad_editor");
 
+        // Use responsive font size - at least 16px on mobile to prevent zoom
+        let is_mobile = ui.ctx().screen_rect().width() < 600.0;
+        let font_size = if is_mobile { 16.0 } else { 14.0 };
+
         // Try minimal custom layouter with stable behavior
         let variables = self.core.variables.clone(); // Clone to avoid borrow issues
         let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
@@ -96,7 +104,7 @@ impl MathypadPocApp {
             if string.is_empty() {
                 // Empty string case
                 let mut job = LayoutJob::default();
-                job.append("", 0.0, TextFormat::simple(FontId::monospace(14.0), Color32::from_rgb(200, 200, 200)));
+                job.append("", 0.0, TextFormat::simple(FontId::monospace(font_size), Color32::from_rgb(200, 200, 200)));
                 ui.fonts(|f| f.layout_job(job))
             } else {
                 // Apply highlighting
@@ -115,7 +123,7 @@ impl MathypadPocApp {
                         HighlightType::Function => Color32::from_rgb(102, 57, 186),    // Dark violet
                         HighlightType::Normal => Color32::from_rgb(36, 41, 47),        // Dark gray
                     };
-                    let format = TextFormat::simple(FontId::monospace(14.0), color);
+                    let format = TextFormat::simple(FontId::monospace(font_size), color);
                     job.append(&span.text, 0.0, format);
                 }
                 
@@ -191,10 +199,14 @@ impl MathypadPocApp {
 
             let mut results_display = results_text;
 
+            // Use responsive font size - at least 16px on mobile to prevent zoom
+            let is_mobile = ui.ctx().screen_rect().width() < 600.0;
+            let font_size = if is_mobile { 16.0 } else { 14.0 };
+
             ui.add_sized(
                 [ui.available_width(), ui.available_height()],
                 TextEdit::multiline(&mut results_display)
-                    .font(FontId::monospace(14.0))
+                    .font(FontId::monospace(font_size))
                     .interactive(false)
                     .frame(false)
                     .text_color(Color32::from_rgb(100, 200, 100)),
