@@ -1,14 +1,31 @@
 # Set correct MIME type for WebAssembly files
 AddType application/wasm .wasm
 
-# Enable GZIP compression for WASM files (optional but recommended)
+# Set correct MIME type for service worker
+AddType application/javascript .js
+
+# Enable GZIP compression for WASM and JS files
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE application/wasm
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE text/javascript
 </IfModule>
 
-# Set proper caching headers for WASM files (optional)
+# Set proper caching headers for different file types
 <FilesMatch "\.(wasm)$">
     Header set Cache-Control "public, max-age=31536000"
+</FilesMatch>
+
+# Service worker should not be cached to ensure updates are received
+<FilesMatch "sw\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>
+
+# Cache static assets but allow revalidation
+<FilesMatch "\.(js|css|png|svg|html|json)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
 </FilesMatch>
 
 # Ensure CORS headers are set correctly for WASM (if needed)

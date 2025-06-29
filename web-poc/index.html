@@ -108,6 +108,46 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Offline indicator styles */
+        body[data-connection="offline"]::before {
+            content: "📱 Offline Mode";
+            position: fixed;
+            top: var(--safe-area-inset-top, 0);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 0 0 12px 12px;
+            font-size: 12px;
+            z-index: 1000;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body[data-connection="online"]::before {
+            content: "🌐 Online";
+            position: fixed;
+            top: var(--safe-area-inset-top, 0);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #28a745;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 0 0 12px 12px;
+            font-size: 12px;
+            z-index: 1000;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            opacity: 0;
+            animation: fadeInOut 3s ease-in-out;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -184,6 +224,56 @@
         setupMobile();
     </script>
     
+    <!-- Service Worker Registration -->
+    <script>
+        // Register service worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((registration) => {
+                        console.log('[APP] Service Worker registered successfully:', registration.scope);
+                        
+                        // Check if there's a waiting service worker
+                        if (registration.waiting) {
+                            showUpdateAvailable(registration);
+                        }
+                        
+                        // Listen for new service worker installations
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    showUpdateAvailable(registration);
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.log('[APP] Service Worker registration failed:', error);
+                    });
+            });
+        }
+        
+        // Show notification when app update is available
+        function showUpdateAvailable(registration) {
+            // You could show a toast notification here
+            console.log('[APP] App update available');
+        }
+        
+        // Listen for online/offline events
+        function updateOnlineStatus() {
+            const status = navigator.onLine ? 'online' : 'offline';
+            console.log('[APP] Connection status:', status);
+            
+            // You could update UI to show online/offline status here
+            document.body.setAttribute('data-connection', status);
+        }
+        
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus(); // Set initial status
+    </script>
+
     <!-- Load and initialize the WASM module -->
     <script type="module">
         import init, { main } from './mathypad_web_poc.js';
@@ -200,6 +290,12 @@
                 console.log('Calling main function...');
                 main();
                 console.log('Main function called');
+                
+                // Hide loading screen once app is ready
+                const loading = document.getElementById('loading_text');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
                 
             } catch (error) {
                 console.error('Failed to initialize WASM:', error);
