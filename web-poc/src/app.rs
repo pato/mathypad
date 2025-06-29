@@ -227,9 +227,6 @@ impl MathypadPocApp {
             // Header
             ui.horizontal(|ui| {
                 ui.heading("📱 Mathypad");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.small("Results stay visible while typing!");
-                });
             });
             ui.separator();
 
