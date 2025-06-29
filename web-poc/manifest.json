@@ -1,24 +1,80 @@
 {
+  "id": "app.mathypad.web",
   "name": "Mathypad",
   "short_name": "Mathypad",
   "description": "Unit-aware calculator for capacity planning, performance analysis, and infrastructure math",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#667eea",
   "background_color": "#f8f9fa",
   "icons": [
     {
+      "src": "./mathypad-icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./mathypad-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "./mathypad-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "./mathypad-icon-180.svg",
-      "sizes": "180x180",
-      "type": "image/svg+xml",
-      "purpose": "apple-touch-icon"
+      "purpose": "any"
     }
   ],
   "categories": ["productivity", "utilities", "education"],
@@ -30,11 +86,14 @@
       "url": "./",
       "icons": [
         {
-          "src": "./mathypad-icon-180.svg",
-          "sizes": "180x180",
-          "type": "image/svg+xml"
+          "src": "./mathypad-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
-  ]
+  ],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false
 }
