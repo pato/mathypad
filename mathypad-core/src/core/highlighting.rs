@@ -205,9 +205,9 @@ mod tests {
     #[test]
     fn test_unit_highlighting() {
         let variables = HashMap::new();
-        let spans = highlight_expression("100 kg", &variables);
+        let spans = highlight_expression("100 GB", &variables);
 
-        assert_eq!(spans.len(), 3); // "100", " ", "kg"
+        assert_eq!(spans.len(), 3); // "100", " ", "GB"
         assert_eq!(spans[0].highlight_type, HighlightType::Number);
         assert_eq!(spans[1].highlight_type, HighlightType::Normal); // space
         assert_eq!(spans[2].highlight_type, HighlightType::Unit);
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_keyword_highlighting() {
         let variables = HashMap::new();
-        let spans = highlight_expression("100 kg to lb", &variables);
+        let spans = highlight_expression("100 GB to MB", &variables);
 
         assert!(
             spans

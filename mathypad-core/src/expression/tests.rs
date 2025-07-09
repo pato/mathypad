@@ -868,3 +868,106 @@ fn test_percentage_edge_cases() {
         Some("20".to_string())
     );
 }
+
+#[test]
+fn test_k_suffix_functionality() {
+    // Test basic k suffix
+    assert_eq!(evaluate_test_expression("50k"), Some("50,000".to_string()));
+
+    // Test uppercase K suffix
+    assert_eq!(evaluate_test_expression("25K"), Some("25,000".to_string()));
+
+    // Test decimal with k suffix
+    assert_eq!(evaluate_test_expression("3.5k"), Some("3,500".to_string()));
+
+    // Test k suffix with arithmetic
+    assert_eq!(
+        evaluate_test_expression("50k + 25K"),
+        Some("75,000".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("100k - 30k"),
+        Some("70,000".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("10k * 2"),
+        Some("20,000".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("60k / 3"),
+        Some("20,000".to_string())
+    );
+}
+
+#[test]
+fn test_k_suffix_with_currency() {
+    // Test currency with k suffix
+    assert_eq!(
+        evaluate_test_expression("$50k"),
+        Some("50,000 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€100K"),
+        Some("100,000 €".to_string())
+    );
+
+    // Test currency arithmetic with k suffix
+    assert_eq!(
+        evaluate_test_expression("$50k + $25k"),
+        Some("75,000 $".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("€200K - €75k"),
+        Some("125,000 €".to_string())
+    );
+
+    // Test currency with k suffix and rates
+    assert_eq!(
+        evaluate_test_expression("$100k / 40 hours"),
+        Some("2,500 $/h".to_string())
+    );
+}
+
+#[test]
+fn test_k_suffix_with_units() {
+    // Test k suffix with data units
+    assert_eq!(
+        evaluate_test_expression("100k MB"),
+        Some("100,000 MB".to_string())
+    );
+    assert_eq!(
+        evaluate_test_expression("50K GB"),
+        Some("50,000 GB".to_string())
+    );
+
+    // Test k suffix with unit conversions
+    assert_eq!(
+        evaluate_test_expression("100k MB to GB"),
+        Some("100 GB".to_string())
+    );
+
+    // Test k suffix arithmetic with units
+    assert_eq!(
+        evaluate_test_expression("100k MB + 50k MB"),
+        Some("150,000 MB".to_string())
+    );
+}
+
+#[test]
+fn test_k_suffix_edge_cases() {
+    // Test zero with k suffix
+    assert_eq!(evaluate_test_expression("0k"), Some("0".to_string()));
+
+    // Test fractional k suffix
+    assert_eq!(evaluate_test_expression("0.5k"), Some("500".to_string()));
+    assert_eq!(evaluate_test_expression("1.25K"), Some("1,250".to_string()));
+
+    // Test large numbers with k suffix
+    assert_eq!(
+        evaluate_test_expression("999k"),
+        Some("999,000".to_string())
+    );
+
+    // Test very small fractional k suffix
+    assert_eq!(evaluate_test_expression("0.001k"), Some("1".to_string()));
+}

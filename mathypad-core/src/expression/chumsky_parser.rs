@@ -66,7 +66,10 @@ pub fn parse_expression_chumsky(input: &str) -> Result<Vec<Token>, String> {
 
 /// Create the main token parser
 fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<Rich<'a, char>>> {
-    // Parser for numbers (integers and decimals with optional commas)
+    // Parser for numerical suffixes like "k" for thousands
+    let number_suffix = choice((just('k').to(1_000.0), just('K').to(1_000.0)));
+
+    // Parser for numbers (integers and decimals with optional commas and suffixes)
     let number = choice((
         // Numbers with commas (like 1,000 or 1,234.56)
         text::digits(10)
@@ -78,9 +81,15 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
             .then(just('.').then(text::digits(10)).or_not())
             .to_slice(),
     ))
-    .map(|s: &str| {
+    .then(number_suffix.or_not())
+    .map(|(s, suffix_opt): (&str, Option<f64>)| {
         let cleaned = s.replace(",", "");
-        cleaned.parse::<f64>().unwrap_or(0.0)
+        let base_value = cleaned.parse::<f64>().unwrap_or(0.0);
+        if let Some(multiplier) = suffix_opt {
+            base_value * multiplier
+        } else {
+            base_value
+        }
     });
 
     // Parser for identifiers (words, but not compound with slashes - those are handled separately)
@@ -908,5 +917,95 @@ mod tests {
         // Test line references in complex expression
         let result = parse_expression_chumsky("(line1 + line2) * 2.5 to GiB/s");
         assert!(result.is_ok(), "Complex line ref calc failed: {:?}", result);
+    }
+
+    #[test]
+    fn test_k_suffix_parsing() {
+        // Test basic 'k' suffix
+        let result = parse_expression_chumsky("50k");
+        assert!(result.is_ok(), "Failed to parse '50k': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::Number(val) = &tokens[0] {
+            assert_eq!(*val, 50000.0);
+        } else {
+            panic!("Expected Number token, got {:?}", tokens[0]);
+        }
+
+        // Test uppercase 'K' suffix
+        let result = parse_expression_chumsky("25K");
+        assert!(result.is_ok(), "Failed to parse '25K': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::Number(val) = &tokens[0] {
+            assert_eq!(*val, 25000.0);
+        } else {
+            panic!("Expected Number token, got {:?}", tokens[0]);
+        }
+
+        // Test decimal with 'k' suffix
+        let result = parse_expression_chumsky("3.5k");
+        assert!(result.is_ok(), "Failed to parse '3.5k': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::Number(val) = &tokens[0] {
+            assert_eq!(*val, 3500.0);
+        } else {
+            panic!("Expected Number token, got {:?}", tokens[0]);
+        }
+    }
+
+    #[test]
+    fn test_k_suffix_with_currency() {
+        // Test currency with 'k' suffix
+        let result = parse_expression_chumsky("$50k");
+        assert!(result.is_ok(), "Failed to parse '$50k': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::NumberWithUnit(val, unit) = &tokens[0] {
+            assert_eq!(*val, 50000.0);
+            assert_eq!(*unit, Unit::USD);
+        } else {
+            panic!("Expected NumberWithUnit token, got {:?}", tokens[0]);
+        }
+
+        // Test different currencies with 'k' suffix
+        let result = parse_expression_chumsky("€100K");
+        assert!(result.is_ok(), "Failed to parse '€100K': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::NumberWithUnit(val, unit) = &tokens[0] {
+            assert_eq!(*val, 100000.0);
+            assert_eq!(*unit, Unit::EUR);
+        } else {
+            panic!("Expected NumberWithUnit token, got {:?}", tokens[0]);
+        }
+    }
+
+    #[test]
+    fn test_k_suffix_with_arithmetic() {
+        // Test arithmetic with 'k' suffix numbers
+        let result = parse_expression_chumsky("50k + 25K");
+        assert!(result.is_ok(), "Failed to parse '50k + 25K': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3); // Number, Operator, Number
+        if let Token::Number(val1) = &tokens[0] {
+            assert_eq!(*val1, 50000.0);
+        }
+        if let Token::Number(val2) = &tokens[2] {
+            assert_eq!(*val2, 25000.0);
+        }
+
+        // Test with units
+        let result = parse_expression_chumsky("100k MB");
+        assert!(result.is_ok(), "Failed to parse '100k MB': {:?}", result);
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        if let Token::NumberWithUnit(val, unit) = &tokens[0] {
+            assert_eq!(*val, 100000.0);
+            assert_eq!(*unit, Unit::MB);
+        } else {
+            panic!("Expected NumberWithUnit token, got {:?}", tokens[0]);
+        }
     }
 }
