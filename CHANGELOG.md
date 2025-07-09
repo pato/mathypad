@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.14] - 2025-07-09
+
+### 🤖 AI Assisted
+- Web POC
+- Add script to start server
+- Continue on the web POC
+- Continue integrating mathypad-core
+- Remove the syntax highlighted pane
+- Online editor getting better
+- Fix not being able to enter new line at end
+- Fix new line on web
+- Add syntax highlighting
+- Fix line references
+- Fix wasm container for website
+- Fix refactor
+- Improve Makefile
+- Make wasm smaller
+- Fix flickering
+- Fix color scheme
+- Fix safe area in PWA mode
+- Icon
+- Add htaccess to serve wasm properly
+- Adding icons for PWA
+- Added service worker
+- Fix zoom
+- Split up builds
+- Add support for thousands with k (e.g., $100k)
+- Add support for sum_above()
+
+
+### 👤 Artisanally Crafted
+- Manually bump dependency versions
+- Gitignore
+- Remove some text in mobile version
+
+
+### Changes
+- Cleanup
+
+
 ## [0.1.13] - 2025-06-25
 
 ### 🤖 AI Assisted
@@ -9,6 +49,10 @@ All notable changes to this project will be documented in this file.
 - Add panic handler in case mathypad crashes (will save error logs and
 - Add support for "quarter" as a time unit (e.g., 1 year - 1 quarter =
 - Fixed syntax highltighting on line1/month
+
+
+### 👤 Artisanally Crafted
+
 
 
 ## [0.1.12] - 2025-06-24
