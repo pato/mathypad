@@ -2,7 +2,12 @@
 name = "mathypad-core"
 version = "0.1.0"
 edition = "2024"
+authors = ["Pato Lankenau <rust@p.lankenau.io>"]
+license = "MIT"
 description = "Core calculation and parsing logic for Mathypad"
+homepage = "https://mathypad.app"
+repository = "https://github.com/pato/mathypad"
+keywords = ["calculator", "units", "parsing", "math", "expressions"]
 
 [dependencies]
 # Use chumsky without stacker for WASM compatibility

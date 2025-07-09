@@ -15,7 +15,7 @@ repository = "https://github.com/pato/mathypad"
 default-run = "mathypad"
 
 [dependencies]
-mathypad-core = { path = "mathypad-core" }
+mathypad-core = { version = "0.1.0", path = "mathypad-core" }
 clap = { version = "4.5", features = ["derive", "cargo"] }
 dirs = "6.0"
 
