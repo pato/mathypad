@@ -64,7 +64,9 @@ pub fn highlight_expression(
             let start_pos = current_pos;
 
             while current_pos < chars.len()
-                && (chars[current_pos].is_ascii_alphabetic() || chars[current_pos].is_ascii_digit())
+                && (chars[current_pos].is_ascii_alphabetic()
+                    || chars[current_pos].is_ascii_digit()
+                    || chars[current_pos] == '_')
             {
                 current_pos += 1;
             }
@@ -79,7 +81,8 @@ pub fn highlight_expression(
                 || word_text.to_lowercase() == "of"
             {
                 HighlightType::Keyword
-            } else if word_text.to_lowercase() == "sqrt" {
+            } else if word_text.to_lowercase() == "sqrt" || word_text.to_lowercase() == "sum_above"
+            {
                 HighlightType::Function
             } else if parse_unit(&word_text).is_some() {
                 HighlightType::Unit
@@ -265,5 +268,14 @@ mod tests {
                 .any(|s| s.highlight_type == HighlightType::Function)
         );
         assert!(spans.iter().any(|s| s.text == "sqrt"));
+
+        // Test sum_above function highlighting
+        let spans = highlight_expression("sum_above()", &variables);
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.highlight_type == HighlightType::Function)
+        );
+        assert!(spans.iter().any(|s| s.text == "sum_above"));
     }
 }

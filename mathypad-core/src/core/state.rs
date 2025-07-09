@@ -80,6 +80,7 @@ impl MathypadCore {
             self.text_lines[self.cursor_line].insert(byte_index, c);
             self.cursor_col += 1;
             self.update_result(self.cursor_line);
+            self.update_sum_above_dependent_lines(self.cursor_line);
         }
     }
 
@@ -105,6 +106,7 @@ impl MathypadCore {
 
                 self.cursor_col -= 1;
                 self.update_result(self.cursor_line);
+                self.update_sum_above_dependent_lines(self.cursor_line);
             } else if self.cursor_line > 0 {
                 // Delete newline - merge with previous line
                 let current_line = self.text_lines.remove(self.cursor_line);
@@ -209,6 +211,23 @@ impl MathypadCore {
     fn update_line_references_for_deletion(&mut self, deleted_at: usize) {
         for line in self.text_lines.iter_mut() {
             *line = update_line_references_in_text(line, deleted_at, -1);
+        }
+    }
+
+    /// Check if a line contains a sum_above() function call
+    fn line_contains_sum_above(&self, line_text: &str) -> bool {
+        // Simple check for sum_above() - could be more sophisticated
+        // but this catches the common case
+        line_text.to_lowercase().contains("sum_above(")
+    }
+
+    /// Update all lines below the given line that contain sum_above()
+    fn update_sum_above_dependent_lines(&mut self, changed_line: usize) {
+        // Update all lines below the current line that contain sum_above()
+        for line_index in (changed_line + 1)..self.text_lines.len() {
+            if self.line_contains_sum_above(&self.text_lines[line_index]) {
+                self.update_result(line_index);
+            }
         }
     }
 

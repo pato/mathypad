@@ -12,6 +12,7 @@ description = "A smart TUI calculator that understands units and makes complex c
 keywords = ["tui", "cli", "calculator", "units", "soulver"]
 homepage = "https://mathypad.app"
 repository = "https://github.com/pato/mathypad"
+default-run = "mathypad"
 
 [dependencies]
 mathypad-core = { path = "mathypad-core" }

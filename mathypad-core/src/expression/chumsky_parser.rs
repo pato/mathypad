@@ -260,6 +260,7 @@ fn create_token_parser<'a>() -> impl Parser<'a, &'a str, Vec<Token>, extra::Err<
         .then_ignore(just('(').rewind())
         .try_map(|name: String, span| match name.to_lowercase().as_str() {
             "sqrt" => Ok(Token::Function(name)),
+            "sum_above" => Ok(Token::Function(name)),
             _ => Err(Rich::custom(span, "Unknown function")),
         });
 
@@ -1006,6 +1007,55 @@ mod tests {
             assert_eq!(*unit, Unit::MB);
         } else {
             panic!("Expected NumberWithUnit token, got {:?}", tokens[0]);
+        }
+    }
+
+    #[test]
+    fn test_sum_above_function_parsing() {
+        // Test basic sum_above() parsing
+        let result = parse_expression_chumsky("sum_above()");
+        assert!(
+            result.is_ok(),
+            "Failed to parse 'sum_above()': {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 3); // Function, LeftParen, RightParen
+        if let Token::Function(func_name) = &tokens[0] {
+            assert_eq!(func_name, "sum_above");
+        } else {
+            panic!("Expected Function token, got {:?}", tokens[0]);
+        }
+        assert!(matches!(tokens[1], Token::LeftParen));
+        assert!(matches!(tokens[2], Token::RightParen));
+
+        // Test sum_above() with arithmetic
+        let result = parse_expression_chumsky("sum_above() + 100");
+        assert!(
+            result.is_ok(),
+            "Failed to parse 'sum_above() + 100': {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 5); // Function, LeftParen, RightParen, Plus, Number
+        if let Token::Function(func_name) = &tokens[0] {
+            assert_eq!(func_name, "sum_above");
+        } else {
+            panic!("Expected Function token, got {:?}", tokens[0]);
+        }
+
+        // Test case insensitivity
+        let result = parse_expression_chumsky("SUM_ABOVE()");
+        assert!(
+            result.is_ok(),
+            "Failed to parse 'SUM_ABOVE()': {:?}",
+            result
+        );
+        let tokens = result.unwrap();
+        if let Token::Function(func_name) = &tokens[0] {
+            assert_eq!(func_name, "SUM_ABOVE");
+        } else {
+            panic!("Expected Function token, got {:?}", tokens[0]);
         }
     }
 }

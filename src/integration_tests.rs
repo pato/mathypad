@@ -1017,4 +1017,68 @@ mod tests {
         assert_eq!(app.scroll_offset, 0);
         assert_eq!(app.pending_normal_command, None);
     }
+
+    #[test]
+    fn test_sum_above_live_updates() {
+        use crate::App;
+        use crate::Mode;
+
+        let mut app = App {
+            mode: Mode::Insert,
+            ..Default::default()
+        };
+
+        // Create a scenario with three lines:
+        // Line 0: "10"
+        // Line 1: "20"
+        // Line 2: "sum_above()"
+
+        // Add first line "10"
+        app.insert_char('1');
+        app.insert_char('0');
+        app.new_line();
+
+        // Add second line "20"
+        app.insert_char('2');
+        app.insert_char('0');
+        app.new_line();
+
+        // Add third line "sum_above()"
+        app.insert_char('s');
+        app.insert_char('u');
+        app.insert_char('m');
+        app.insert_char('_');
+        app.insert_char('a');
+        app.insert_char('b');
+        app.insert_char('o');
+        app.insert_char('v');
+        app.insert_char('e');
+        app.insert_char('(');
+        app.insert_char(')');
+
+        // At this point, sum_above() should evaluate to 30 (10 + 20)
+        assert_eq!(app.core.results[2], Some("30".to_string()));
+
+        // Now go back to line 0 and change "10" to "15"
+        app.core.cursor_line = 0;
+        app.core.cursor_col = 2;
+        app.delete_char(); // Delete "0"
+        app.delete_char(); // Delete "1"
+        app.insert_char('1');
+        app.insert_char('5');
+
+        // The live update should have automatically updated line 2 to 35 (15 + 20)
+        assert_eq!(app.core.results[2], Some("35".to_string()));
+
+        // Now change line 1 from "20" to "25"
+        app.core.cursor_line = 1;
+        app.core.cursor_col = 2;
+        app.delete_char(); // Delete "0"
+        app.delete_char(); // Delete "2"
+        app.insert_char('2');
+        app.insert_char('5');
+
+        // The live update should have automatically updated line 2 to 40 (15 + 25)
+        assert_eq!(app.core.results[2], Some("40".to_string()));
+    }
 }

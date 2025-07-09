@@ -971,3 +971,217 @@ fn test_k_suffix_edge_cases() {
     // Test very small fractional k suffix
     assert_eq!(evaluate_test_expression("0.001k"), Some("1".to_string()));
 }
+
+#[test]
+fn test_sum_above_basic() {
+    // Test basic sum_above functionality
+    let previous_results = vec![
+        Some("10".to_string()),
+        Some("20".to_string()),
+        Some("30".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &previous_results, 3),
+        Some("60".to_string())
+    );
+
+    // Test sum_above with no previous results
+    let empty_results = vec![];
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &empty_results, 0),
+        Some("0".to_string())
+    );
+
+    // Test sum_above with one previous result
+    let single_result = vec![Some("42".to_string())];
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &single_result, 1),
+        Some("42".to_string())
+    );
+}
+
+#[test]
+fn test_sum_above_with_units() {
+    // Test sum_above with compatible units
+    let previous_results = vec![
+        Some("100 MB".to_string()),
+        Some("200 MB".to_string()),
+        Some("300 MB".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &previous_results, 3),
+        Some("600 MB".to_string())
+    );
+
+    // Test sum_above with mixed compatible units (bytes)
+    let mixed_bytes = vec![
+        Some("1 GB".to_string()),
+        Some("500 MB".to_string()),
+        Some("2 GB".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &mixed_bytes, 3),
+        Some("3,500 MB".to_string())
+    );
+
+    // Test sum_above with incompatible units (should sum only compatible ones)
+    let mixed_incompatible = vec![
+        Some("100 MB".to_string()),
+        Some("5 hours".to_string()),
+        Some("200 MB".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &mixed_incompatible, 3),
+        Some("300 MB".to_string())
+    );
+}
+
+#[test]
+fn test_sum_above_with_currency() {
+    // Test sum_above with currency
+    let currency_results = vec![
+        Some("100 $".to_string()),
+        Some("250 $".to_string()),
+        Some("75 $".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &currency_results, 3),
+        Some("425 $".to_string())
+    );
+
+    // Test sum_above with mixed currencies (should sum only compatible ones)
+    let mixed_currencies = vec![
+        Some("100 $".to_string()),
+        Some("50 €".to_string()),
+        Some("200 $".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &mixed_currencies, 3),
+        Some("300 $".to_string())
+    );
+}
+
+#[test]
+fn test_sum_above_with_invalid_results() {
+    // Test sum_above with None results (should skip them)
+    let with_none = vec![
+        Some("10".to_string()),
+        None,
+        Some("20".to_string()),
+        None,
+        Some("30".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &with_none, 5),
+        Some("60".to_string())
+    );
+
+    // Test sum_above with all None results
+    let all_none = vec![None, None, None];
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &all_none, 3),
+        Some("0".to_string())
+    );
+
+    // Test sum_above with unparseable results
+    let unparseable = vec![
+        Some("hello world".to_string()),
+        Some("10".to_string()),
+        Some("not a number".to_string()),
+        Some("20".to_string()),
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &unparseable, 4),
+        Some("30".to_string())
+    );
+}
+
+#[test]
+fn test_sum_above_multiple_calls() {
+    // Test multiple sum_above calls in sequence
+    let mut results = vec![
+        Some("10".to_string()),
+        Some("20".to_string()),
+        Some("30".to_string()),
+    ];
+
+    // First sum_above call
+    let first_sum = evaluate_expression_with_context("sum_above()", &results, 3);
+    assert_eq!(first_sum, Some("60".to_string()));
+    results.push(first_sum);
+
+    // Second sum_above call (should include the first sum)
+    let second_sum = evaluate_expression_with_context("sum_above()", &results, 4);
+    assert_eq!(second_sum, Some("120".to_string()));
+    results.push(second_sum);
+
+    // Third sum_above call (should include both previous sums)
+    let third_sum = evaluate_expression_with_context("sum_above()", &results, 5);
+    assert_eq!(third_sum, Some("240".to_string()));
+}
+
+#[test]
+fn test_sum_above_in_expressions() {
+    // Test sum_above in arithmetic expressions
+    let previous_results = vec![
+        Some("10".to_string()),
+        Some("20".to_string()),
+        Some("30".to_string()),
+    ];
+
+    // Test sum_above with addition
+    assert_eq!(
+        evaluate_expression_with_context("sum_above() + 40", &previous_results, 3),
+        Some("100".to_string())
+    );
+
+    // Test sum_above with multiplication
+    assert_eq!(
+        evaluate_expression_with_context("sum_above() * 2", &previous_results, 3),
+        Some("120".to_string())
+    );
+
+    // Test sum_above with division
+    assert_eq!(
+        evaluate_expression_with_context("sum_above() / 3", &previous_results, 3),
+        Some("20".to_string())
+    );
+
+    // Test sum_above with subtraction
+    assert_eq!(
+        evaluate_expression_with_context("100 - sum_above()", &previous_results, 3),
+        Some("40".to_string())
+    );
+}
+
+#[test]
+fn test_sum_above_with_k_suffix() {
+    // Test sum_above with k suffix numbers
+    let k_results = vec![
+        Some("50,000".to_string()),  // This is what 50k would evaluate to
+        Some("25,000".to_string()),  // This is what 25k would evaluate to
+        Some("100,000".to_string()), // This is what 100k would evaluate to
+    ];
+
+    assert_eq!(
+        evaluate_expression_with_context("sum_above()", &k_results, 3),
+        Some("175,000".to_string())
+    );
+
+    // Test sum_above result with k suffix in expression
+    let simple_results = vec![Some("10".to_string()), Some("20".to_string())];
+
+    // sum_above() returns 30, then multiply by 1000 (k suffix)
+    assert_eq!(
+        evaluate_expression_with_context("sum_above() * 1k", &simple_results, 2),
+        Some("30,000".to_string())
+    );
+}

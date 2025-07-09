@@ -200,7 +200,15 @@ fn is_valid_mathematical_sequence(tokens: &[Token]) -> bool {
         }
     }
 
-    // Pattern 4: More complex expressions with parentheses, multiple operations
+    // Pattern 4: Function calls (e.g., "sqrt(16)", "sum_above()")
+    let has_function = tokens.iter().any(|t| matches!(t, Token::Function(_)));
+    if has_function {
+        // For function calls, we need to have Function, LeftParen, RightParen pattern
+        // or more complex expressions with functions
+        return true;
+    }
+
+    // Pattern 5: More complex expressions with parentheses, multiple operations
     // For now, if we have values and operators, assume it could be valid
     // The actual evaluation will determine if it's truly valid
     let has_operator = tokens.iter().any(|t| {
@@ -508,7 +516,12 @@ pub fn evaluate_tokens_with_units_and_context(
                         // Check if there's a function waiting
                         if let Some(Token::Function(func_name)) = operator_stack.last().cloned() {
                             operator_stack.pop(); // Remove the function
-                            if !apply_function(&mut value_stack, &func_name) {
+                            if !apply_function_with_context(
+                                &mut value_stack,
+                                &func_name,
+                                previous_results,
+                                current_line,
+                            ) {
                                 return None;
                             }
                         }
@@ -679,7 +692,12 @@ fn evaluate_tokens_with_units_and_context_and_variables(
                         // Check if there's a function waiting
                         if let Some(Token::Function(func_name)) = operator_stack.last().cloned() {
                             operator_stack.pop(); // Remove the function
-                            if !apply_function(&mut value_stack, &func_name) {
+                            if !apply_function_with_context(
+                                &mut value_stack,
+                                &func_name,
+                                previous_results,
+                                current_line,
+                            ) {
                                 return None;
                             }
                         }
@@ -1297,16 +1315,54 @@ fn apply_operator_with_units(stack: &mut Vec<UnitValue>, op: &Token) -> bool {
     true
 }
 
-/// Apply a function to the top value on the stack
-fn apply_function(stack: &mut Vec<UnitValue>, func_name: &str) -> bool {
-    if stack.is_empty() {
-        return false;
+/// Helper function to add two UnitValues with proper unit handling
+fn add_unit_values(a: &UnitValue, b: &UnitValue) -> Option<UnitValue> {
+    match (&a.unit, &b.unit) {
+        (Some(unit_a), Some(unit_b)) => {
+            if unit_a.is_compatible_for_addition(unit_b) {
+                let base_a = unit_a.to_base_value(a.value);
+                let base_b = unit_b.to_base_value(b.value);
+                let result_base = base_a + base_b;
+
+                // Choose the smaller unit (larger value) for the result
+                let result_unit = if unit_a.to_base_value(1.0) < unit_b.to_base_value(1.0) {
+                    unit_a
+                } else {
+                    unit_b
+                };
+                let result_value = result_unit.clone().from_base_value(result_base);
+                Some(UnitValue::new(result_value, Some(result_unit.clone())))
+            } else {
+                None // Can't add incompatible units
+            }
+        }
+        (None, None) => Some(UnitValue::new(a.value + b.value, None)),
+        (Some(unit), None) => {
+            // When adding a unit value to a dimensionless value, keep the unit
+            // This allows sum_above() to work correctly when mixing numbers and unit values
+            Some(UnitValue::new(a.value + b.value, Some(unit.clone())))
+        }
+        (None, Some(unit)) => {
+            // When adding a dimensionless value to a unit value, keep the unit
+            Some(UnitValue::new(a.value + b.value, Some(unit.clone())))
+        }
     }
+}
 
-    let arg = stack.pop().unwrap();
-
+/// Apply a function with context support (for functions like sum_above)
+fn apply_function_with_context(
+    stack: &mut Vec<UnitValue>,
+    func_name: &str,
+    previous_results: &[Option<String>],
+    current_line: usize,
+) -> bool {
     let result = match func_name {
         "sqrt" => {
+            if stack.is_empty() {
+                return false;
+            }
+            let arg = stack.pop().unwrap();
+
             // Only allow sqrt for dimensionless values
             match &arg.unit {
                 None => {
@@ -1321,6 +1377,37 @@ fn apply_function(stack: &mut Vec<UnitValue>, func_name: &str) -> bool {
                     return false;
                 }
             }
+        }
+        "sum_above" => {
+            // sum_above() doesn't take arguments from stack
+            // It sums all the results from lines above the current line
+            let mut total = UnitValue::new(0.0, None);
+            let mut has_values = false;
+
+            // Sum all previous results that can be summed
+            for (i, result_str) in previous_results.iter().enumerate() {
+                if i >= current_line {
+                    break; // Don't include current line or lines below
+                }
+
+                if let Some(result_str) = result_str {
+                    if let Some(unit_value) = parse_result_string(result_str) {
+                        // Try to add this value to the total
+                        if let Some(new_total) = add_unit_values(&total, &unit_value) {
+                            total = new_total;
+                            has_values = true;
+                        }
+                        // If we can't add this value, skip it (different unit types)
+                    }
+                }
+            }
+
+            if !has_values {
+                // If no values could be summed, return 0
+                total = UnitValue::new(0.0, None);
+            }
+
+            total
         }
         _ => return false, // Unknown function
     };
