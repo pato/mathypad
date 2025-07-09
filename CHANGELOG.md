@@ -38,6 +38,7 @@ All notable changes to this project will be documented in this file.
 - Remove some text in mobile version
 
 
+
 ### Changes
 - Cleanup
 
