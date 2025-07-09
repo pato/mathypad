@@ -1045,12 +1045,22 @@ impl App {
         line_index: usize,
         is_result: bool,
     ) -> Result<(), String> {
-        // Copy to clipboard using arboard
-        let mut clipboard =
-            arboard::Clipboard::new().map_err(|e| format!("Failed to access clipboard: {}", e))?;
-        clipboard
-            .set_text(text)
-            .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+        // Copy to clipboard using arboard (only available on non-WASM platforms)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let mut clipboard = arboard::Clipboard::new()
+                .map_err(|e| format!("Failed to access clipboard: {}", e))?;
+            clipboard
+                .set_text(text)
+                .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            // On WASM, we can't use arboard but we still want to show the animation
+            // Web clipboard access would need to be implemented using web-sys if needed
+            let _ = text; // Suppress unused variable warning
+        }
 
         // Start flash animation for the copied line
         self.start_copy_flash_animation(line_index, is_result);

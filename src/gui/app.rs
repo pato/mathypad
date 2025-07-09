@@ -1,20 +1,26 @@
+#[cfg(feature = "gui")]
 use eframe::egui;
+#[cfg(feature = "gui")]
 use egui::text::{LayoutJob, TextFormat};
+#[cfg(feature = "gui")]
 use egui::{Color32, FontId, ScrollArea, TextEdit, TextStyle};
+#[cfg(feature = "gui")]
 use mathypad_core::core::{
     MathypadCore,
     highlighting::{HighlightType, highlight_expression},
 };
 
-/// The main application state
-pub struct MathypadPocApp {
+/// The main GUI application state
+#[cfg(feature = "gui")]
+pub struct MathypadGuiApp {
     /// Core calculation engine
     core: MathypadCore,
     /// The position of the separator (percentage of window width for left panel)
     separator_position: f32,
 }
 
-impl Default for MathypadPocApp {
+#[cfg(feature = "gui")]
+impl Default for MathypadGuiApp {
     fn default() -> Self {
         let core = MathypadCore::new();
 
@@ -25,7 +31,8 @@ impl Default for MathypadPocApp {
     }
 }
 
-impl MathypadPocApp {
+#[cfg(feature = "gui")]
+impl MathypadGuiApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Configure fonts
@@ -220,7 +227,8 @@ impl MathypadPocApp {
     }
 }
 
-impl eframe::App for MathypadPocApp {
+#[cfg(feature = "gui")]
+impl eframe::App for MathypadGuiApp {
     /// Called each time the UI needs repainting
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Check if we're on mobile (narrow screen)
@@ -237,7 +245,8 @@ impl eframe::App for MathypadPocApp {
     }
 }
 
-impl MathypadPocApp {
+#[cfg(feature = "gui")]
+impl MathypadGuiApp {
     /// Render mobile-friendly vertical layout
     fn render_mobile_layout(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {

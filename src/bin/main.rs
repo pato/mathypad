@@ -1,8 +1,13 @@
 //! Binary entry point for mathypad
 
 use clap::{Arg, Command, ValueHint, crate_version};
-use mathypad::{run_interactive_mode_with_file, run_one_shot_mode, version};
+use mathypad::{run_one_shot_mode, version};
 use std::error::Error;
+
+// TUI-related imports (not available on WASM)
+#[cfg(not(target_arch = "wasm32"))]
+use mathypad::run_interactive_mode_with_file;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -30,9 +35,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("Warning: Could not initialize version tracking: {}", e);
     }
 
-    // Extract file path and run interactive mode
-    let file_path = matches.get_one::<String>("file").map(PathBuf::from);
-    run_interactive_mode_with_file(file_path)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Extract file path and run interactive mode
+        let file_path = matches.get_one::<String>("file").map(PathBuf::from);
+        run_interactive_mode_with_file(file_path)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        // TUI mode is not available on WASM
+        eprintln!("Error: Interactive TUI mode is not available in WASM builds");
+        eprintln!("Use the GUI version or one-shot mode instead");
+        std::process::exit(1);
+    }
 }
 
 /// Extract one-shot expression if "--" separator is present

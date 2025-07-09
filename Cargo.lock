@@ -2135,12 +2135,21 @@ version = "0.1.13"
 dependencies = [
  "arboard",
  "clap",
+ "console_error_panic_hook",
  "crossterm 0.29.0",
  "dirs",
+ "eframe",
+ "egui",
+ "env_logger",
  "insta",
+ "log",
  "mathypad-core",
  "ratatui",
  "tempfile",
+ "tracing-wasm",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

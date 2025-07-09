@@ -15,11 +15,28 @@ repository = "https://github.com/pato/mathypad"
 
 [dependencies]
 mathypad-core = { path = "mathypad-core" }
+clap = { version = "4.5", features = ["derive", "cargo"] }
+dirs = "6.0"
+
+# GUI dependencies (optional - only included with 'gui' feature)
+eframe = { version = "0.29", optional = true }
+egui = { version = "0.29", optional = true }
+log = { version = "0.4", optional = true }
+
+# Non-WASM dependencies (TUI and clipboard)
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ratatui = "0.29"
 crossterm = "0.29"
-clap = { version = "4.5", features = ["derive", "cargo"] }
 arboard = "3.5"
-dirs = "6.0"
+env_logger = { version = "0.11", optional = true }
+
+# WASM-specific dependencies (optional)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Element", "HtmlCanvasElement", "Location", "console"] }
+console_error_panic_hook = { version = "0.1", optional = true }
+tracing-wasm = { version = "0.2", optional = true }
 
 [dev-dependencies]
 insta = "1.43.1"
@@ -35,6 +52,22 @@ lto = true
 [profile.release.package.mathypad-web-poc]
 opt-level = "s"          # Optimize for size instead of speed
 
+# Features
+[features]
+default = []  # Only TUI and CLI by default
+gui = ["dep:eframe", "dep:egui", "dep:log", "dep:env_logger", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook", "dep:tracing-wasm"]
+
 [[bin]]
 name = "mathypad"
 path = "src/bin/main.rs"
+
+# GUI binary (only built with gui feature)
+[[bin]]
+name = "mathypad-gui"
+path = "src/bin/gui.rs"
+required-features = ["gui"]
+
+# Library for WASM builds
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
