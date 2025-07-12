@@ -37,14 +37,14 @@ impl HighlightType {
     /// Returns (red, green, blue) as u8 values
     pub fn rgb_color(&self) -> (u8, u8, u8) {
         match self {
-            HighlightType::Number => (173, 216, 230), // Light blue
-            HighlightType::Unit => (144, 238, 144),   // Light green
-            HighlightType::LineReference => (221, 160, 221), // Plum/magenta
-            HighlightType::Keyword => (255, 255, 0),  // Yellow
-            HighlightType::Operator => (0, 255, 255), // Cyan
-            HighlightType::Variable => (224, 255, 255), // Light cyan
-            HighlightType::Function => (0, 255, 255), // Cyan
-            HighlightType::Normal => (200, 200, 200), // Light gray
+            HighlightType::Number => (65, 105, 225), // Royal blue - good contrast on both backgrounds
+            HighlightType::Unit => (34, 139, 34), // Forest green - good contrast on both backgrounds
+            HighlightType::LineReference => (255, 140, 0), // Dark orange - good contrast on both backgrounds
+            HighlightType::Keyword => (178, 34, 34), // Fire brick red - good contrast on both backgrounds
+            HighlightType::Operator => (128, 0, 128), // Purple - good contrast on both backgrounds
+            HighlightType::Variable => (72, 61, 139), // Dark slate blue - good contrast on both backgrounds
+            HighlightType::Function => (138, 43, 226), // Blue violet - good contrast on both backgrounds
+            HighlightType::Normal => (105, 105, 105), // Dim gray - good contrast on both backgrounds
         }
     }
 }
