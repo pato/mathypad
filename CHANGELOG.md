@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.15] - 2025-07-12
+
+### 🤖 AI Assisted
+- Fix color scheme
+
+
+### 👤 Artisanally Crafted
+
+- Fix cargo publish
+
+
 ## [0.1.14] - 2025-07-09
 
 ### 🤖 AI Assisted
