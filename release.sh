@@ -121,17 +121,19 @@ found { print }
 echo "========================================"
 echo
 
-# Step 3: Ask for confirmation
-read -p "Do you want to proceed with release $NEW_VERSION? (y/N): " confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-    echo "Release cancelled."
-    rm -f temp_changelog.md
-    exit 0
+# Step 3: Ask for confirmation (skip in dry run)
+if [ "$DRY_RUN" = false ]; then
+    read -p "Do you want to proceed with release $NEW_VERSION? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Release cancelled."
+        rm -f temp_changelog.md
+        exit 0
+    fi
+    
+    echo
+    echo "Proceeding with release $NEW_VERSION..."
+    echo
 fi
-
-echo
-echo "Proceeding with release $NEW_VERSION..."
-echo
 
 # Step 4: Write the changelog file
 echo "[3/10] Writing changelog file..."
@@ -152,46 +154,47 @@ echo "[4/10] Updating workspace versions to $NEW_VERSION..."
 if [ -d "mathypad-core" ]; then
     echo "📦 Detected workspace with mathypad-core"
     
-    # Get current mathypad-core version
-    CORE_CURRENT_VERSION=$(grep '^version = ' mathypad-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    # Get current versions safely
+    CORE_CURRENT_VERSION=$(awk '/^\[package\]/{p=1} p && /^version/{print $3; exit}' mathypad-core/Cargo.toml | tr -d '"')
+    MAIN_CURRENT_VERSION=$(awk '/^\[package\]/{p=1} p && /^version/{print $3; exit}' Cargo.toml | tr -d '"')
     echo "   mathypad-core current version: $CORE_CURRENT_VERSION"
-    echo "   mathypad current version: $(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+    echo "   mathypad current version: $MAIN_CURRENT_VERSION"
     
     if [ "$DRY_RUN" = true ]; then
         echo "🔍 DRY RUN: Would update both crates to version $NEW_VERSION"
         echo "🔍 DRY RUN: Would update mathypad-core dependency in Cargo.toml"
     else
-        # Update mathypad-core version
+        # Update mathypad-core version safely
         echo "   Updating mathypad-core/Cargo.toml to $NEW_VERSION..."
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
+            sed -i '' "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
         else
-            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
+            sed -i "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
         fi
         
-        # Update mathypad version
+        # Update mathypad version safely
         echo "   Updating Cargo.toml to $NEW_VERSION..."
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i '' "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
         else
-            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
         fi
         
-        # Update mathypad-core dependency in main Cargo.toml
+        # Update mathypad-core dependency in main Cargo.toml with precise pattern
         echo "   Updating mathypad-core dependency version..."
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i '' "s/mathypad-core = { version = \"[^\"]*\", path/mathypad-core = { version = \"$NEW_VERSION\", path/" Cargo.toml
         else
-            sed -i "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i "s/mathypad-core = { version = \"[^\"]*\", path/mathypad-core = { version = \"$NEW_VERSION\", path/" Cargo.toml
         fi
         
         # Update mathypad-core dependency in web-poc if it exists
         if [ -f "web-poc/Cargo.toml" ]; then
             echo "   Updating mathypad-core dependency in web-poc..."
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                sed -i '' "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" web-poc/Cargo.toml
+                sed -i '' "s/mathypad-core = { version = \"[^\"]*\", path/mathypad-core = { version = \"$NEW_VERSION\", path/" web-poc/Cargo.toml
             else
-                sed -i "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" web-poc/Cargo.toml
+                sed -i "s/mathypad-core = { version = \"[^\"]*\", path/mathypad-core = { version = \"$NEW_VERSION\", path/" web-poc/Cargo.toml
             fi
         fi
     fi
@@ -203,9 +206,9 @@ else
         echo "🔍 DRY RUN: Current version line: $(grep '^version = ' Cargo.toml)"
     else
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i '' "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
         else
-            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+            sed -i "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
         fi
     fi
 fi
@@ -274,8 +277,11 @@ if [ "$DRY_RUN" = true ]; then
         fi
     fi
 else
-    # Stage all changed files
-    git add CHANGELOG.md Cargo.toml Cargo.lock
+    # Stage all changed files (check if they exist first)
+    git add CHANGELOG.md Cargo.toml
+    if [ -f "Cargo.lock" ]; then
+        git add Cargo.lock
+    fi
     if [ -d "mathypad-core" ]; then
         git add mathypad-core/Cargo.toml
         if [ -f "web-poc/Cargo.toml" ]; then
@@ -311,6 +317,20 @@ if [ "$DRY_RUN" = true ]; then
     echo "---"
     echo "🔍 DRY RUN: Command would be: git tag -a \"v$NEW_VERSION\" -F tag_message.tmp"
 else
+    # Check if tag already exists
+    if git tag | grep -q "^v$NEW_VERSION$"; then
+        echo "⚠️  Tag v$NEW_VERSION already exists locally"
+        read -p "Delete existing tag and recreate? (y/N): " confirm_tag
+        if [[ "$confirm_tag" =~ ^[Yy]$ ]]; then
+            git tag -d "v$NEW_VERSION"
+            echo "Deleted existing tag v$NEW_VERSION"
+        else
+            echo "ERROR: Tag v$NEW_VERSION already exists, cannot proceed"
+            rm -f temp_changelog.md tag_message.tmp
+            exit 1
+        fi
+    fi
+    
     if ! git tag -a "v$NEW_VERSION" -F tag_message.tmp; then
         echo "ERROR: Git tag creation failed"
         rm -f temp_changelog.md tag_message.tmp
@@ -365,17 +385,17 @@ if [ -d "mathypad-core" ]; then
             echo "   ℹ️  mathypad-core v$NEW_VERSION already published, skipping"
         else
             echo "   Publishing mathypad-core v$NEW_VERSION..."
-            cd mathypad-core
-            if ! cargo publish; then
-                echo "ERROR: mathypad-core publish failed"
-                echo "The commit and tag have been pushed, but mathypad-core publish failed."
-                echo "You can resume by running:"
-                echo "  cd mathypad-core && cargo publish"
-                echo "  cd .. && cargo publish"
-                cd ..
-                exit 1
-            fi
-            cd ..
+            (
+                cd mathypad-core
+                if ! cargo publish; then
+                    echo "ERROR: mathypad-core publish failed"
+                    echo "The commit and tag have been pushed, but mathypad-core publish failed."
+                    echo "You can resume by running:"
+                    echo "  cd mathypad-core && cargo publish"
+                    echo "  cd .. && cargo publish"
+                    exit 1
+                fi
+            )
             echo "   ✅ mathypad-core v$NEW_VERSION published successfully"
             
             # Wait for crates.io to propagate the new version
