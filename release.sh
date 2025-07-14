@@ -11,15 +11,30 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "  ./release.sh --dry-run Preview what the release would do without making changes"
     echo "  ./release.sh --help    Show this help message"
     echo
+    echo "Features:"
+    echo "  🔍 Automatic workspace detection (single crate vs mathypad-core + mathypad)"
+    echo "  📦 Intelligent publishing order (mathypad-core first, then mathypad)"
+    echo "  🔗 Automatic dependency version synchronization"
+    echo "  📋 Changelog generation with git-cliff"
+    echo "  ⚡ Robust error handling and recovery instructions"
+    echo
     echo "The script will:"
     echo "  1. Check for uncommitted changes (cargo publish will fail if any exist)"
     echo "  2. Generate a changelog preview and show upcoming changes"
     echo "  3. Ask for confirmation before proceeding"
-    echo "  4. Update CHANGELOG.md and Cargo.toml version"
-    echo "  5. Build the project with embedded changelog"
-    echo "  6. Create a git commit and tag"
-    echo "  7. Push to remote repository"
-    echo "  8. Publish to crates.io"
+    echo "  4. Update CHANGELOG.md and workspace versions"
+    echo "  5. Synchronize mathypad-core dependency versions (workspace mode)"
+    echo "  6. Build the project with embedded changelog"
+    echo "  7. Create a git commit and tag"
+    echo "  8. Push to remote repository"
+    echo "  9. Publish to crates.io (mathypad-core first, then mathypad)"
+    echo
+    echo "Workspace support:"
+    echo "  - Automatically detects if mathypad-core/ directory exists"
+    echo "  - Updates both mathypad-core and mathypad to the same version"
+    echo "  - Updates mathypad-core dependency version in Cargo.toml and web-poc/"
+    echo "  - Publishes mathypad-core first, waits for propagation, then publishes mathypad"
+    echo "  - Handles partial failures with clear recovery instructions"
     echo
     exit 0
 fi
@@ -130,19 +145,68 @@ else
     fi
 fi
 
-# Step 5: Update Cargo.toml version
-echo "[4/10] Updating Cargo.toml version to $NEW_VERSION..."
-if [ "$DRY_RUN" = true ]; then
-    echo "🔍 DRY RUN: Would update Cargo.toml version to $NEW_VERSION"
-    echo "🔍 DRY RUN: Current version line: $(grep '^version = ' Cargo.toml)"
-    echo "🔍 DRY RUN: Would become: version = \"$NEW_VERSION\""
-else
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+# Step 5: Update workspace versions
+echo "[4/10] Updating workspace versions to $NEW_VERSION..."
+
+# Check if we have mathypad-core (workspace detection)
+if [ -d "mathypad-core" ]; then
+    echo "📦 Detected workspace with mathypad-core"
+    
+    # Get current mathypad-core version
+    CORE_CURRENT_VERSION=$(grep '^version = ' mathypad-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    echo "   mathypad-core current version: $CORE_CURRENT_VERSION"
+    echo "   mathypad current version: $(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+    
+    if [ "$DRY_RUN" = true ]; then
+        echo "🔍 DRY RUN: Would update both crates to version $NEW_VERSION"
+        echo "🔍 DRY RUN: Would update mathypad-core dependency in Cargo.toml"
     else
-        # Linux
-        sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+        # Update mathypad-core version
+        echo "   Updating mathypad-core/Cargo.toml to $NEW_VERSION..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
+        else
+            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" mathypad-core/Cargo.toml
+        fi
+        
+        # Update mathypad version
+        echo "   Updating Cargo.toml to $NEW_VERSION..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+        else
+            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+        fi
+        
+        # Update mathypad-core dependency in main Cargo.toml
+        echo "   Updating mathypad-core dependency version..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" Cargo.toml
+        else
+            sed -i "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" Cargo.toml
+        fi
+        
+        # Update mathypad-core dependency in web-poc if it exists
+        if [ -f "web-poc/Cargo.toml" ]; then
+            echo "   Updating mathypad-core dependency in web-poc..."
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" web-poc/Cargo.toml
+            else
+                sed -i "s/mathypad-core = { version = \"[^\"]*\"/mathypad-core = { version = \"$NEW_VERSION\"/" web-poc/Cargo.toml
+            fi
+        fi
+    fi
+else
+    # Single crate mode
+    echo "📦 Single crate mode"
+    if [ "$DRY_RUN" = true ]; then
+        echo "🔍 DRY RUN: Would update Cargo.toml version to $NEW_VERSION"
+        echo "🔍 DRY RUN: Current version line: $(grep '^version = ' Cargo.toml)"
+    else
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+        else
+            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+        fi
     fi
 fi
 
@@ -198,14 +262,27 @@ fi
 # Step 7: Git commit
 echo "[6/10] Creating git commit..."
 if [ "$DRY_RUN" = true ]; then
-    echo "🔍 DRY RUN: Would run: git add CHANGELOG.md Cargo.toml Cargo.lock"
-    echo "🔍 DRY RUN: Would commit with message: 'no ai: v$NEW_VERSION'"
+    echo "🔍 DRY RUN: Would stage files and commit with message: 'no ai: v$NEW_VERSION'"
     echo "🔍 DRY RUN: Files that would be staged:"
     echo "  - CHANGELOG.md"
-    echo "  - Cargo.toml" 
+    echo "  - Cargo.toml"
     echo "  - Cargo.lock"
+    if [ -d "mathypad-core" ]; then
+        echo "  - mathypad-core/Cargo.toml"
+        if [ -f "web-poc/Cargo.toml" ]; then
+            echo "  - web-poc/Cargo.toml"
+        fi
+    fi
 else
+    # Stage all changed files
     git add CHANGELOG.md Cargo.toml Cargo.lock
+    if [ -d "mathypad-core" ]; then
+        git add mathypad-core/Cargo.toml
+        if [ -f "web-poc/Cargo.toml" ]; then
+            git add web-poc/Cargo.toml
+        fi
+    fi
+    
     if ! git commit -m "no ai: v$NEW_VERSION"; then
         echo "ERROR: Git commit failed"
         rm -f temp_changelog.md
@@ -260,15 +337,64 @@ rm -f temp_changelog.md tag_message.tmp
 
 # Step 10: Publish to crates.io
 echo "[10/10] Publishing to crates.io..."
-if [ "$DRY_RUN" = true ]; then
-    echo "🔍 DRY RUN: Would run: cargo publish"
-    echo "🔍 DRY RUN: This would publish version $NEW_VERSION to crates.io"
+
+if [ -d "mathypad-core" ]; then
+    echo "📦 Workspace mode: Publishing mathypad-core first, then mathypad"
+    
+    # Check if mathypad-core needs publishing
+    if [ "$DRY_RUN" = true ]; then
+        echo "🔍 DRY RUN: Would check if mathypad-core v$NEW_VERSION is already published"
+        echo "🔍 DRY RUN: Would publish mathypad-core v$NEW_VERSION"
+        echo "🔍 DRY RUN: Would wait 30 seconds for crates.io propagation"
+        echo "🔍 DRY RUN: Would publish mathypad v$NEW_VERSION"
+    else
+        # Check if mathypad-core is already published
+        if cargo search mathypad-core --limit 1 2>/dev/null | grep -q "mathypad-core = \"$NEW_VERSION\""; then
+            echo "   ℹ️  mathypad-core v$NEW_VERSION already published, skipping"
+        else
+            echo "   Publishing mathypad-core v$NEW_VERSION..."
+            cd mathypad-core
+            if ! cargo publish; then
+                echo "ERROR: mathypad-core publish failed"
+                echo "The commit and tag have been pushed, but mathypad-core publish failed."
+                echo "You can resume by running:"
+                echo "  cd mathypad-core && cargo publish"
+                echo "  cd .. && cargo publish"
+                cd ..
+                exit 1
+            fi
+            cd ..
+            echo "   ✅ mathypad-core v$NEW_VERSION published successfully"
+            
+            # Wait for crates.io to propagate the new version
+            echo "   ⏳ Waiting 30 seconds for crates.io to propagate mathypad-core..."
+            sleep 30
+        fi
+        
+        # Now publish mathypad
+        echo "   Publishing mathypad v$NEW_VERSION..."
+        if ! cargo publish; then
+            echo "ERROR: mathypad publish failed"
+            echo "mathypad-core v$NEW_VERSION was published successfully."
+            echo "You can retry mathypad publishing with:"
+            echo "  cargo publish"
+            exit 1
+        fi
+        echo "   ✅ mathypad v$NEW_VERSION published successfully"
+    fi
 else
-    if ! cargo publish; then
-        echo "ERROR: cargo publish failed"
-        echo "The commit and tag have been pushed, but crates.io publish failed."
-        echo "You may need to run 'cargo publish' manually."
-        exit 1
+    # Single crate mode
+    echo "📦 Single crate mode"
+    if [ "$DRY_RUN" = true ]; then
+        echo "🔍 DRY RUN: Would run: cargo publish"
+        echo "🔍 DRY RUN: This would publish version $NEW_VERSION to crates.io"
+    else
+        if ! cargo publish; then
+            echo "ERROR: cargo publish failed"
+            echo "The commit and tag have been pushed, but crates.io publish failed."
+            echo "You may need to run 'cargo publish' manually."
+            exit 1
+        fi
     fi
 fi
 
@@ -281,12 +407,22 @@ if [ "$DRY_RUN" = true ]; then
     echo "🔍 The following actions would be performed:"
     echo "✅ Check for uncommitted changes (must be clean)"
     echo "✅ Update CHANGELOG.md with new changes"
-    echo "✅ Bump version to $NEW_VERSION in Cargo.toml"
+    if [ -d "mathypad-core" ]; then
+        echo "✅ Bump workspace versions to $NEW_VERSION (mathypad-core + mathypad)"
+        echo "✅ Synchronize mathypad-core dependency versions"
+    else
+        echo "✅ Bump version to $NEW_VERSION in Cargo.toml"
+    fi
     echo "✅ Build project with embedded changelog"
     echo "✅ Create git commit: 'no ai: v$NEW_VERSION'"
     echo "✅ Create git tag: v$NEW_VERSION"
     echo "✅ Push commit and tag to origin/main"
-    echo "✅ Publish v$NEW_VERSION to crates.io"
+    if [ -d "mathypad-core" ]; then
+        echo "✅ Publish mathypad-core v$NEW_VERSION to crates.io"
+        echo "✅ Publish mathypad v$NEW_VERSION to crates.io"
+    else
+        echo "✅ Publish v$NEW_VERSION to crates.io"
+    fi
     echo
     echo "To perform the actual release, run:"
     echo "  ./release.sh"
@@ -296,14 +432,28 @@ else
     echo "========================================"
     echo
     echo "✅ Changelog updated"
-    echo "✅ Version bumped in Cargo.toml"
+    if [ -d "mathypad-core" ]; then
+        echo "✅ Workspace versions bumped (mathypad-core + mathypad)"
+        echo "✅ Dependency versions synchronized"
+    else
+        echo "✅ Version bumped in Cargo.toml"
+    fi
     echo "✅ Git commit created"
     echo "✅ Git tag created"
     echo "✅ Pushed to remote repository"
-    echo "✅ Published to crates.io"
+    if [ -d "mathypad-core" ]; then
+        echo "✅ Published mathypad-core and mathypad to crates.io"
+    else
+        echo "✅ Published to crates.io"
+    fi
     echo
     echo "Your release is now live!"
-    echo "  📦 crates.io: https://crates.io/crates/mathypad"
+    if [ -d "mathypad-core" ]; then
+        echo "  📦 mathypad-core: https://crates.io/crates/mathypad-core"
+        echo "  📦 mathypad: https://crates.io/crates/mathypad"
+    else
+        echo "  📦 crates.io: https://crates.io/crates/mathypad"
+    fi
     echo "  🏷️ GitHub: https://github.com/pato/mathypad/releases/tag/v$NEW_VERSION"
 fi
 echo
