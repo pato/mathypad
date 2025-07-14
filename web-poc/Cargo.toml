@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mathypad-core = { version = "0.1.16", path = "../mathypad-core" }
+mathypad-core = { version = "0.1.17", path = "../mathypad-core" }
 eframe = "0.29"
 egui = "0.29"
 log = "0.4"

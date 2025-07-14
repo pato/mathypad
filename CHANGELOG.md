@@ -2,11 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.17] - 2025-07-14
+
+### 🤖 AI Assisted
+- Try fixing release script again
+- Re-review release script
+
+
 ## [0.1.16] - 2025-07-14
 
 ### 🤖 AI Assisted
 - Fix broken test
 - Fix release script
+
+
+### 👤 Artisanally Crafted
+
 
 
 ### Changes
