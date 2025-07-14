@@ -321,11 +321,23 @@ fi
 # Step 9: Push to remote with tags
 echo "[8/10] Pushing to remote repository..."
 if [ "$DRY_RUN" = true ]; then
-    echo "🔍 DRY RUN: Would run: git push origin main --tags"
-    echo "🔍 DRY RUN: This would push the commit and tag v$NEW_VERSION to origin/main"
+    echo "🔍 DRY RUN: Would run: git push origin main"
+    echo "🔍 DRY RUN: Would run: git push origin v$NEW_VERSION"
+    echo "🔍 DRY RUN: This would push the commit and only the new tag v$NEW_VERSION"
 else
-    if ! git push origin main --tags; then
-        echo "ERROR: Git push failed"
+    # Push the commit first
+    if ! git push origin main; then
+        echo "ERROR: Git push (commit) failed"
+        rm -f temp_changelog.md tag_message.tmp
+        exit 1
+    fi
+    
+    # Push only the new tag (not all tags to avoid conflicts)
+    if ! git push origin "v$NEW_VERSION"; then
+        echo "ERROR: Git push (tag) failed"
+        echo "The commit was pushed successfully, but tag push failed."
+        echo "You can manually push the tag with:"
+        echo "  git push origin v$NEW_VERSION"
         rm -f temp_changelog.md tag_message.tmp
         exit 1
     fi
@@ -416,7 +428,7 @@ if [ "$DRY_RUN" = true ]; then
     echo "✅ Build project with embedded changelog"
     echo "✅ Create git commit: 'no ai: v$NEW_VERSION'"
     echo "✅ Create git tag: v$NEW_VERSION"
-    echo "✅ Push commit and tag to origin/main"
+    echo "✅ Push commit to origin/main and tag v$NEW_VERSION"
     if [ -d "mathypad-core" ]; then
         echo "✅ Publish mathypad-core v$NEW_VERSION to crates.io"
         echo "✅ Publish mathypad v$NEW_VERSION to crates.io"
